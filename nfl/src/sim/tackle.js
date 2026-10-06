@@ -132,7 +132,7 @@ export function attemptTackles(sim) {
     if (fromBlock) p -= 0.15;
     p = clamp(p, 0.15, 0.96);
     // Fumble on contact: hit power vs ball security, worse on blind-side hits.
-    const pFumble = (0.004 + 0.022 * D.hitPower * (1 - C.carrying)) * (closing > 3 ? 1.4 : 0.8) * (facing < -0.3 ? 1.6 : 1);
+    const pFumble = (0.004 + 0.022 * D.hitPower * (1 - C.carrying)) * (closing > 3 ? 1.4 : 0.8) * (facing < -0.3 ? 1.6 : 1) * (sim.tune?.turnover ?? 1);
     if (sim.rng.chance(p)) {
       if (!holdingBall && sim.rng.chance(pFumble)) return fumble(sim, c, d);
       // Yards after contact: the carrier's momentum carries the pile forward (less when met square).

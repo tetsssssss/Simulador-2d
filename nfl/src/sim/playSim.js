@@ -35,10 +35,10 @@ export function chooseConcept(rng, playType, down, distance) {
   return rng.pick(names);
 }
 
-function makeEntity(p, slot, side, xy, energy, overrides) {
+function makeEntity(p, slot, side, xy, energy, overrides, tune) {
   const id = p.gsis_id || p.full_name;
   return {
-    id, slot, side, p, name: p.full_name, jersey: p.jersey_number || '', prof: buildProfile(p, overrides?.[slot]),
+    id, slot, side, p, name: p.full_name, jersey: p.jersey_number || '', prof: buildProfile(p, overrides?.[slot], tune?.influence), fatigueK: tune?.fatigue ?? 1,
     pos: { x: xy[0], y: xy[1] }, prev: { x: xy[0], y: xy[1] }, home: { x: xy[0], y: xy[1] }, vel: { x: 0, y: 0 }, facing: side === 'off' ? 0 : Math.PI,
     energy: energy?.[id] ?? 1, stun: 0, down: false, hist: [], noBlock: 0, engagedWith: null, eng: null, assignment: null,
   };
@@ -68,6 +68,8 @@ export function createPlay(opts) {
     defCall, off: {}, def: {}, ents: [], offense: [], defense: [], receivers: [],
     engagements: [], events: [], debugEvents: [], phase: callType === 'run' ? 'HANDOFF' : 'PRE_THROW',
     ball: null, carrier: null, passAttempted: false, result: null, meshPoint: null,
+    // GameplaySettings → engine tuning (src/core/gameplaySettings.js engineTuning). null = calibrated defaults.
+    tune: opts.tuning || null,
   };
   sim.emit = (type, data = {}, debug = false) => {
     const ev = { t: Math.round(sim.t * 100) / 100, type, ...data };
@@ -82,8 +84,8 @@ export function createPlay(opts) {
   };
   sim.whistle = reason => { if (sim.phase !== 'DEAD') { sim.phase = 'DEAD'; sim.deadReason = reason; sim.result = computeResult(sim); } };
 
-  for (const s of OFF_SLOTS) { const e = makeEntity(slots.off[s], s, 'off', al.o[s], opts.energy, opts.overrides); sim.off[s] = e; sim.offense.push(e); }
-  for (const s of DEF_SLOTS) { const e = makeEntity(slots.def[s], s, 'def', al.d[s], opts.energy, opts.overrides); sim.def[s] = e; sim.defense.push(e); }
+  for (const s of OFF_SLOTS) { const e = makeEntity(slots.off[s], s, 'off', al.o[s], opts.energy, opts.overrides, sim.tune); sim.off[s] = e; sim.offense.push(e); }
+  for (const s of DEF_SLOTS) { const e = makeEntity(slots.def[s], s, 'def', al.d[s], opts.energy, opts.overrides, sim.tune); sim.def[s] = e; sim.defense.push(e); }
   sim.ents = [...sim.offense, ...sim.defense];
   sim.qb = sim.off.QB;
   sim.receivers = ['X', 'Z', 'SLOT', 'TE', 'RB'].map(s => sim.off[s]);
@@ -397,6 +399,6 @@ function computeResult(sim) {
     if (r.spotX <= 10 && !r.touchdown) { r.safety = true; sim.emit('SAFETY', { x: r.spotX }); }
   }
   if (has('OUT_OF_BOUNDS') || r.touchdown || r.safety) r.clockStops = true;
-  sim.emit('WHISTLE', { reason: sim.deadReason, outcome: r.outcome, yards: r.yards, spotX: r.spotX });
+  sim.emit('WHISTLE', { reason: sim.deadReason, outcome: r.outcome, yards: r.yards, spotX: r.spotX, contactX: r.contactX });
   return r;
 }

@@ -54,7 +54,7 @@ export function integrate(e, dt) {
   if (s > 0.3) e.facing = Math.atan2(e.vel.y, e.vel.x);
   // Stamina: exertion drains energy; better stamina drains less.
   const ex = (s / e.prof.maxSpeed) ** 2;
-  e.energy = clamp(e.energy - dt * ex * 0.02 * (1.45 - e.prof.r.stamina), 0, 1);
+  e.energy = clamp(e.energy - dt * ex * 0.02 * (1.45 - e.prof.r.stamina) * (e.fatigueK ?? 1), 0, 1); // fatigueK: GameplaySettings
   if (e.stun > 0) e.stun = Math.max(0, e.stun - dt);
 }
 

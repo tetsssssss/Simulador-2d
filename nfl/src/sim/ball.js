@@ -115,7 +115,7 @@ export function updateBall(sim, dt) {
       const R = d.prof.r;
       const pTouch = 0.3 + 0.35 * R.playRecognition + 0.2 * R.jumping;
       if (!sim.rng.chance(pTouch)) continue;
-      const pInt = 0.12 + 0.3 * R.catching * (d.prof.group === 'DB' ? 1 : 0.5);
+      const pInt = (0.12 + 0.3 * R.catching * (d.prof.group === 'DB' ? 1 : 0.5)) * (sim.tune?.turnover ?? 1);
       if (sim.rng.chance(pInt)) return intercept(sim, d);
       return incomplete(sim, 'DEFLECTED', d);
     }
@@ -155,7 +155,7 @@ function resolveCatch(sim) {
     const trailing = dist(bd.pos, b.from) > dist(rec.pos, b.from) + 0.4 && qr > 0.2;
     const pDef = qd * (0.3 + 0.6 * skill) * (trailing ? 0.6 : 1) * (1 - 0.4 * qr * R.contestedCatch);
     if (sim.rng.chance(pDef)) {
-      const pInt = (qd > qr ? 0.3 : 0.12) * (0.45 + 0.9 * D.catching) * (b.type === 'LOB' ? 1.25 : 1);
+      const pInt = (qd > qr ? 0.3 : 0.12) * (0.45 + 0.9 * D.catching) * (b.type === 'LOB' ? 1.25 : 1) * (sim.tune?.turnover ?? 1);
       if (!outOfBounds && sim.rng.chance(pInt)) return intercept(sim, bd);
       return incomplete(sim, 'BREAKUP', bd);
     }

@@ -29,6 +29,7 @@ export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
   const cam = { x: 35, y: FIELD_W / 2, zoom: 'medium', init: false };
   let W = 0, H = 0, dpr = 1;
+  let screen = new Map(), prefs = { photos: true, follow: true, selected: null };
 
   function resize() {
     const r = canvas.getBoundingClientRect();
@@ -45,7 +46,7 @@ export function createRenderer(canvas) {
     const s = ppy();
     const viewW = W / s, viewH = H / s;
     let fx = sim.losX + 6, fy = FIELD_W / 2;
-    const focus = sim.ball ? sim.ball.pos : sim.carrier ? sim.carrier.pos : null;
+    const focus = !prefs.follow ? null : sim.ball ? sim.ball.pos : sim.carrier ? sim.carrier.pos : null;
     if (focus) { fx = focus.x; fy = 0.6 * focus.y + 0.4 * (FIELD_W / 2); }
     if (cam.zoom === 'full') { fx = FIELD_LEN / 2; fy = FIELD_W / 2; }
     const clampX = v => viewW >= FIELD_LEN + 4 ? FIELD_LEN / 2 : Math.min(FIELD_LEN + 2 - viewW / 2, Math.max(viewW / 2 - 2, v));
@@ -107,12 +108,13 @@ export function createRenderer(canvas) {
     ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + Math.cos(e.facing) * r * 1.45, Y + Math.sin(e.facing) * r * 1.45); ctx.stroke();
     ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
     ctx.fillStyle = off ? '#1d4ed8' : '#b91c1c'; ctx.fill();
-    if (level === 'close') {
+    if (level === 'close' && prefs.photos) {
       const img = photoFor(e.p);
       if (img) { ctx.save(); ctx.beginPath(); ctx.arc(X, Y, r - 1.5, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, X - r, Y - r * 1.05, r * 2, r * 2 * (img.naturalHeight / img.naturalWidth || 1)); ctx.restore(); }
     }
     ctx.lineWidth = isCarrier ? 3 : 2; ctx.strokeStyle = isCarrier ? '#f6c453' : off ? '#e8eef5' : '#ff9a9a';
     ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2); ctx.stroke();
+    if (prefs.selected === e.id) { ctx.strokeStyle = '#f6c453'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(X, Y, r + 4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     // jersey number
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (level === 'close') {
@@ -261,14 +263,22 @@ export function createRenderer(canvas) {
     if (!W) resize();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (opts.zoom) cam.zoom = opts.zoom;
+    prefs = { photos: opts.photos !== false, follow: opts.follow !== false, selected: opts.selected || null };
     updateCamera(sim, alpha);
     drawField(sim, opts.teams || {});
-    const screen = new Map();
+    screen = new Map();
     const holder = sim.carrier;
     for (const e of [...sim.ents].sort((a, b) => (a.down ? 0 : 1) - (b.down ? 0 : 1))) screen.set(e, drawPlayer(e, alpha, e === holder));
     if (opts.debug) drawDebug(sim, alpha, screen);
     drawBall(sim, alpha);
   }
 
-  return { render, resize, camera: cam };
+  // Hit test in CSS pixels (canvas-relative) → entity under the cursor (last rendered frame).
+  function pick(px, py) {
+    let best = null, bd = Infinity;
+    for (const [e, sc] of screen) { const d = Math.hypot(sc.X - px, sc.Y - py); if (d < Math.max(10, sc.r + 4) && d < bd) { bd = d; best = e; } }
+    return best;
+  }
+
+  return { render, resize, pick, camera: cam };
 }

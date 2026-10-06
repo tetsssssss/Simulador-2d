@@ -4,7 +4,7 @@
 export function emptyBox() { return { players: {}, teams: {} }; }
 
 function line(box, id, info) {
-  if (!box.players[id]) box.players[id] = { id, name: info?.name || id, team: info?.team || '', pos: info?.pos || '', pass: { att: 0, cmp: 0, yds: 0, td: 0, int: 0, sacks: 0, sackYds: 0 }, rush: { att: 0, yds: 0, td: 0, long: 0 }, rec: { tgt: 0, rec: 0, yds: 0, td: 0, long: 0, drops: 0 }, def: { tkl: 0, ast: 0, sacks: 0, int: 0, pd: 0, ff: 0, fr: 0 } };
+  if (!box.players[id]) box.players[id] = { id, name: info?.name || id, team: info?.team || '', pos: info?.pos || '', pass: { att: 0, cmp: 0, yds: 0, td: 0, int: 0, sacks: 0, sackYds: 0 }, rush: { att: 0, yds: 0, td: 0, long: 0, ybc: 0, yac: 0, mtf: 0 }, rec: { tgt: 0, rec: 0, yds: 0, td: 0, long: 0, drops: 0 }, def: { tkl: 0, ast: 0, sacks: 0, int: 0, pd: 0, ff: 0, fr: 0 } };
   return box.players[id];
 }
 function team(box, abbr) {
@@ -50,11 +50,18 @@ export function applyPlayEvents(box, events, who, offTeam) {
     if (runner) {
       const y = outcome === 'FUMBLE_LOST' ? Math.round((events.find(e => e.type === 'FUMBLE')?.x ?? 0) - (events[0]?.losX ?? 0)) : yards;
       L(runner).rush.att++; L(runner).rush.yds += y; L(runner).rush.long = Math.max(L(runner).rush.long, y);
+      // YBC / YAC split from the engine's first-contact spot (WHISTLE.contactX); MTF = broken tackles on this runner.
+      const cx = w?.contactX;
+      if (cx !== null && cx !== undefined && outcome !== 'FUMBLE_LOST') { const b = Math.round(Math.min(cx, y)); L(runner).rush.ybc += b; L(runner).rush.yac += y - b; }
+      else if (outcome !== 'FUMBLE_LOST') L(runner).rush.ybc += y;
+      L(runner).rush.mtf += events.filter(e => e.type === 'BROKEN_TACKLE' && e.carrier === runner && !e.sackEscape).length;
       T.rushYds += y; T.yards += y;
       if (td) L(runner).rush.td++;
     }
   } else if (outcome === 'SACK') {
     T.yards += yards; T.passYds += yards;
   }
+  const snap = events.find(e => e.type === 'SNAP');
+  if (snap && !['INTERCEPTION', 'FUMBLE_LOST'].includes(outcome) && yards >= snap.distance) T.firstDowns++;
   return box;
 }

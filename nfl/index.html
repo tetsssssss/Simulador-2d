@@ -3,22 +3,22 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>American Sports Universe 2D — NFL</title>
+<title>NFL Universe 2D — American Sports Universe</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div id="app">
   <aside class="sidebar">
-    <div class="brand"><div class="brand-mark">ASU</div><div><strong>American Sports</strong><span>Universe 2D · NFL</span></div></div>
+    <a class="brand" href="#home"><div class="brand-mark">ASU</div><div><strong>NFL Universe 2D</strong><span>American Sports Universe</span></div></a>
     <nav id="nav"></nav>
-    <div class="source-pill" id="sourcePill">Base: aguardando sincronização</div>
+    <div class="side-foot"><div class="save-pill" id="savePill"></div><div class="source-pill" id="sourcePill">aguardando roster…</div></div>
   </aside>
   <main class="main">
     <header class="topbar">
-      <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub">NFL Universe 2026</p></div>
-      <div class="top-actions"><button id="syncBtn" class="primary">Sincronizar roster 2026</button><button id="saveBtn">Salvar carreira</button></div>
+      <div class="tb-title"><h1 id="pageTitle">Home</h1><p id="pageSub"></p></div>
+      <div class="top-actions"><a class="btn ghost" href="#settings" title="Settings">⚙</a><button id="saveBtn" class="primary">Salvar</button></div>
     </header>
-    <section id="content"></section>
+    <section id="content" class="content"></section>
   </main>
 </div>
 <input id="csvFile" type="file" accept=".csv,text/csv" hidden />

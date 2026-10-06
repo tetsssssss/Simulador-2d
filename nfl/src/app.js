@@ -1,32 +1,168 @@
-import {fetchRoster,parseCSV,normalizePlayer,playerPhoto,logoUrl,fallbackDataUri} from './dataService.js';import {ATTRIBUTES,makeRatings,overall,keyForAttribute} from './ratings.js';import {mountGame,newGameState} from './ui/gameView.js';
-const state={teams:[],champions:[],roster:[],view:'dashboard',selectedPlayer:null,selectedTeam:null,filterTeam:'',filterPos:'',filterCollege:'',search:'',career:JSON.parse(localStorage.getItem('asu_career')||'{"team":"SEA","week":1,"wins":0,"losses":0,"injuries":[],"trades":[]}'),game:newGameState()};
-const navItems=[['dashboard','Dashboard'],['franchises','Franquias'],['players','Atletas'],['colleges','College Explorer'],['game','Partida 2D'],['career','Modo Carreira'],['trades','Trades'],['medical','Lesões'],['rivalries','Rivalidades'],['champions','Campeões'],['data','Dados & Fotos']];
-const $=s=>document.querySelector(s), content=$('#content');
-function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2600)}function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
-function setTitle(a,b='NFL Universe 2026'){ $('#pageTitle').textContent=a;$('#pageSub').textContent=b }
-function teamBy(a){return state.teams.find(t=>t.abbr===a)||state.teams[0]}function imgFor(p){return playerPhoto(p)||fallbackDataUri(p.full_name)}
-async function loadStatic(){[state.teams,state.champions]=await Promise.all([fetch('data/teams.json').then(r=>r.json()),fetch('data/champions.json').then(r=>r.json())]);const cached=localStorage.getItem('asu_roster_2026');if(cached){try{state.roster=JSON.parse(cached);sourceStatus('Roster 2026 em cache')}catch{}}renderNav();render()}
-function sourceStatus(t){$('#sourcePill').textContent='Base: '+t}
-async function sync(){sourceStatus('sincronizando...');try{state.roster=await fetchRoster();localStorage.setItem('asu_roster_2026',JSON.stringify(state.roster));sourceStatus(`${state.roster.length.toLocaleString('pt-BR')} atletas · ${state.roster.source||'nflverse'}`);toast('Roster 2026 sincronizado');render()}catch(e){sourceStatus('falha de rede · use importar CSV');toast('Não consegui acessar o feed. O importador CSV está disponível em Dados & Fotos.')}}
-function renderNav(){const n=$('#nav');n.innerHTML=navItems.map(([k,l])=>`<button class="nav-btn ${state.view===k?'active':''}" data-v="${k}">${l}</button>`).join('');n.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{state.view=b.dataset.v;renderNav();render()}))}
-function statCard(v,l){return`<div class="card stat"><strong>${v}</strong><span>${l}</span></div>`}
-function render(){if(!state.teams.length)return;({dashboard,franchises,players,colleges,game,career,trades,medical,rivalries,champions,data}[state.view]||dashboard)()}
-function dashboard(){setTitle('Dashboard');const active=state.roster.filter(p=>p.status==='ACT').length;const collegesN=new Set(state.roster.map(p=>p.college).filter(Boolean)).size;const champs={};state.champions.forEach(c=>champs[c.champion]=(champs[c.champion]||0)+1);const top=Object.entries(champs).sort((a,b)=>b[1]-a[1]).slice(0,6);content.innerHTML=`<div class="grid stats">${statCard(state.teams.length,'Franquias NFL')}${statCard(state.roster.length||'—','Atletas carregados')}${statCard(active||'—','Ativos')}${statCard(collegesN||'—','Colleges representados')}</div><div class="grid two" style="margin-top:16px"><div class="card"><h3>Universo NFL</h3><p class="muted">A base separa dados reais de roster e fotos do sistema próprio de simulação. Os 50 atributos são gerados de forma determinística por posição em escala 1–200.</p><div class="team-grid">${state.teams.slice(0,8).map(t=>teamCard(t)).join('')}</div></div><div class="card"><h3>Maiores campeões de Super Bowl</h3>${top.map(([n,v])=>`<div class="injury"><span>${esc(n)}</span><b>${v}</b></div>`).join('')}<p class="muted" style="font-size:12px">Histórico incluído até o Super Bowl LX (2026).</p></div></div>`;bindTeams()}
-function teamCard(t){const count=state.roster.filter(p=>p.team===t.abbr).length;return`<div class="card team-card" data-team="${t.abbr}"><img class="logo" src="${logoUrl(t)}" alt="Logo ${esc(t.name)}"><div><b>${esc(t.name)}</b><br><small>${t.conference} ${t.division} · ${count||'—'} atletas</small></div></div>`}
-function bindTeams(){content.querySelectorAll('[data-team]').forEach(el=>el.addEventListener('click',()=>{state.selectedTeam=el.dataset.team;state.filterTeam=el.dataset.team;state.view='players';renderNav();render()}))}
-function franchises(){setTitle('Franquias','32 equipes · conferências e divisões');content.innerHTML=`<div class="toolbar"><select id="conf"><option value="">Todas conferências</option><option>AFC</option><option>NFC</option></select><select id="div"><option value="">Todas divisões</option><option>East</option><option>North</option><option>South</option><option>West</option></select></div><div class="team-grid" id="teamsGrid">${state.teams.map(teamCard).join('')}</div>`;const refresh=()=>{const c=$('#conf').value,d=$('#div').value;$('#teamsGrid').innerHTML=state.teams.filter(t=>(!c||t.conference===c)&&(!d||t.division===d)).map(teamCard).join('');bindTeams()};$('#conf').onchange=refresh;$('#div').onchange=refresh;bindTeams()}
-function playerRows(list){return list.map((p,i)=>{const r=makeRatings(p),o=overall(p,r);return`<tr data-pid="${esc(p.gsis_id||p.full_name)}"><td><div class="player-cell"><img class="avatar" src="${imgFor(p)}" onerror="this.src='${fallbackDataUri(p.full_name)}'"><div><b>${esc(p.full_name)}</b><div class="muted">#${esc(p.jersey_number||'—')}</div></div></div></td><td><span class="badge">${esc(p.position)}</span></td><td>${esc(p.team)}</td><td>${esc(p.college)}</td><td>${p.age??'—'}</td><td>${p.years_exp}</td><td><b>${o}</b></td><td>${esc(p.status||'—')}</td></tr>`}).join('')}
-function players(){setTitle('Atletas','Roster 2026 · fotos, college, posições e 50 atributos');const positions=[...new Set(state.roster.map(p=>p.position).filter(Boolean))].sort();const teams=state.teams;content.innerHTML=`<div class="toolbar"><input id="search" placeholder="Buscar atleta" value="${esc(state.search)}"><select id="teamF"><option value="">Todas equipes</option>${teams.map(t=>`<option value="${t.abbr}" ${state.filterTeam===t.abbr?'selected':''}>${t.name}</option>`).join('')}</select><select id="posF"><option value="">Todas posições</option>${positions.map(p=>`<option ${state.filterPos===p?'selected':''}>${p}</option>`).join('')}</select><button id="clearF">Limpar</button></div><div id="playerBox"></div>`;const refresh=()=>{state.search=$('#search').value;state.filterTeam=$('#teamF').value;state.filterPos=$('#posF').value;let list=state.roster.filter(p=>(!state.filterTeam||p.team===state.filterTeam)&&(!state.filterPos||p.position===state.filterPos)&&(!state.filterCollege||p.college===state.filterCollege)&&(!state.search||p.full_name.toLowerCase().includes(state.search.toLowerCase())));list=list.slice(0,500);$('#playerBox').innerHTML=state.selectedPlayer?profile(state.selectedPlayer):`<div class="table-wrap"><table class="table"><thead><tr><th>Atleta</th><th>Pos.</th><th>Equipe</th><th>College</th><th>Idade</th><th>Exp.</th><th>OVR</th><th>Status</th></tr></thead><tbody>${playerRows(list)}</tbody></table></div><p class="muted">Exibindo ${list.length} de ${state.roster.length} registros. Busca limitada a 500 linhas por desempenho.</p>`;$('#playerBox').querySelectorAll('tr[data-pid]').forEach(tr=>tr.onclick=()=>{state.selectedPlayer=state.roster.find(p=>(p.gsis_id||p.full_name)===tr.dataset.pid);refresh()});const back=$('#backPlayers');if(back)back.onclick=()=>{state.selectedPlayer=null;refresh()}};['search','teamF','posF'].forEach(id=>$('#'+id).addEventListener(id==='search'?'input':'change',refresh));$('#clearF').onclick=()=>{state.search='';state.filterTeam='';state.filterPos='';state.filterCollege='';state.selectedPlayer=null;players()};refresh()}
-function profile(p){const r=makeRatings(p),o=overall(p,r),t=teamBy(p.team);return`<button id="backPlayers">← Voltar à lista</button><div class="grid two" style="margin-top:14px"><div class="card"><div class="profile-head"><img class="avatar big" src="${imgFor(p)}" onerror="this.src='${fallbackDataUri(p.full_name)}'"><div><h2>${esc(p.full_name)}</h2><div>${esc(p.position)} · ${esc(t?.name||p.team)} · #${esc(p.jersey_number||'—')}</div><p class="muted">${esc(p.college)} · ${p.age??'idade n/d'} anos · ${p.years_exp} anos de liga · ${p.height||'—'} in · ${p.weight||'—'} lb</p></div><div class="overall">${o}</div></div></div><div class="card"><h3>Identidade de dados</h3><div class="injury"><span>GSIS</span><b>${esc(p.gsis_id||'—')}</b></div><div class="injury"><span>ESPN</span><b>${esc(p.espn_id||'—')}</b></div><div class="injury"><span>Status</span><b>${esc(p.status||'—')}</b></div><div class="injury"><span>Depth chart</span><b>${esc(p.depth_chart_position||'—')}</b></div></div></div><div class="card" style="margin-top:16px"><h3>50 atributos · escala 1–200</h3><div class="attrs">${ATTRIBUTES.map(a=>{const v=r[keyForAttribute(a)];return`<div class="attr"><span>${a}</span><b>${v}</b><div class="bar"><div class="fill" style="width:${v/2}%"></div></div></div>`}).join('')}</div></div>`}
-function colleges(){setTitle('College Explorer','Universidades representadas no roster profissional');const map={};state.roster.forEach(p=>{if(p.college)map[p.college]=(map[p.college]||0)+1});const arr=Object.entries(map).sort((a,b)=>b[1]-a[1]);content.innerHTML=`<div class="card"><h3>Colleges com mais atletas na base</h3><div class="college-cloud">${arr.slice(0,80).map(([c,n])=>`<button class="college-btn" data-c="${esc(c)}">${esc(c)} · ${n}</button>`).join('')}</div></div>`;content.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{state.filterCollege=b.dataset.c;state.filterTeam='';state.filterPos='';state.view='players';renderNav();render()})}
-function game(){setTitle('Partida 2D','Simulação 11 x 11 · física, assignments e estatísticas por evento');mountGame(content,{state,teamBy,logoUrl,esc,toast})}
-function career(){setTitle('Modo Carreira','GM / Head Coach · persistência local');const t=teamBy(state.career.team);content.innerHTML=`<div class="grid two"><div class="card"><div class="profile-head"><img class="logo" src="${logoUrl(t)}"><div><h2>${t.name}</h2><p class="muted">${t.conference} ${t.division} · ${t.stadium}</p></div></div><div class="grid stats" style="grid-template-columns:repeat(3,1fr);margin-top:14px">${statCard(state.career.week,'Semana')}${statCard(state.career.wins,'Vitórias')}${statCard(state.career.losses,'Derrotas')}</div><div class="toolbar" style="margin-top:14px"><select id="careerTeam">${state.teams.map(x=>`<option value="${x.abbr}" ${x.abbr===t.abbr?'selected':''}>${x.name}</option>`).join('')}</select><button id="advance">Avançar semana</button></div></div><div class="card"><h3>Carreira salva</h3><p class="muted">Trades, lesões e progresso de semana são salvos no navegador. O save foi versionado para permitir expansão futura.</p><div class="injury"><span>Trades realizados</span><b>${state.career.trades.length}</b></div><div class="injury"><span>Lesões acompanhadas</span><b>${state.career.injuries.length}</b></div></div></div>`;$('#careerTeam').onchange=e=>{state.career.team=e.target.value;saveCareer();career()};$('#advance').onclick=()=>{state.career.week++;const win=Math.random()>.5;win?state.career.wins++:state.career.losses++;if(Math.random()<.28)generateInjury();saveCareer();career();toast(win?'Semana simulada: vitória':'Semana simulada: derrota')}}
-function saveCareer(){localStorage.setItem('asu_career',JSON.stringify(state.career));toast('Carreira salva')}
-function trades(){setTitle('Trade Center','Negociações com valor interno do simulador');content.innerHTML=`<div class="card"><div class="toolbar"><select id="ta">${state.teams.map(t=>`<option value="${t.abbr}" ${t.abbr===state.career.team?'selected':''}>${t.name}</option>`).join('')}</select><select id="tb">${state.teams.map(t=>`<option value="${t.abbr}" ${t.abbr==='NE'?'selected':''}>${t.name}</option>`).join('')}</select></div><div class="trade-cols"><div class="select-list" id="listA"></div><div style="display:grid;place-items:center"><button class="primary" id="offer">Propor trade ⇄</button></div><div class="select-list" id="listB"></div></div><div id="tradeResult" style="margin-top:12px"></div></div>`;const fill=()=>{for(const side of ['A','B']){const team=$('#t'+side.toLowerCase()).value,list=state.roster.filter(p=>p.team===team&&p.status==='ACT').slice(0,60);$('#list'+side).innerHTML=list.map(p=>{const r=makeRatings(p),o=overall(p,r),id=(p.gsis_id||p.full_name);return`<label class="select-row"><input type="checkbox" data-id="${esc(id)}"><img class="avatar" src="${imgFor(p)}" onerror="this.src='${fallbackDataUri(p.full_name)}'"><span>${esc(p.full_name)} <small class="muted">${p.position} · ${o}</small></span></label>`}).join('')}};$('#ta').onchange=fill;$('#tb').onchange=fill;fill();$('#offer').onclick=()=>{const picked=s=>[...$('#list'+s).querySelectorAll('input:checked')].map(i=>state.roster.find(p=>(p.gsis_id||p.full_name)===i.dataset.id));const A=picked('A'),B=picked('B');const value=xs=>Math.round(xs.reduce((n,p)=>n+overall(p,makeRatings(p))*Math.max(.55,1-(p.age||25-25)*.018),0));const va=value(A),vb=value(B),gap=Math.abs(va-vb)/Math.max(1,Math.max(va,vb));const ok=A.length&&B.length&&gap<.22;$('#tradeResult').innerHTML=`<div class="card"><b>${ok?'TRADE ACEITO':'TRADE RECUSADO'}</b><p>Valor lado A: ${va} · lado B: ${vb} · diferença ${(gap*100).toFixed(1)}%</p></div>`;if(ok){state.career.trades.push({week:state.career.week,a:A.map(x=>x.full_name),b:B.map(x=>x.full_name)});saveCareer()}}}
-function generateInjury(){const pool=state.roster.filter(p=>p.team===state.career.team&&p.status==='ACT');if(!pool.length)return;const p=pool[Math.floor(Math.random()*pool.length)],types=[['Hamstring',2,5],['Ankle',1,4],['Shoulder',2,6],['Knee',3,8],['Concussion',1,3],['Back',1,5]];const x=types[Math.floor(Math.random()*types.length)],weeks=x[1]+Math.floor(Math.random()*(x[2]-x[1]+1));state.career.injuries.unshift({name:p.full_name,position:p.position,type:x[0],weeks})}
-function medical(){setTitle('Departamento Médico','Lesões da carreira');content.innerHTML=`<div class="card"><div class="toolbar"><button id="newInj">Gerar evento de lesão de teste</button></div>${state.career.injuries.length?state.career.injuries.map(i=>`<div class="injury"><span><b>${esc(i.name)}</b> · ${i.position}<br><small class="muted">${i.type}</small></span><b>${i.weeks} sem.</b></div>`).join(''):'<p class="muted">Nenhuma lesão registrada.</p>'}</div>`;$('#newInj').onclick=()=>{generateInjury();saveCareer();medical()}}
-function rivalries(){setTitle('Rivalidades','Índice 0–100 e rivalidades históricas/divisionais');const fixed=[['Green Bay Packers','Chicago Bears',100],['Pittsburgh Steelers','Baltimore Ravens',98],['Dallas Cowboys','Philadelphia Eagles',97],['San Francisco 49ers','Seattle Seahawks',93],['Kansas City Chiefs','Las Vegas Raiders',94],['New England Patriots','New York Jets',90],['New York Giants','Philadelphia Eagles',91],['Cleveland Browns','Pittsburgh Steelers',92],['Chicago Bears','Detroit Lions',86],['Atlanta Falcons','New Orleans Saints',95]];content.innerHTML=`<div class="grid two">${fixed.map(([a,b,s])=>`<div class="card"><b>${a}</b><div class="muted">vs.</div><b>${b}</b><div class="bar" style="height:8px;background:#223147;border-radius:999px;margin-top:10px"><div class="fill" style="height:100%;width:${s}%;background:var(--danger);border-radius:999px"></div></div><small class="muted">Rivalry Score ${s}/100</small></div>`).join('')}</div>`}
-function champions(){setTitle('Histórico de Campeões','Super Bowl I ao LX');content.innerHTML=`<div class="champion-list">${state.champions.slice().reverse().map(c=>`<div class="champ"><span class="badge">Super Bowl ${c.sb} · ${c.year}</span><b>${esc(c.champion)}</b><small>${esc(c.score)} vs ${esc(c.runnerUp)}</small></div>`).join('')}</div>`}
-function data(){setTitle('Dados & Fotos','Sincronização, cache e integridade');const withPhoto=state.roster.filter(p=>!!p.headshot_url||!!p.espn_id).length,without=state.roster.length-withPhoto;content.innerHTML=`<div class="grid two"><div class="card"><h3>Fonte do roster</h3><p>nflverse · roster_2026.csv</p><p class="muted">Campos utilizados: equipe, posição, depth chart, camisa, status, nome, nascimento, altura, peso, college, experiência, IDs e headshot.</p><div class="injury"><span>Registros carregados</span><b>${state.roster.length}</b></div><div class="injury"><span>Com URL/ID de headshot</span><b>${withPhoto}</b></div><div class="injury"><span>Sem headshot público resolvido</span><b>${without}</b></div><div class="toolbar" style="margin-top:12px"><button id="sync2" class="primary">Sincronizar agora</button><button id="importCsv">Importar roster_2026.csv</button></div></div><div class="card"><h3>Política de imagem</h3><p class="muted">O ZIP não redistribui milhares de fotografias ou marcas registradas. O aplicativo resolve headshots e logos por URL pública em tempo de execução e usa silhueta local apenas quando a fonte não oferece foto.</p><p class="muted">Depois da primeira sincronização, os dados textuais ficam em cache local. As imagens continuam sendo carregadas das respectivas URLs.</p></div></div>`;$('#sync2').onclick=sync;$('#importCsv').onclick=()=>$('#csvFile').click()}
-$('#syncBtn').onclick=sync;$('#saveBtn').onclick=saveCareer;$('#csvFile').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const text=await f.text();const rows=parseCSV(text).map(normalizePlayer).filter(p=>p.full_name&&p.team);if(rows.length<100){toast('CSV parece incompleto');return}state.roster=rows;localStorage.setItem('asu_roster_2026',JSON.stringify(rows));sourceStatus(`${rows.length} atletas · CSV local`);toast('CSV importado');render()});
-loadStatic().then(()=>{if(!state.roster.length)sync()});
+// NFL Universe 2D — app shell: global state, hash routing, settings/save persistence, career glue.
+// Screens live in src/ui/views/*; the 2D match in src/ui/gameView.js; the engine in src/sim/* (untouched by the UI).
+import { fetchRoster, parseCSV, normalizePlayer } from './dataService.js';
+import { mountGame } from './ui/gameView.js';
+import { createSaveManager } from './core/saveManager.js';
+import { defaultSettings, sanitizeSettings, engineTuning } from './core/gameplaySettings.js';
+import { createCareer, normalizeCareer, completeWeek, nextGame } from './game/career.js';
+import { simulateGame } from './game/match.js';
+import { esc, displayPrefs } from './ui/components.js';
+import { TEAM_COLORS } from './ui/teamColors.js';
+import { homeView } from './ui/views/home.js';
+import { rosterView } from './ui/views/roster.js';
+import { playerView } from './ui/views/player.js';
+import { settingsView } from './ui/views/settings.js';
+import { careerView } from './ui/views/career.js';
+import { franchisesView, collegesView, tradesView, medicalView, rivalriesView, championsView, dataView } from './ui/views/misc.js';
+
+const sm = createSaveManager();
+const state = {
+  teams: [], champions: [], roster: [], route: { view: 'home', arg: '' },
+  settings: sanitizeSettings(sm.loadSettings() || defaultSettings()),
+  career: null, slot: null, match: null, setup: null, ui: {},
+};
+window.__asu = state; // debug/test hook
+
+const NAV = [
+  ['', [['home', 'Home', '⌂']]],
+  ['JOGAR', [['play', 'Partida 2D', '▶'], ['career', 'Carreira & Saves', '★']]],
+  ['TIME', [['roster', 'Roster', '☰'], ['depth', 'Depth Chart', '⇅'], ['franchises', 'Franquias', '⛨']]],
+  ['GESTÃO', [['trades', 'Trades', '⇄'], ['medical', 'Médico', '✚']]],
+  ['LIGA', [['rivalries', 'Rivalidades', '⚔'], ['champions', 'Campeões', '🏆'], ['colleges', 'Colleges', '🎓']]],
+  ['SISTEMA', [['settings', 'Settings', '⚙'], ['data', 'Dados & Fotos', '⛁']]],
+];
+const TITLES = { home: 'Home', play: 'Partida 2D', career: 'Carreira & Saves', roster: 'Roster', depth: 'Depth Chart', player: 'Perfil do atleta', franchises: 'Franquias', trades: 'Trade Center', medical: 'Departamento Médico', rivalries: 'Rivalidades', champions: 'Campeões', colleges: 'College Explorer', settings: 'Settings', data: 'Dados & Fotos' };
+
+const $ = s => document.querySelector(s);
+const content = $('#content');
+
+function toast(t, kind = '') { const el = $('#toast'); el.textContent = t; el.className = `toast show ${kind}`; clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('show'), 2800); }
+function teamBy(a) { return state.teams.find(t => t.abbr === a) || state.teams[0]; }
+function navigate(view, arg = '') { const h = `#${view}${arg ? '/' + encodeURIComponent(arg) : ''}`; if (location.hash === h) render(); else location.hash = h; }
+function setTitle(a, b = '') { $('#pageTitle').textContent = a; $('#pageSub').textContent = b; }
+function sourceStatus(t) { $('#sourcePill').textContent = t; }
+
+// ---------- settings & saves ----------
+function applyDisplay() { displayPrefs.photos = state.settings.display.photos !== false; }
+function saveSettings() { sm.saveSettings(state.settings); applyDisplay(); if (state.career && state.settings.save.autosave) autosave(true); }
+function autosave(silent = false) {
+  if (!state.career) return;
+  if (!state.slot) { state.slot = sm.firstFreeSlot(); if (!state.slot) { if (!silent) toast('Todos os slots ocupados — escolha um em Carreira & Saves'); return; } }
+  sm.save(state.slot, state.career, state.settings);
+  drawSavePill();
+  if (!silent) toast(`Salvo no slot ${state.slot}`);
+}
+function loadSlot(i) {
+  const r = sm.load(i);
+  if (r.status !== 'ok') { toast(r.status === 'corrupt' ? `Slot ${i} corrompido: ${r.error}` : 'Slot vazio', 'bad'); return false; }
+  state.career = normalizeCareer(r.save.career, state.teams);
+  state.slot = i; sm.setActive(i);
+  if (r.save.settings) { state.settings = sanitizeSettings(r.save.settings); sm.saveSettings(state.settings); applyDisplay(); }
+  state.match = null; drawSavePill();
+  return true;
+}
+function newCareer({ team, name, slot }) {
+  state.career = createCareer({ team, name, teams: state.teams });
+  state.slot = slot || sm.firstFreeSlot() || 1;
+  sm.save(state.slot, state.career, state.settings);
+  state.match = null; drawSavePill();
+}
+function closeCareer() { state.career = null; state.slot = null; sm.setActive(null); state.match = null; drawSavePill(); }
+function drawSavePill() {
+  const c = state.career;
+  $('#savePill').innerHTML = c ? `<span class="dot ok"></span><b>${esc(c.name)}</b><small>${esc(c.team)} · ${c.wins}-${c.losses}${c.ties ? '-' + c.ties : ''} · S${state.slot || '—'}</small>` : '<span class="dot"></span><small>Sem carreira ativa</small>';
+}
+
+// ---------- career glue ----------
+const careerRoster = roster => {
+  const out = new Set((state.career?.injuries || []).filter(i => i.weeks > 0).map(i => i.id || i.name));
+  return out.size ? roster.filter(p => !out.has(p.gsis_id || p.full_name) && !out.has(p.full_name)) : roster;
+};
+function finishCareerGame(g) {
+  const c = state.career;
+  if (!c || !nextGame(c)) return null;
+  const wk = completeWeek(c, state.teams, state.roster, g, state.settings.gameplay);
+  if (state.settings.save.autosave) autosave(true);
+  drawSavePill();
+  toast(`Semana ${wk.week}: ${wk.result.w} ${wk.result.us}-${wk.result.them} vs ${wk.opp}`, wk.result.w === 'W' ? 'good' : 'bad');
+  return wk;
+}
+async function simCareerGame({ home, away, seed, quarterMin }) {
+  const g = await simulateGame({ roster: careerRoster(state.roster), home, away, seed, quarterMin, tuning: engineTuning(state.settings.gameplay) });
+  finishCareerGame(g);
+  return g;
+}
+
+const ctx = {
+  state, content, sm, toast, teamBy, navigate, setTitle, esc, render, autosave, loadSlot, newCareer, closeCareer, saveSettings, sync,
+  simCareerGame, finishCareerGame, careerRoster,
+};
+
+// ---------- routing ----------
+function parseHash() {
+  const [view, ...rest] = location.hash.replace(/^#/, '').split('/');
+  return { view: TITLES[view] ? view : 'home', arg: decodeURIComponent(rest.join('/') || '') };
+}
+function renderNav() {
+  const cur = state.route.view === 'player' ? 'roster' : state.route.view;
+  $('#nav').innerHTML = NAV.map(([sec, items]) => `${sec ? `<div class="nav-sec">${sec}</div>` : ''}${items.map(([k, l, ic]) => `<a class="nav-btn ${cur === k ? 'active' : ''}" href="#${k}"><span class="nav-ic">${ic}</span>${l}${k === 'play' && state.match && !state.match.g?.over ? '<span class="live">LIVE</span>' : ''}</a>`).join('')}`).join('');
+}
+function render() {
+  if (!state.teams.length) return;
+  state.route = parseHash();
+  renderNav();
+  const v = state.route.view;
+  document.body.dataset.view = v;
+  setTitle(TITLES[v] || 'Home');
+  content.className = `content v-${v}`;
+  const views = {
+    home: homeView, roster: c => rosterView(c, 'roster'), depth: c => rosterView(c, 'depth'), player: playerView, settings: settingsView, career: careerView,
+    franchises: franchisesView, colleges: collegesView, trades: tradesView, medical: medicalView, rivalries: rivalriesView, champions: championsView, data: dataView,
+    play: () => {
+      setTitle('Partida 2D', 'Simulação 11×11 · motor físico 30 Hz · resultado emergente');
+      mountGame(content, {
+        state, teamBy, toast, navigate,
+        settings: () => state.settings, tuning: () => engineTuning(state.settings.gameplay),
+        career: () => state.career, careerNext: () => (state.career ? nextGame(state.career) : null), careerRoster,
+        simCareerGame,
+        onGameOver: m => { if (m.mode === 'CAREER' && !m.recorded) { m.recorded = true; finishCareerGame(m.g); } renderNav(); },
+      });
+    },
+  };
+  (views[v] || homeView)(ctx, state.route.arg);
+  content.scrollTop = 0;
+}
+
+// ---------- data ----------
+async function loadStatic() {
+  [state.teams, state.champions] = await Promise.all([fetch('data/teams.json').then(r => r.json()), fetch('data/champions.json').then(r => r.json())]);
+  for (const t of state.teams) t.color = TEAM_COLORS[t.abbr] || '#24364d';
+  const cached = localStorage.getItem('asu_roster_2026');
+  if (cached) { try { state.roster = JSON.parse(cached); sourceStatus(`${state.roster.length.toLocaleString('pt-BR')} atletas · cache`); } catch { /* re-sync below */ } }
+  // Saves: legacy migration (asu_career → slot), then the active slot.
+  const mig = sm.migrateLegacy();
+  if (mig) setTimeout(() => toast(`Save antigo migrado para o slot ${mig.slot} (versão ${mig.save.version})`), 600);
+  const act = sm.activeSlot();
+  if (act) loadSlot(act);
+  applyDisplay(); drawSavePill(); render();
+}
+async function sync() {
+  sourceStatus('sincronizando…');
+  try {
+    state.roster = await fetchRoster();
+    localStorage.setItem('asu_roster_2026', JSON.stringify(state.roster));
+    sourceStatus(`${state.roster.length.toLocaleString('pt-BR')} atletas · ${state.roster.source || 'nflverse'}`);
+    toast('Roster 2026 sincronizado'); render();
+  } catch { sourceStatus('falha de rede · importe o CSV'); toast('Não consegui acessar o feed. Use o importador CSV em Dados & Fotos.', 'bad'); }
+}
+
+$('#saveBtn').onclick = () => (state.career ? autosave() : navigate('career'));
+$('#csvFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const rows = parseCSV(await f.text()).map(normalizePlayer).filter(p => p.full_name && p.team);
+  if (rows.length < 100) { toast('CSV parece incompleto', 'bad'); return; }
+  state.roster = rows; localStorage.setItem('asu_roster_2026', JSON.stringify(rows));
+  sourceStatus(`${rows.length} atletas · CSV local`); toast('CSV importado'); render();
+});
+window.addEventListener('hashchange', render);
+loadStatic().then(() => { if (!state.roster.length) sync(); });

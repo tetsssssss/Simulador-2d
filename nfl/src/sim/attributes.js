@@ -23,10 +23,13 @@ export function positionGroup(p) {
 
 const n = x => (x || 100) / 200; // 0..1
 
-export function buildProfile(player, overrides = {}) {
+// influence (GameplaySettings): { ratingKey: k } scales how far a rating sits from the league midpoint
+// (r' = 0.5 + (r - 0.5) * k). k = 1 leaves the profile untouched; k > 1 widens talent gaps, k < 1 compresses them.
+export function buildProfile(player, overrides = {}, influence = null) {
   const raw = { ...makeRatings(player), ...(overrides.ratings || {}) };
   const r = {};
   for (const k in raw) r[k] = n(raw[k]);
+  if (influence) for (const k in influence) if (influence[k] !== 1 && r[k] !== undefined) r[k] = Math.max(0.005, Math.min(1, 0.5 + (r[k] - 0.5) * influence[k]));
   const group = positionGroup(player);
   const weight = Number(player.weight) || DEFAULT_WEIGHT[group] || 220;
   const height = Number(player.height) || DEFAULT_HEIGHT[group] || 74;

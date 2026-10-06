@@ -15,11 +15,14 @@ Aplicativo web local gerado no ChatGPT. Esta entrega começa pela NFL e foi estr
 - histórico de Super Bowl I a LX
 - partida 2D 11 x 11 **simulada** (v0.3): bloqueios, pass rush, rotas, cobertura, leituras do QB, bola com trajetória, tackles; box score por eventos; modo debug
 - jogo corrido (v0.4): zone/duo/power/counter/trap com double team e climb, leitura de lanes do RB, cut/juke/spin/stiff arm/truck; debug mostra lanes, scores e decisões
-- modo carreira local
-- trade center
-- lesões
-- rivalidades
-- save em `localStorage`
+- **v0.5 (produto)**: nova interface (Home/Dashboard da franquia, roster com filtros/ordenação, depth chart, perfil com
+  atributos agrupados + comparação), HUD de transmissão na partida, play calling (12 conceitos de corrida, 8 de passe,
+  4 coberturas — só o que o motor implementa), controles (pause, 0.5x–4x, Next Play, Auto Play, Sim to end),
+  card de resultado, game log, box score por abas (YBC/YAC/MTF), ficha do jogador ao clicar no campo
+- modos: Quick Game, Coach, Spectator, Sandbox, Career (todos usam o mesmo motor)
+- Settings: sliders de gameplay centralizados (presets Simulation/Balanced/Chaotic), exibição, simulação, saves
+- carreira local com calendário de 17 semanas, tabela, notícias, lesões, trades e estatísticas da temporada
+- saves versionados em 5 slots (load/delete/export/import JSON); migração automática do save antigo `asu_career`
 - importação manual de `roster_2026.csv` se a rede bloquear a sincronização
 
 ## Como abrir
@@ -37,9 +40,9 @@ No Windows, dê dois cliques em `START_APP.bat`. Isso inicia um servidor local e
 
 O ZIP não embute milhares de fotografias de atletas nem logos proprietários. As imagens são resolvidas em tempo de execução usando URLs fornecidas pela base pública de roster e um endpoint público de logos. Quando não há headshot disponível, o app mostra uma silhueta local, nunca uma imagem inventada do atleta.
 
-## Testes (v0.4)
+## Testes (v0.5)
 
-Requer Node 18+ (sem dependências): `npm test`, `node tests/harness.mjs 1000 mix` (SEA × NE) e
+Requer Node 18+ (sem dependências): `npm test` (motor + camada de produto), `node tests/harness.mjs 1000 mix` (SEA × NE) e
 `node tests/league.mjs 80 mix` (32 times — referência de calibração; ver `docs/CALIBRATION_v04.md`).
 
 ## Fonte de dados
@@ -48,12 +51,12 @@ Roster: nflverse `roster_2026.csv`. O projeto separa os dados de roster do siste
 
 ## Próximos módulos recomendados
 
-1. depth chart 2026 por slot
+1. depth chart editável (hoje: visualização da escalação automática)
 2. contratos e salary cap
 3. draft/prospects college completos
 4. playbooks reais estruturados
 5. motor de bloqueios e coberturas por assignment
-6. temporada/schedule completos
+6. playoffs, special teams e pênaltis
 7. estatísticas e record book
 8. free agency
 9. staff/coaches
