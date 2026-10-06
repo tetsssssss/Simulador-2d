@@ -1,0 +1,12 @@
+{
+  "name": "american-sports-universe-nfl",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "American Sports Universe 2D — NFL. No build step; open index.html via a local server.",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "harness": "node tests/harness.mjs 1000 mix",
+    "golden:update": "node tests/golden.mjs --update"
+  }
+}
