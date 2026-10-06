@@ -7,10 +7,11 @@ export const DEF_SLOTS = ['LDE', 'LDT', 'RDT', 'RDE', 'WILL', 'MIKE', 'SAM', 'CB
 
 // Route geometry: points are [downfield, inward] yards from the receiver's alignment.
 // cont: keep running along the last segment; settle: stop at the last point and work to space.
+// timing: yards into the route when the ball is on time (vertical routes have no break: their stem is the timing).
 export const ROUTES = {
-  GO: { pts: [[1.5, 0], [45, 0]], cont: true },
-  FADE: { pts: [[1.5, -0.8], [45, -3.5]], cont: true },
-  SEAM: { pts: [[2, 0.6], [45, 1.5]], cont: true },
+  GO: { pts: [[1.5, 0], [45, 0]], cont: true, timing: 18 },
+  FADE: { pts: [[1.5, -0.8], [45, -3.5]], cont: true, timing: 18 },
+  SEAM: { pts: [[2, 0.6], [45, 1.5]], cont: true, timing: 15 },
   SLANT: { pts: [[3, 0], [8, 5]], cont: true },
   QUICK_OUT: { pts: [[5, 0], [5, -10]], cont: true },
   OUT: { pts: [[9, 0], [9.5, -14]], cont: true },
@@ -23,7 +24,7 @@ export const ROUTES = {
   DRAG: { pts: [[1.5, 1], [4.5, 18], [5, 32]], cont: true },
   STICK: { pts: [[6, 0], [6, 1.5]], settle: true },
   FLAT: { pts: [[1.5, -2.5], [3.5, -9], [4, -16]], cont: true },
-  WHEEL: { pts: [[1, -4], [3, -9], [25, -10]], cont: true },
+  WHEEL: { pts: [[1, -4], [3, -9], [25, -10]], cont: true, timing: 18 },
   CHECK: { pts: [[2.5, 0.5], [4.5, 3]], settle: true, check: true },
   STALK: { pts: [[3, 0], [4, 0]], settle: true, block: true },
 };
@@ -41,11 +42,23 @@ export const PLAYBOOK = {
     SMASH: { X: 'HITCH', SLOT: 'CORNER', TE: 'OUT', Z: 'COMEBACK', RB: 'CHECK', reads: ['SLOT', 'X', 'Z', 'TE', 'RB'] },
     POST_WHEEL: { X: 'POST', SLOT: 'DRAG', TE: 'CORNER', Z: 'GO', RB: 'WHEEL', reads: ['X', 'TE', 'RB', 'SLOT', 'Z'] },
   },
+  // Run concepts. scheme drives the blocking rules (runBlocking.js); aim = designed lane (yards from the ball, play side);
+  // pull = backside linemen that pull (role: LEAD through the hole, KICK out the end man, TRAP the play-side DT);
+  // mesh = lateral offset of the mesh point (counter: RB's first step goes backside); doubleHold = how long a double
+  // team stays on the down lineman before reading the linebacker.
   run: {
-    INSIDE_ZONE_R: { side: 1, aim: 2.5 },
-    INSIDE_ZONE_L: { side: -1, aim: 2.5 },
-    OUTSIDE_ZONE_R: { side: 1, aim: 8 },
-    OUTSIDE_ZONE_L: { side: -1, aim: 8 },
+    INSIDE_ZONE_R: { scheme: 'ZONE', side: 1, aim: 2.5, doubleHold: 0.45 },
+    INSIDE_ZONE_L: { scheme: 'ZONE', side: -1, aim: 2.5, doubleHold: 0.45 },
+    OUTSIDE_ZONE_R: { scheme: 'ZONE', side: 1, aim: 8, reach: true, doubleHold: 0.35 },
+    OUTSIDE_ZONE_L: { scheme: 'ZONE', side: -1, aim: 8, reach: true, doubleHold: 0.35 },
+    DUO_R: { scheme: 'DUO', side: 1, aim: 1.6, doubleHold: 0.75 },
+    DUO_L: { scheme: 'DUO', side: -1, aim: 1.6, doubleHold: 0.75 },
+    POWER_R: { scheme: 'GAP', side: 1, aim: 3.9, pull: { G: 'LEAD' }, doubleHold: 0.6 },
+    POWER_L: { scheme: 'GAP', side: -1, aim: 3.9, pull: { G: 'KICK' }, doubleHold: 0.6 },
+    COUNTER_R: { scheme: 'GAP', side: 1, aim: 3.9, pull: { G: 'KICK', T: 'LEAD' }, mesh: -0.9, doubleHold: 0.6 },
+    COUNTER_L: { scheme: 'GAP', side: -1, aim: 3.9, pull: { G: 'KICK', T: 'LEAD' }, mesh: -0.9, doubleHold: 0.6 },
+    TRAP_R: { scheme: 'TRAP', side: 1, aim: 1.4, pull: { G: 'TRAP' }, doubleHold: 0.5 },
+    TRAP_L: { scheme: 'TRAP', side: -1, aim: 1.4, pull: { G: 'TRAP' }, doubleHold: 0.5 },
   },
 };
 

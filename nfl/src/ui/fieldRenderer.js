@@ -1,6 +1,7 @@
 // Canvas renderer for the play simulation. Pure presentation: reads sim state, never changes it.
 // Zoom levels: close = photo + number, medium = jersey + number, far = dot + number.
-// Debug overlay: assignments, routes, QB reads, blocks (leverage), coverage, ball trajectory.
+// Debug overlay: assignments, routes, QB reads, blocks (leverage), coverage, ball trajectory, run game
+// (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
 import { playerPhoto, fallbackDataUri } from '../dataService.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 
@@ -186,6 +187,49 @@ export function createRenderer(canvas) {
       const col = lev > 0 ? `rgba(255,${Math.round(200 - 160 * lev)},60,.95)` : `rgba(${Math.round(200 + 55 * lev)},255,90,.95)`;
       ctx.strokeStyle = col; ctx.lineWidth = 3;
       for (const b of eng.blockers) { ctx.beginPath(); ctx.moveTo(sx(b.pos.x), sy(b.pos.y)); ctx.lineTo(sx(eng.def.pos.x), sy(eng.def.pos.y)); ctx.stroke(); }
+    }
+    // Run game: double teams (thick + "2x"), climbs off a double (dashed arrow to the backer).
+    for (const eng of sim.engagements) {
+      if (eng.blockers.length < 2) continue;
+      label(`2x ${eng.double?.phase || 'DOUBLE'}`, sx(eng.def.pos.x) , sy(eng.def.pos.y) - 14, '#111', 'rgba(140,230,140,.9)');
+    }
+    ctx.setLineDash([4, 3]); ctx.lineWidth = 1.5;
+    for (const o of sim.offense) {
+      const A = o.assignment;
+      if (A?.type !== 'RUN_BLOCK' || !A.target || o.engagedWith) continue;
+      if (A.tech === 'CLIMB' || A.tech === 'PULL') {
+        ctx.strokeStyle = A.tech === 'PULL' ? 'rgba(255,170,60,.85)' : 'rgba(150,220,255,.85)';
+        ctx.beginPath(); ctx.moveTo(sx(o.pos.x), sy(o.pos.y)); ctx.lineTo(sx(A.target.pos.x), sy(A.target.pos.y)); ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
+    // Run game: RB lanes (score-colored), chosen lane, free defenders, RB decision / move.
+    const rd = sim.runDebug;
+    if (rd && sim.carrier === sim.off?.RB && sim.off.RB.run?.phase !== 'OPEN') {
+      for (const l of rd.lanes) {
+        const q = Math.max(-1, Math.min(1, l.score / 3));
+        ctx.fillStyle = q > 0 ? `rgba(${Math.round(220 - 180 * q)},230,90,.85)` : `rgba(240,${Math.round(200 + 160 * q)},70,.85)`;
+        ctx.beginPath(); ctx.arc(sx(l.x), sy(l.y), Math.max(3, 0.35 * s), 0, Math.PI * 2); ctx.fill();
+        label(`${l.type[0]} ${l.score.toFixed(1)}`, sx(l.x) + 0.9 * s + 14, sy(l.y), '#fff', 'rgba(0,0,0,.55)');
+      }
+      if (rd.chosen) {
+        ctx.strokeStyle = '#f6c453'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(sx(rd.chosen.x), sy(rd.chosen.y), Math.max(7, 0.7 * s), 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+    if (rd) for (const d of sim.defense) {
+      if (!rd.free.includes(d.id) || d.down) continue;
+      const sc = screen.get(d); if (!sc) continue;
+      ctx.strokeStyle = 'rgba(255,60,60,.95)'; ctx.lineWidth = 2; ctx.setLineDash([3, 2]);
+      ctx.beginPath(); ctx.arc(sc.X, sc.Y, sc.r + 5, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      label('FREE', sc.X, sc.Y - sc.r - 12, '#fff', 'rgba(200,30,30,.85)');
+    }
+    const car = sim.carrier;
+    if (car) {
+      const sc = screen.get(car);
+      const mv = car.moveState?.cur?.type;
+      const txt = [car.run && car.run.phase !== 'OPEN' ? car.run.decision : null, mv].filter(Boolean).join(' · ');
+      if (sc && txt) label(txt, sc.X, sc.Y - sc.r - 24, '#111', '#f6c453');
     }
     // QB reads
     const qs = sim.qbState;

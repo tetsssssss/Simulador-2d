@@ -8,11 +8,14 @@ import { MID_Y, FIELD_W, clamp, dist, norm, sub } from './geometry.js';
 import { OFF_SLOTS, DEF_SLOTS, PLAYBOOK, DEF_CALLS, assignSlots, alignment } from './formation.js';
 import { steer, integrate, separate, seekVelocity, speedCap } from './movement.js';
 import { initRoute, updateRoute, scrambleVelocity } from './routes.js';
-import { initCoverage, coverageVelocity, ballReactionVelocity } from './coverage.js';
+import { initCoverage, coverageVelocity, ballReactionVelocity, perceive } from './coverage.js';
 import { chooseRushMove, updateEngagements, tryEngage } from './blocking.js';
 import { initQB, updateQB } from './qb.js';
 import { updateBall } from './ball.js';
 import { carrierVelocity, pursuitVelocity, escortVelocity, attemptTackles, checkCarrierDead, isSackable } from './tackle.js';
+import { assignRunBlocks, runBlockVelocity } from './runBlocking.js';
+import { initRunner, runnerVelocity } from './rbVision.js';
+import { updateMoves } from './carrierMoves.js';
 
 export const SIM_HZ = 30;
 const MAX_PLAY_TIME = 20;
@@ -36,7 +39,7 @@ function makeEntity(p, slot, side, xy, energy, overrides) {
   const id = p.gsis_id || p.full_name;
   return {
     id, slot, side, p, name: p.full_name, jersey: p.jersey_number || '', prof: buildProfile(p, overrides?.[slot]),
-    pos: { x: xy[0], y: xy[1] }, prev: { x: xy[0], y: xy[1] }, vel: { x: 0, y: 0 }, facing: side === 'off' ? 0 : Math.PI,
+    pos: { x: xy[0], y: xy[1] }, prev: { x: xy[0], y: xy[1] }, home: { x: xy[0], y: xy[1] }, vel: { x: 0, y: 0 }, facing: side === 'off' ? 0 : Math.PI,
     energy: energy?.[id] ?? 1, stun: 0, down: false, hist: [], noBlock: 0, engagedWith: null, eng: null, assignment: null,
   };
 }
@@ -57,6 +60,8 @@ export function createPlay(opts) {
   for (const s of OFF_SLOTS) if (!slots.off[s]) throw new Error(`Lineup incompleto: falta ${s} no ataque`);
   for (const s of DEF_SLOTS) if (!slots.def[s]) throw new Error(`Lineup incompleto: falta ${s} na defesa`);
   const al = alignment(losX, by, defCall);
+  // Run plays: the back aligns deeper (downhill track through the mesh point, ball at speed).
+  if (callType === 'run') al.o.RB = [losX - (PLAYBOOK.run[concept]?.pull ? 7.2 : 6.6), by + 0.4 * (PLAYBOOK.run[concept]?.side || 1) * -1];
   const sim = {
     seed, rng, dt: 1 / SIM_HZ, t: 0, tick: 0, losX, by, ballOn, down, distance,
     call: { type: callType, playType, concept, def: defCall, defLabel: DEF_CALLS[defCall].label },
@@ -99,40 +104,15 @@ export function createPlay(opts) {
   } else {
     const c = PLAYBOOK.run[concept];
     sim.runSide = c.side;
-    sim.meshPoint = { x: losX - 4.3, y: by + 0.6 * c.side };
+    sim.meshPoint = { x: losX - 4.3, y: by + (0.6 + (c.mesh || 0)) * c.side };
     sim.runAim = { x: losX + 1, y: clamp(by + c.aim * c.side, 3, FIELD_W - 3) };
     for (const s of ['X', 'Z', 'SLOT']) { initRoute(sim.off[s], 'STALK'); sim.off[s].assignment.label = 'STALK_BLOCK'; }
-    sim.off.TE.assignment = { type: 'RUN_BLOCK', target: null, label: 'RUN_BLOCK:EDGE' };
     sim.off.RB.assignment = { type: 'BALL_CARRIER', label: `${concept}` };
-    assignRunBlocks(sim, c.side);
+    assignRunBlocks(sim, c);
     initQB(sim, []);
   }
   sim.emit('SNAP', { losX, down, distance, concept, defCall });
   return sim;
-}
-
-function assignRunBlocks(sim, side) {
-  // Zone rules: every down lineman gets the closest blocker shifted to the play side; leftover blockers
-  // climb to the linebackers (Mike first, then play-side LB). The backside LB is the RB's read.
-  const blockers = ['LT', 'LG', 'C', 'RG', 'RT', 'TE'].map(s => sim.off[s]);
-  const free = new Set(blockers);
-  const playSideLB = side > 0 ? 'SAM' : 'WILL', backLB = side > 0 ? 'WILL' : 'SAM';
-  const dl = ['LDE', 'LDT', 'RDT', 'RDE'].map(s => sim.def[s]).sort((a, b) => side * (b.pos.y - a.pos.y));
-  const targets = [...dl, sim.def.MIKE, sim.def[playSideLB], sim.def[backLB]];
-  for (const d of targets) {
-    if (!free.size) break;
-    let best = null, bd = 1e9;
-    for (const o of free) {
-      const lateral = Math.abs(o.pos.y + side * 1.0 - d.pos.y);
-      const cost = lateral + (d.prof.group === 'LB' ? 0.3 * (d.pos.x - o.pos.x) : 0) + (o.slot === 'TE' && d.prof.group !== 'DL' && d.slot !== playSideLB ? 3 : 0);
-      if (cost < bd) { bd = cost; best = o; }
-    }
-    free.delete(best);
-    best.assignment = { type: 'RUN_BLOCK', target: d, label: `${best.slot === 'TE' ? 'EDGE' : d.prof.group === 'LB' ? 'CLIMB' : 'ZONE'}→${d.slot}` };
-  }
-  for (const o of free) o.assignment = { type: 'RUN_BLOCK', target: null, label: 'ZONE:CLIMB' };
-  const wrTargets = { X: 'CBL', Z: 'CBR', SLOT: 'SS' };
-  for (const [w, d] of Object.entries(wrTargets)) sim.off[w].blockTarget = sim.def[d];
 }
 
 // ---------- per-role intents ----------
@@ -160,20 +140,26 @@ function passProVelocity(sim, e) {
   return seekVelocity(e, tgt, 0.75 + 0.25 * e.prof.r.blockFootwork, 0.1);
 }
 
-function runBlockVelocity(sim, e) {
-  let a = e.assignment.target || e.blockTarget;
-  if (!a || a.down || (a.engagedWith && a.engagedWith !== e)) {
-    // Climb: nearest free defender in front.
-    let best = null, bd = 1e9;
-    for (const d of sim.defense) if (!d.down && !d.engagedWith && d.pos.x > e.pos.x - 1) { const dd = dist(d.pos, e.pos); if (dd < bd && dd < 7) { bd = dd; best = d; } }
-    a = best;
-  }
-  if (!a) return seekVelocity(e, { x: e.pos.x + 3, y: e.pos.y }, 0.6, 0.3);
-  if (tryEngage(sim, e, a, 'RUN')) return { x: 0, y: 0 };
-  return seekVelocity(e, a.pos, 1, 0.05);
+// Run defense up front: attack the gap to a controlled depth (squeeze / spill), track the ball laterally, and
+// only chase into the backfield when the ball is right there. Penetration depth comes from get-off + recognition.
+function runFrontVelocity(sim, e) {
+  const c = sim.carrier, ref = c ? c.pos : sim.meshPoint;
+  if (c && dist(e.pos, c.pos) < 3.5) return pursuitVelocity(sim, e);
+  const R = e.prof.r;
+  // Backside end on a run away: honor the QB's boot fake / cutback (contain) for a while -- discipline.
+  const backside = /DE$/.test(e.slot) && (e.pos.y - sim.by) * sim.runSide < -2.5;
+  if (backside && c && (c.pos.y - sim.by) * sim.runSide > -1 && sim.t < 0.9 + 0.9 * R.discipline)
+    return seekVelocity(e, { x: sim.losX - 0.4, y: e.home.y + sim.runSide * 0.8 }, 0.5, 0.2);
+  const depthX = sim.losX - 0.3 - 0.9 * (0.5 * R.explosiveness + 0.5 * R.playRecognition);
+  // Unblocked and the ball still far: shuffle/squeeze under control instead of sprinting down the line.
+  const far = !c || dist(e.pos, c.pos) > 5;
+  const sq = e.pos.y + (ref.y - e.pos.y) * (far ? 0.3 : 0.45);
+  const tgt = { x: Math.max(depthX, ref.x + 1.2), y: far ? clamp(sq, e.home.y - 2, e.home.y + 2) : sq };
+  return seekVelocity(e, tgt, far ? 0.6 : 1, 0.05);
 }
 
 function rushVelocity(sim, e) {
+  if (sim.call.type === 'run' && sim.carrier?.side !== 'def') return runFrontVelocity(sim, e);
   const goalEnt = sim.carrier || (sim.call.type === 'run' ? null : sim.qb);
   const goal = goalEnt ? goalEnt.pos : (sim.meshPoint || sim.qb.pos);
   const d = dist(e.pos, goal);
@@ -210,7 +196,7 @@ function offenseIntent(sim, e) {
   const a = e.assignment;
   if (sim.phase === 'CARRY') {
     if (sim.carrier.side !== 'off') return pursuitVelocity(sim, e);
-    if (e === sim.qb) return seekVelocity(e, { x: e.pos.x - 1, y: e.pos.y - sim.runSide * 2 }, 0.4, 0.3); // carry out the fake
+    if (e === sim.qb) return seekVelocity(e, { x: e.pos.x - 1.5, y: e.pos.y - sim.runSide * 2.5 }, 0.6, 0.3); // carry out the fake
     // Designed run: linemen and stalk blockers keep their assignments; everyone else escorts.
     if (sim.call.type === 'run' && (a.type === 'RUN_BLOCK' || (a.type === 'STALK_BLOCK' && e.blockTarget))) {
       if (a.type === 'RUN_BLOCK') return runBlockVelocity(sim, e);
@@ -249,15 +235,38 @@ function offenseIntent(sim, e) {
   return { x: 0, y: 0 };
 }
 
+// Run fit (second level): after reading run, fill downhill to the line on the ball's track and keep leverage;
+// attack the carrier once he is close or has crossed the line (no blind crash into the backfield).
+function runFitVelocity(sim, e) {
+  const c = sim.carrier;
+  if (!c) return seekVelocity(e, { x: sim.losX + 1.5, y: e.pos.y + (sim.meshPoint.y - e.pos.y) * 0.4 }, 0.7, 0.2);
+  const dc = dist(e.pos, c.pos);
+  if (dc < 3.2 || c.pos.x > sim.losX + 0.3 || e.pos.x < sim.losX + 0.3) return pursuitVelocity(sim, e);
+  const R = e.prof.r;
+  const lead = 0.25 + 0.35 * R.playRecognition;
+  // Downhill under control: fit at the second level until the ball comes, then trigger. He tracks the ball as
+  // he perceives it (read delay): misdirection (counter step, pullers) pulls slow readers out of position.
+  const near = dc < 5.5;
+  const pc = perceive(sim, c, e.readDelay ?? 0.25);
+  const tgt = { x: Math.max(sim.losX + (near ? 0.6 : 1.4), Math.min(e.pos.x, c.pos.x + 3)), y: pc.y + pc.vy * lead };
+  return seekVelocity(e, tgt, near ? 1 : 0.8, 0.05);
+}
+
 function defenseIntent(sim, e) {
   const a = e.assignment;
   if (sim.phase === 'CARRY') {
     if (sim.carrier.side === 'def') return escortVelocity(sim, e);
+    // Designed run: fronts squeeze, backers fit, until the ball declares (then everybody pursues).
+    if (sim.call.type === 'run' && sim.carrier === sim.off.RB) {
+      if (a.type === 'RUSH') return runFrontVelocity(sim, e);
+      if (sim.t > e.runRead) return runFitVelocity(sim, e);
+      return coverageVelocity(sim, e);
+    }
     return pursuitVelocity(sim, e);
   }
   if (sim.call.type === 'run' && a.type !== 'RUSH' && sim.t > e.runRead) {
     if (!e.flaggedRun) { e.flaggedRun = true; sim.emit('RUN_READ', { by: e.id }, true); }
-    return seekVelocity(e, sim.carrier ? sim.carrier.pos : sim.meshPoint, 1, 0.05);
+    return runFitVelocity(sim, e);
   }
   if (a.type === 'RUSH') return rushVelocity(sim, e);
   if (sim.phase === 'BALL_AIR') {
@@ -266,6 +275,14 @@ function defenseIntent(sim, e) {
   }
   if (sim.phase === 'SCRAMBLE' && sim.t - (sim.scrambleT || 0) > e.ballReact + 0.3 && dist(e.pos, sim.qb.pos) < 10) return pursuitVelocity(sim, e);
   return coverageVelocity(sim, e);
+}
+
+// Ball carrier: moves before contact; a designed-run RB reads the line (RunningBackDecisionEngine) until he is
+// through it, then runs in the open field.
+function carrierIntent(sim, e) {
+  if (!isSackable(sim, e)) updateMoves(sim, e);
+  if (e.run && e.run.phase !== 'OPEN') { const v = runnerVelocity(sim, e); if (v) return v; }
+  return carrierVelocity(sim, e);
 }
 
 // ---------- simulation step ----------
@@ -286,11 +303,11 @@ export function step(sim) {
       desired = updateQB(sim, dt);
       if (desired === null) {
         if (!sim.scrambleT) { sim.scrambleT = sim.t; }
-        desired = carrierVelocity(sim, e);
+        desired = carrierIntent(sim, e);
         if (sim.qbState.state === 'RUNNER' && sim.carrier !== e) sim.setCarrier(e);
       }
     } else if (e === sim.qb && sim.call.type === 'run' && !sim.carrier) desired = updateQB(sim, dt);
-    else if (e === sim.carrier) desired = carrierVelocity(sim, e);
+    else if (e === sim.carrier) desired = carrierIntent(sim, e);
     else if (e === sim.qb && sim.phase !== 'CARRY') desired = seekVelocity(e, e.pos, 0.2);
     else desired = e.side === 'off' ? offenseIntent(sim, e) : defenseIntent(sim, e);
     if (e.engagedWith) continue; // became engaged while choosing intent
@@ -300,7 +317,7 @@ export function step(sim) {
   updateEngagements(sim, dt);
   // 3. movement + collisions
   for (const e of sim.ents) if (!e.engagedWith && !e.down) integrate(e, dt);
-  separate(sim.ents, dt);
+  separate(sim.ents, dt, sim.carrier);
   for (const e of sim.ents) { e.hist.push({ x: e.pos.x, y: e.pos.y, vx: e.vel.x, vy: e.vel.y }); if (e.hist.length > 40) e.hist.shift(); }
 
   // 4. handoff
@@ -310,6 +327,7 @@ export function step(sim) {
       sim.emit('HANDOFF', { from: sim.qb.id, to: rb.id });
       sim.setCarrier(rb);
       rb.carry = { heading: Math.atan2(sim.runAim.y - rb.pos.y, sim.runAim.x - rb.pos.x), nextPick: sim.t + 0.2 };
+      initRunner(sim, rb);
       sim.qbState.state = 'DONE';
     } else if (sim.t > 3) {
       sim.emit('FUMBLE', { carrier: sim.qb.id, forcedBy: null, x: +sim.qb.pos.x.toFixed(1), reason: 'MESH' });
@@ -344,6 +362,8 @@ function computeResult(sim) {
     seed: sim.seed, playType: sim.call.playType, concept: sim.call.concept, defCall: sim.defCall, defLabel: sim.call.defLabel,
     outcome: '', yards: 0, spotX: losX, turnover: false, touchdown: null, safety: false, clockStops: false,
     duration: Math.round(sim.t * 100) / 100, reason: sim.deadReason, events: ev,
+    // Yards before first contact (relative to the LOS), for calibration (YBC / YAC split).
+    contactX: sim.firstContact ? Math.round((sim.firstContact.x - losX) * 10) / 10 : null,
   };
   const c = sim.carrier;
   const fumbleRec = find('FUMBLE_RECOVERY');

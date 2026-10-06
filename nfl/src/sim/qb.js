@@ -12,14 +12,15 @@ export function initQB(sim, reads) {
   sim.qbState = {
     state: sim.call.type === 'run' ? 'HANDOFF' : 'DROP',
     reads, readIdx: 0, readClock: 0, evalTime: evalTime(sim, q), lookingAt: reads[0] || null,
-    dropPoint: { x: sim.losX - 7.2, y: sim.by }, pressure: 0, pressureDir: { x: 0, y: 0 }, late: false,
+    // Deep shots take a deeper (7-step) drop.
+    dropPoint: { x: sim.losX - (sim.call.playType === 'deep' ? 8.6 : 7.2), y: sim.by }, pressure: 0, pressureDir: { x: 0, y: 0 }, late: false,
     lastDecision: 0, windup: 0, target: null, hurried: false, log: [],
   };
 }
 
 function evalTime(sim, q) {
   const R = q.prof.r;
-  return clamp(0.5 - 0.32 * (0.5 * R.decisionMaking + 0.3 * R.awareness + 0.2 * R.anticipation) + sim.rng.normal(0, 0.04), 0.16, 0.55);
+  return clamp(0.55 - 0.32 * (0.5 * R.decisionMaking + 0.3 * R.awareness + 0.2 * R.anticipation) + sim.rng.normal(0, 0.04), 0.2, 0.6);
 }
 
 // Pressure: how soon can defenders that are not being controlled reach the QB.

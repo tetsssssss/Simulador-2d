@@ -1,5 +1,12 @@
 # DEVELOPMENT_HANDOFF
 
+> **v0.4 RunGame (sessão Claude 02 / Prompt A, 2026-10-06):** jogo corrido 2D (12 conceitos: Inside/Outside Zone,
+> Duo, Power, Counter, Trap) com assignments por bloqueador (REACH/DRIVE/DOUBLE/COMBO/PULL/SEAL/CLIMB/KICK), double
+> team real (DOUBLE → CONTROL → READ LB → CLIMB), RunningBackDecisionEngine (lanes com score; FOLLOW_BLOCK, CUTBACK,
+> BOUNCE, CUT_INSIDE, ACCELERATE, HESITATE), moves do portador (CUT/JUKE/SPIN/STIFF_ARM/TRUCK) e calibração por
+> causas sistêmicas medida na liga inteira (`node tests/league.mjs`). Antes/depois: `docs/CALIBRATION_v04.md`.
+> Estado técnico atual: `CLAUDE_HANDOFF.md`. Testes: `npm test` (23).
+
 > **v0.3 (sessão Claude 01, 2026-10-06):** detalhes técnicos atuais em `CLAUDE_HANDOFF.md`.
 > Resumo: Partida 2D virou simulação física/assignment real (`src/sim/`), estatísticas por evento, testes (`npm test`),
 > snapshot local do roster (CORS), correção das chaves de atributos. O texto abaixo é o handoff original (Alpha),
@@ -46,6 +53,7 @@ Persistência em localStorage. O roster sincronizado também é armazenado em ca
 
 ## Testes
 **[v0.3]** `npm test` (node:test, sem dependências) + `node tests/harness.mjs` (distribuições). Ver `CLAUDE_HANDOFF.md`.
+**[v0.4]** + `tests/run.test.mjs` (jogo corrido) e `node tests/league.mjs 80 mix` (calibração com os 32 times).
 
 ### Testes executados na geração (Alpha)
 - contagem exata de 50 atributos
@@ -61,4 +69,4 @@ Persistência em localStorage. O roster sincronizado também é armazenado em ca
 5. ~~playbook e assignments~~ **[v0.3] iniciado** (playbook inicial + assignments por jogador)
 6. estatísticas por jogo/temporada/carreira
 7. coaches/staff
-8. ~~engine 2D avançado~~ **[v0.3] vertical slice de passe concluído; próxima etapa: calibrar + jogo corrido + special teams**
+8. ~~engine 2D avançado~~ **[v0.3] vertical slice de passe concluído** · **[v0.4] calibração + jogo corrido concluídos; próxima etapa: Prompt B**

@@ -4,13 +4,16 @@
 import { FIELD_W, clamp, dist, norm, sub, fromAngle, interceptPoint } from './geometry.js';
 import { seekVelocity, speedCap } from './movement.js';
 import { tryEngage } from './blocking.js';
+import { contactGeometry, tackleModifier } from './carrierMoves.js';
 
 export function carrierDir(c) { return c.side === 'off' ? 1 : -1; }
 
 export function carrierVelocity(sim, c) {
   const dir = carrierDir(c);
   if (!c.carry) c.carry = { heading: 0, nextPick: 0 };
-  if (sim.t >= c.carry.nextPick) {
+  const mv = c.moveState?.cur;
+  if (mv && mv.heading != null) c.carry.heading = mv.heading;
+  else if (sim.t >= c.carry.nextPick) {
     c.carry.nextPick = sim.t + 0.1;
     const V = c.prof.r.vision;
     const capC = Math.max(4, speedCap(c));
@@ -48,6 +51,8 @@ export function pursuitVelocity(sim, e) {
   const R = e.prof.r;
   // In close: converge on the body (short lead) instead of running a parallel intercept line.
   const d = dist(e.pos, c.pos);
+  // Juked: he bit on the fake and is still flowing to the wrong side.
+  if (e.juked && e.juked.until > sim.t) return seekVelocity(e, { x: c.pos.x, y: c.pos.y + e.juked.side * 2.2 }, 1, 0);
   if (d < 4) {
     const k = Math.min(0.15, d / Math.max(4, speedCap(e)) * 0.5);
     return seekVelocity(e, { x: c.pos.x + c.vel.x * k, y: c.pos.y + c.vel.y * k }, 1, 0);
@@ -94,36 +99,44 @@ export function attemptTackles(sim) {
   const C = c.prof.r, dir = carrierDir(c);
   for (const d of sim.ents) {
     if (d.side === c.side || d.down || d.stun > 0 || (d.tackleCd || 0) > sim.t) continue;
-    if (d.engagedWith && !(d.eng && d.eng.lev > 0.4)) continue;
+    // Still engaged: only a defender winning the block can reach out for an (arm) tackle.
+    if (d.engagedWith && !(d.eng && d.eng.lev > (d.eng.mode === 'RUN' ? 0.6 : 0.4))) continue;
+    const fromBlock = !!d.engagedWith;
     const dd = dist(d.pos, c.pos);
     // Wrap range, or a lunge / diving arm tackle a bit further out (lower success).
     const wrapRange = d.prof.reach * 0.9 + 0.35, lunge = dd > wrapRange;
     if (dd > wrapRange + 0.55) continue;
-    d.tackleCd = sim.t + 0.9;
-    const D = d.prof.r;
-    const toC = norm(sub(c.pos, d.pos));
-    const closing = Math.max(0, (d.vel.x - c.vel.x) * toC.x + (d.vel.y - c.vel.y) * toC.y);
-    const cs = Math.hypot(c.vel.x, c.vel.y);
     // Head-on contact (tackler in front of the carrier's path) gives a clean wrap; from behind = arm tackle.
-    const cu = cs > 0.5 ? { x: c.vel.x / cs, y: c.vel.y / cs } : { x: dir, y: 0 };
-    const facing = -(cu.x * toC.x + cu.y * toC.y); // 1 = head on, -1 = from behind
+    const g = contactGeometry(c, d);
+    // Only dive when he cannot close to wrap range anymore (carrier pulling away / sliding by); otherwise keep
+    // closing and wrap up on a later tick.
+    if (lunge && g.closing * sim.dt * 3 > dd - wrapRange) continue;
+    d.tackleCd = sim.t + 0.9;
+    if (sim.firstContact == null) sim.firstContact = { x: c.pos.x, t: sim.t, by: d.id };
+    const D = d.prof.r;
+    const { closing, cs, cu, facing } = g;
     const angleQ = 0.5 + 0.5 * facing;
     const headOnPower = facing > 0.3 && c.prof.mass > d.prof.mass;
     const tackleSkill = 0.55 * D.tackling + 0.2 * D.hitPower + 0.25 * D.strength;
-    const evade = 0.4 * C.breakTackle + 0.25 * C.balance + 0.2 * (headOnPower ? C.trucking : C.elusiveness) + 0.15 * C.strength;
+    const mod = isSackable(sim, c) ? { bonus: 0, move: null } : tackleModifier(sim, c, d, g);
+    const evade = 0.4 * C.breakTackle + 0.25 * C.balance + 0.2 * (headOnPower ? C.trucking : C.elusiveness) + 0.15 * C.strength + mod.bonus;
+    const juked = d.juked && d.juked.until > sim.t;
     const momentum = (d.prof.mass * (closing + 1)) / (c.prof.mass * (cs + 1));
     let gang = 0;
     for (const o of sim.ents) if (o !== d && o.side === d.side && !o.down && dist(o.pos, c.pos) < 1.7) gang++;
     const holdingBall = isSackable(sim, c); // QB still a passer behind the LOS
-    let p = 0.8 + 0.55 * (tackleSkill - evade) + 0.16 * (angleQ - 0.5) + 0.08 * clamp(momentum - 1, -1, 1) + 0.12 * gang - 0.1 * (1 - d.energy);
+    let p = 0.9 + 0.55 * (tackleSkill - evade) + 0.16 * (angleQ - 0.5) + 0.08 * clamp(momentum - 1, -1, 1) + 0.12 * gang - 0.1 * (1 - d.energy);
     if (holdingBall) p += 0.08;
     if (lunge) p -= 0.22;
+    if (juked) p -= 0.2;
+    if (fromBlock) p -= 0.15;
     p = clamp(p, 0.15, 0.96);
     // Fumble on contact: hit power vs ball security, worse on blind-side hits.
     const pFumble = (0.004 + 0.022 * D.hitPower * (1 - C.carrying)) * (closing > 3 ? 1.4 : 0.8) * (facing < -0.3 ? 1.6 : 1);
     if (sim.rng.chance(p)) {
       if (!holdingBall && sim.rng.chance(pFumble)) return fumble(sim, c, d);
-      const fall = clamp(cs * 0.11 * (c.prof.mass / d.prof.mass) * (facing > 0.5 ? 0.5 : 1), 0, 1.3);
+      // Yards after contact: the carrier's momentum carries the pile forward (less when met square).
+      const fall = clamp(cs * (0.2 + 0.08 * C.balance) * (c.prof.mass / d.prof.mass) * (facing > 0.5 ? 0.7 : 1), 0, 2.6);
       const assists = sim.ents.filter(o => o !== d && o.side === d.side && !o.down && dist(o.pos, c.pos) < 1.6).map(o => o.id);
       c.pos.x += (cu.x * dir > 0 ? dir : 0) * fall;
       c.down = true;
@@ -132,9 +145,11 @@ export function attemptTackles(sim) {
       sim.whistle(holdingBall ? 'SACK' : 'TACKLE');
       return;
     }
-    d.stun = 0.75; d.down = false; d.vel.x *= 0.2; d.vel.y *= 0.2;
-    c.vel.x *= 0.72; c.vel.y *= 0.72;
-    sim.emit('BROKEN_TACKLE', { by: d.id, carrier: c.id, sackEscape: holdingBall });
+    // Broken: a truck / stiff arm puts the tackler on the ground longer; spinning out costs the carrier speed.
+    d.stun = mod.move === 'TRUCK' ? 1.2 : mod.move === 'STIFF_ARM' ? 0.95 : 0.75; d.down = false; d.vel.x *= 0.2; d.vel.y *= 0.2;
+    const keep = mod.move === 'TRUCK' ? 0.62 : mod.move === 'SPIN' ? 0.8 : 0.72;
+    c.vel.x *= keep; c.vel.y *= keep;
+    sim.emit('BROKEN_TACKLE', { by: d.id, carrier: c.id, sackEscape: holdingBall, move: mod.move, lunge, fromBlock });
   }
 }
 

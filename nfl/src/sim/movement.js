@@ -59,13 +59,20 @@ export function integrate(e, dt) {
 }
 
 // Body separation for players that are not locked in a block together.
-export function separate(ents, dt) {
+// The ball carrier slides past his own teammates (he runs off their hips) instead of bouncing off them.
+export function separate(ents, dt, carrier = null) {
   const R = 0.8;
   for (let i = 0; i < ents.length; i++) {
     const a = ents[i]; if (a.down) continue;
     for (let j = i + 1; j < ents.length; j++) {
       const b = ents[j]; if (b.down) continue;
       if (a.engagedWith === b || b.engagedWith === a) continue;
+      if (carrier && (a === carrier || b === carrier) && a.side === b.side) continue;
+      // A rusher who just beat his blocker has won the corner: he slips past that blocker's shoulder.
+      if ((a.beatenBy === b && a.noBlock > 0) || (b.beatenBy === a && b.noBlock > 0)) continue;
+      // A run blocker working to the second level slides off the hip of a defender already engaged by a teammate.
+      if ((a.engagedWith && b.assignment?.type === 'RUN_BLOCK' && b.side !== a.side && !b.engagedWith) ||
+          (b.engagedWith && a.assignment?.type === 'RUN_BLOCK' && a.side !== b.side && !a.engagedWith)) continue;
       const d = dist(a.pos, b.pos);
       if (d >= R || d < 1e-6) continue;
       const overlap = (R - d);

@@ -14,6 +14,7 @@ Aplicativo web local gerado no ChatGPT. Esta entrega começa pela NFL e foi estr
 - College Explorer
 - histórico de Super Bowl I a LX
 - partida 2D 11 x 11 **simulada** (v0.3): bloqueios, pass rush, rotas, cobertura, leituras do QB, bola com trajetória, tackles; box score por eventos; modo debug
+- jogo corrido (v0.4): zone/duo/power/counter/trap com double team e climb, leitura de lanes do RB, cut/juke/spin/stiff arm/truck; debug mostra lanes, scores e decisões
 - modo carreira local
 - trade center
 - lesões
@@ -36,9 +37,10 @@ No Windows, dê dois cliques em `START_APP.bat`. Isso inicia um servidor local e
 
 O ZIP não embute milhares de fotografias de atletas nem logos proprietários. As imagens são resolvidas em tempo de execução usando URLs fornecidas pela base pública de roster e um endpoint público de logos. Quando não há headshot disponível, o app mostra uma silhueta local, nunca uma imagem inventada do atleta.
 
-## Testes (v0.3)
+## Testes (v0.4)
 
-Requer Node 18+ (sem dependências): `npm test` e `node tests/harness.mjs 1000 mix` (distribuições estatísticas).
+Requer Node 18+ (sem dependências): `npm test`, `node tests/harness.mjs 1000 mix` (SEA × NE) e
+`node tests/league.mjs 80 mix` (32 times — referência de calibração; ver `docs/CALIBRATION_v04.md`).
 
 ## Fonte de dados
 

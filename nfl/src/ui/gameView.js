@@ -96,8 +96,17 @@ export function mountGame(root, deps) {
     const q = s.qbState;
     const base = `<b>${s.call.concept}</b> vs <b>${s.call.defLabel}</b>`;
     $('#hud').innerHTML = view.debug
-      ? `${base}<br>t=${s.t.toFixed(2)}s · fase ${s.phase} · QB ${q?.state || '-'}${q?.reads?.length ? ` · leitura ${Math.min(q.readIdx, q.reads.length - 1) + 1}/${q.reads.length}${q.late ? ' (tardia)' : ''}` : ''} · pressão ${(q?.pressure || 0).toFixed(2)}<br>seed ${esc(String(s.seed))} · bloqueios ativos ${s.engagements.length}`
+      ? `${base}<br>t=${s.t.toFixed(2)}s · fase ${s.phase} · QB ${q?.state || '-'}${q?.reads?.length ? ` · leitura ${Math.min(q.readIdx, q.reads.length - 1) + 1}/${q.reads.length}${q.late ? ' (tardia)' : ''}` : ''} · pressão ${(q?.pressure || 0).toFixed(2)}<br>seed ${esc(String(s.seed))} · bloqueios ativos ${s.engagements.length}${runHud(s)}`
       : base;
+  }
+
+  // Run game debug line: scheme, RB decision + chosen lane, double teams, free defenders.
+  function runHud(s) {
+    if (s.call.type !== 'run' || !s.runPlan) return '';
+    const rb = s.off.RB, rd = s.runDebug, l = rd?.chosen;
+    const dbl = s.engagements.filter(e => e.blockers.length > 1).length;
+    const climbs = s.debugEvents.filter(e => e.type === 'CLIMB').length;
+    return `<br>corrida ${s.runPlan.scheme} · RB ${rb.run ? `${rb.run.phase} ${rb.run.decision || '-'}` : 'mesh'}${l ? ` · lane ${l.type} (${l.score.toFixed(1)})` : ''}${rb.moveState?.cur ? ` · ${rb.moveState.cur.type}` : ''} · double ${dbl} · climb ${climbs} · livres ${rd ? rd.free.length : 0}`;
   }
 
   function name(id) { const p = who()[id]; return p ? p.name : id; }

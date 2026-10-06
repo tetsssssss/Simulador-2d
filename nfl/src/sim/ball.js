@@ -61,7 +61,8 @@ export function planThrow(sim, qb, r, extraDelay = 0) {
 export function throwBall(sim, qb, r, plan, opts = {}) {
   const R = qb.prof.r, d = plan.d;
   const acc = d < 10 ? R.shortAccuracy : d < 20 ? R.mediumAccuracy : R.deepAccuracy;
-  let sd = (0.3 + 0.032 * d) * (1.45 - acc);
+  // Placement error grows faster than linearly with distance (deep balls are hard to drop in the bucket).
+  let sd = (0.3 + 0.032 * d + 0.0012 * d * d) * (1.45 - acc);
   const moving = Math.hypot(qb.vel.x, qb.vel.y) > 2;
   if (moving) sd *= 1 + (1 - R.throwOnRun) * 0.9;
   const pressure = sim.qbState?.pressure || 0;
@@ -154,7 +155,7 @@ function resolveCatch(sim) {
     const trailing = dist(bd.pos, b.from) > dist(rec.pos, b.from) + 0.4 && qr > 0.2;
     const pDef = qd * (0.3 + 0.6 * skill) * (trailing ? 0.6 : 1) * (1 - 0.4 * qr * R.contestedCatch);
     if (sim.rng.chance(pDef)) {
-      const pInt = (qd > qr ? 0.38 : 0.14) * (0.45 + 0.9 * D.catching) * (b.type === 'LOB' ? 1.25 : 1);
+      const pInt = (qd > qr ? 0.3 : 0.12) * (0.45 + 0.9 * D.catching) * (b.type === 'LOB' ? 1.25 : 1);
       if (!outOfBounds && sim.rng.chance(pInt)) return intercept(sim, bd);
       return incomplete(sim, 'BREAKUP', bd);
     }

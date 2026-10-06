@@ -21,7 +21,8 @@ export function initCoverage(sim) {
     // Reaction delays (seconds): reading routes and reading the ball/run.
     e.readDelay = clamp(0.42 - 0.28 * (0.6 * (R.manCoverage + R.zoneCoverage) / 2 + 0.4 * R.playRecognition), 0.1, 0.42);
     e.ballReact = clamp(0.5 - 0.32 * (0.5 * R.playRecognition + 0.5 * R.anticipation), 0.12, 0.5);
-    e.runRead = 0.35 + 0.9 * (1 - R.playRecognition);
+    // Run/pass read: backers read the run first; defensive backs are pass-first (play-action respect).
+    e.runRead = 0.35 + 0.9 * (1 - R.playRecognition) + (e.prof.group === 'DB' ? 0.45 : 0);
     if (call.rush.includes(slot)) {
       e.assignment = { type: 'RUSH', label: slot.endsWith('DE') ? 'EDGE_RUSH' : slot.endsWith('DT') ? 'INTERIOR_RUSH' : 'BLITZ' };
     } else if (call.man[slot]) {
@@ -58,16 +59,27 @@ function zoneVelocity(sim, e) {
     for (const t of threats) if (!deepest || t.pos.x > deepest.pos.x) deepest = t;
     if (deepest) {
       const p = perceive(sim, deepest, e.readDelay, 0.6);
-      target = { x: Math.max(z.x, p.x + 3.2), y: clamp(p.y, z.y0 + 1, z.y1 - 1) };
+      // Cushion grows with his vertical speed: gain depth before he gets on top of you.
+      target = { x: Math.max(z.x, p.x + 3.2 + Math.max(0, p.vx) * 0.7), y: clamp(p.y, z.y0 + 1, z.y1 - 1) };
     } else target = { x: z.x + Math.min(4, sim.t * 0.8), y: z.y };
   } else {
-    let near = null, nd = 1e9;
-    for (const t of threats) { const d = dist(t.pos, { x: z.x, y: z.y }); if (d < nd) { nd = d; near = t; } }
+    // Most dangerous threat in the zone: depth and vertical stem first ("wall"/carry the seam), then
+    // proximity to the landmark. A shallow check-down is rallied on after the throw, not chased early.
+    let near = null, nd = -1e9;
+    for (const t of threats) {
+      const danger = 0.5 * clamp(t.pos.x - sim.losX, 0, 14) + 0.6 * Math.max(0, t.vel.x) - 0.25 * dist(t.pos, { x: z.x, y: z.y });
+      if (danger > nd) { nd = danger; near = t; }
+    }
     if (near) {
       // Sit underneath / inside the receiver, between him and the QB, inside the zone limits.
       const p = perceive(sim, near, e.readDelay, 0.7);
       const toQb = norm(sub(sim.qb.pos, p));
-      target = { x: clamp(p.x + toQb.x * 1.5, sim.losX + 2, z.maxDepth), y: clamp(p.y + toQb.y * 1.5, z.y0 - 1, z.y1 + 1) };
+      // Keep landmark depth (never come up to a shallow route before the throw); carry a vertical route
+      // underneath him once he is deeper than the landmark.
+      // A crosser already inside the zone is driven on (rob it at his depth).
+      const crossing = Math.abs(p.vy) > Math.abs(p.vx) && p.y >= z.y0 && p.y <= z.y1;
+      const depth = crossing ? p.x + toQb.x * 1.5 : Math.max(z.x, p.x - 0.8);
+      target = { x: clamp(depth, sim.losX + 2, z.maxDepth), y: clamp(p.y + toQb.y * 1.5, z.y0 - 1, z.y1 + 1) };
     } else {
       target = { x: z.x, y: z.y };
     }
@@ -78,8 +90,10 @@ function zoneVelocity(sim, e) {
       target = { x: target.x, y: clamp(target.y + clamp(eyes.pos.y - target.y, -6, 6) * k, z.y0 - 2, z.y1 + 2) };
     }
   }
-  // Backpedal while dropping: slower than full speed.
-  return seekVelocity(e, target, sim.t < 1.2 ? 0.78 : 0.95, 0.6);
+  // Backpedal while dropping: slower than full speed -- but a deep defender opens his hips and runs as soon as a
+  // vertical threat is closing his cushion.
+  const pressed = z.deep && threats.some(t => t.vel.x > 4 && t.pos.x > e.pos.x - 7);
+  return seekVelocity(e, target, pressed ? 1 : sim.t < 1.2 ? 0.78 : 0.95, 0.6);
 }
 
 function manVelocity(sim, e) {
@@ -95,7 +109,12 @@ function manVelocity(sim, e) {
   const inside = Math.sign(sim.by - tgt.pos.y) || 1;
   const cushion = sim.t < 1.0 ? 1.6 : 0.6;
   // Never chase a receiver into the backfield: hold at the line until he releases.
-  const target = { x: Math.max(sim.losX + 1, p.x + cushion * (p.vx > 2 ? 1 : 0.3)), y: clamp(p.y + inside * 0.7, 1, FIELD_W - 1) };
+  // Off-man: never come downhill at a receiver who is still underneath -- keep the cushion (bail) and let him
+  // close it; only press/trail technique plays tight.
+  // (Only vs a vertical stem: a receiver breaking flat/underneath is driven on.)
+  const vertical = p.vx > 1.5 && p.vx > Math.abs(p.vy);
+  const keep = vertical ? Math.min(e.pos.x, p.x + 3) : -Infinity;
+  const target = { x: Math.max(sim.losX + 1, p.x + cushion * (p.vx > 2 ? 1 : 0.3), keep), y: clamp(p.y + inside * 0.7, 1, FIELD_W - 1) };
   return seekVelocity(e, target, 1, 0.2);
 }
 

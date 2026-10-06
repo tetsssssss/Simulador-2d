@@ -2,7 +2,11 @@
 // A block is an engagement with a continuous leverage value (lev > 0 favors the defender).
 // Leverage evolves from the attribute matchup of the chosen technique, mass, fatigue and contextual noise;
 // the engaged pair physically moves (pocket compression / run push), and sheds or stalemates emerge from lev.
+// Run blocks add body position: the blocker's angle between the defender and the ball (fit) is fought over
+// continuously (footwork vs agility), and a technique (REACH/DRIVE/SEAL/KICK/...) sets where he drives the man.
+// Double teams: DOUBLE -> CONTROL (defender moved off the ball) -> READ LB -> one blocker CLIMBs to the backer.
 import { dist, norm, sub, clamp } from './geometry.js';
+import { labelBlock } from './runBlocking.js';
 
 export const RUSH_MOVES = ['SPEED', 'POWER', 'FINESSE'];
 
@@ -22,7 +26,14 @@ function matchup(eng) {
   for (const b of blockers) {
     const B = b.prof.r;
     let s;
-    if (eng.mode === 'RUN') s = 0.45 * B.runBlock + 0.35 * B.blockStrength + 0.2 * B.blockFootwork + 0.12 * (b.prof.mass - 1);
+    if (eng.mode === 'RUN') {
+      const tech = b.assignment?.tech;
+      if (tech === 'REACH' || tech === 'SEAL' || tech === 'CLIMB' || (tech === 'PULL' && b.assignment.role === 'LEAD'))
+        s = 0.35 * B.runBlock + 0.35 * B.blockFootwork + 0.15 * B.agility + 0.15 * B.blockStrength + 0.08 * (b.prof.mass - 1);
+      else s = 0.4 * B.runBlock + 0.4 * B.blockStrength + 0.2 * B.blockFootwork + 0.14 * (b.prof.mass - 1);
+      // Pullers and kick-out blocks arrive with momentum.
+      if (tech === 'PULL' && eng.t < 0.4) s += 0.08;
+    }
     else if (eng.move === 'SPEED') s = 0.5 * B.blockFootwork + 0.3 * B.passBlock + 0.2 * B.agility;
     else if (eng.move === 'POWER') s = 0.45 * B.blockStrength + 0.25 * B.passBlock + 0.3 * (0.5 + (b.prof.mass - 1) * 1.5);
     else s = 0.5 * B.passBlock + 0.3 * B.blockFootwork + 0.2 * B.awareness;
@@ -30,7 +41,15 @@ function matchup(eng) {
   }
   if (blockers.length > 1) bScore *= 0.68; // double team ~1.36x a single blocker
   let dScore;
-  if (eng.mode === 'RUN') dScore = 0.45 * D.runDefense + 0.35 * D.strength + 0.2 * D.explosiveness + 0.12 * (d.prof.mass - 1);
+  if (eng.mode === 'RUN') {
+    // Second-level defenders beat blocks with quickness; down linemen with strength.
+    dScore = d.prof.group === 'DL'
+      ? 0.45 * D.runDefense + 0.35 * D.strength + 0.2 * D.explosiveness + 0.12 * (d.prof.mass - 1)
+      : 0.45 * D.runDefense + 0.2 * D.strength + 0.2 * D.agility + 0.15 * D.playRecognition + 0.08 * (d.prof.mass - 1);
+    // Body position: blocker squarely between the defender and the ball (fit) wins; a defender with the blocker
+    // on his hip can cross face. Contributes continuously, never a binary win.
+    dScore -= 0.1 * (eng.fit ?? 0);
+  }
   else if (eng.move === 'SPEED') dScore = 0.5 * D.speed + 0.3 * D.explosiveness + 0.2 * D.passRush;
   else if (eng.move === 'POWER') dScore = 0.45 * D.strength + 0.25 * D.passRush + 0.3 * (0.5 + (d.prof.mass - 1) * 1.5);
   else dScore = 0.6 * D.passRush + 0.2 * D.agility + 0.2 * D.explosiveness;
@@ -43,13 +62,36 @@ export function createEngagement(sim, blocker, def, mode) {
   const closing = Math.max(0, -((def.vel.x - blocker.vel.x) * (blocker.pos.x - def.pos.x) + (def.vel.y - blocker.vel.y) * (blocker.pos.y - def.pos.y)) / Math.max(0.3, dist(def.pos, blocker.pos)));
   const lev0 = 0.35 * (D.explosiveness - B.blockFootwork) + 0.06 * closing * (def.prof.mass - blocker.prof.mass + 0.3) + sim.rng.normal(0, 0.12);
   const eng = { blockers: [blocker], def, mode, move: def.rushMove || 'POWER', lev: clamp(lev0, -0.6, 0.6), t: 0 };
+  if (mode === 'RUN') {
+    // Hand placement / pad level at contact: technique (footwork + awareness) vs the defender's get-off.
+    eng.lev = clamp(lev0 * 0.6 + 0.25 * (D.runDefense - 0.5 * (B.runBlock + B.blockFootwork)), -0.5, 0.5);
+    eng.fit = fitOf(sim, eng, blocker);
+    eng.attach = norm(sub(blocker.pos, def.pos));
+  }
   blocker.engagedWith = def; def.engagedWith = blocker; blocker.eng = eng; def.eng = eng;
   sim.engagements.push(eng);
   return eng;
 }
 
+// Fit: cosine between (defender -> blocker) and (defender -> ball). 1 = perfectly walled off, -1 = blocker behind him.
+function fitOf(sim, eng, b) {
+  const goal = defenderGoal(sim, eng);
+  const u = norm(sub(b.pos, eng.def.pos)), g = norm(sub(goal, eng.def.pos));
+  return u.x * g.x + u.y * g.y;
+}
+
+// Direction a winning run blocker moves his man, from the technique.
+function driveDir(sim, eng) {
+  const b = eng.blockers[0], s = sim.runSide || 1, tech = b.assignment?.tech;
+  if (eng.blockers.length > 1) return { x: 1, y: 0 };                            // double: vertical push
+  if (tech === 'REACH' || tech === 'SEAL') return norm({ x: 0.45, y: -s });       // turn him away from the play
+  if (tech === 'KICK' || (tech === 'PULL' && b.assignment.role !== 'LEAD')) return norm({ x: 0.3, y: s }); // kick / trap him out
+  return null;                                                                   // drive him away from the ball
+}
+
 function release(sim, eng, outcome) {
   for (const b of eng.blockers) { b.engagedWith = null; b.eng = null; }
+  if (eng.mode === 'RUN') eng.def.lastRunShed = sim.t;
   eng.def.engagedWith = null; eng.def.eng = null;
   sim.engagements.splice(sim.engagements.indexOf(eng), 1);
   if (outcome === 'SHED') {
@@ -74,17 +116,22 @@ export function updateEngagements(sim, dt) {
     // Stop pass-rush fights once the ball is out / carrier is far away.
     const goal = defenderGoal(sim, eng);
     if (eng.mode === 'PASS' && sim.phase !== 'PRE_THROW' && sim.phase !== 'SCRAMBLE') eng.mode = 'RUN';
+    if (eng.mode === 'RUN') {
+      eng.fit = eng.blockers.reduce((m, b) => Math.max(m, fitOf(sim, eng, b)), -1);
+      if (eng.blockers.length > 1 && updateDouble(sim, eng, dt)) continue;
+    }
     const m = matchup(eng);
-    // Run blocks are hard to sustain once the ball carrier is right there: the defender gets off to tackle.
+    // Run blocks are hard to sustain once the ball carrier is right there: the defender gets off to tackle,
+    // unless the blocker has him walled off (good fit).
     if (eng.mode === 'RUN' && sim.carrier && sim.carrier.side !== d.side) {
       const c = sim.carrier, dc = dist(d.pos, c.pos);
-      const near = Math.max(0, 1 - dc / 3.2);
+      const near = Math.max(0, 1 - dc / 3.2) * (0.1 + 0.9 * (1 - eng.fit) / 2);
       // Ball already past him (or far away): he simply turns and chases; a block can't hold that.
       const dir = c.side === 'off' ? 1 : -1;
       const past = (c.pos.x - d.pos.x) * dir > 1 || dc > 7 ? 1 : 0;
       eng.lev += (near * (1.0 + 1.2 * d.prof.r.tackling) + past * 1.6) * dt;
     }
-    eng.lev += m * 1.9 * dt + sim.rng.normal(0, 0.62) * Math.sqrt(dt);
+    eng.lev += m * 1.9 * dt + sim.rng.normal(0, eng.mode === 'RUN' ? 0.42 : 0.47) * Math.sqrt(dt);
     eng.lev = Math.max(-1.6, eng.lev);
     // Counter move after a stalemate.
     if (eng.mode === 'PASS' && eng.lev < -0.9 && sim.rng.chance(dt * 0.9)) {
@@ -105,10 +152,13 @@ export function updateEngagements(sim, dt) {
       }
     } else {
       const drive = eng.mode === 'RUN' ? 1.3 : 0.35;
-      vx = -toGoal.x * -eng.lev * drive; vy = -toGoal.y * -eng.lev * drive;
+      const dd = eng.mode === 'RUN' && driveDir(sim, eng);
+      const away = dd ? norm({ x: dd.x * 0.65 - toGoal.x * 0.35, y: dd.y * 0.65 - toGoal.y * 0.35 }) : { x: -toGoal.x, y: -toGoal.y };
+      vx = away.x * -eng.lev * drive; vy = away.y * -eng.lev * drive;
     }
     d.vel.x = vx; d.vel.y = vy;
     d.pos.x += vx * dt; d.pos.y += vy * dt;
+    if (eng.mode === 'RUN') { runAttach(sim, eng, toGoal, vx, vy, dt); continue; }
     // Blockers stay glued between defender and goal.
     eng.blockers.forEach((b, i) => {
       const off = (i - (eng.blockers.length - 1) / 2) * 0.7;
@@ -120,10 +170,79 @@ export function updateEngagements(sim, dt) {
   }
 }
 
+// Run block body position: each blocker keeps his own contact angle around the defender. The blocker works his
+// feet to get between the man and the ball (footwork); the defender works to the blocker's edge (agility) and
+// slides off when he is winning. This is what makes leverage gradual instead of a coin flip.
+function runAttach(sim, eng, toGoal, vx, vy, dt) {
+  const d = eng.def, D = d.prof.r;
+  eng.blockers.forEach((b, i) => {
+    const B = b.prof.r;
+    let a = b === eng.blockers[0] && eng.attach ? eng.attach : norm(sub(b.pos, d.pos));
+    if (a.x === 0 && a.y === 0) a = toGoal;
+    const work = (0.6 + 0.9 * B.blockFootwork - 0.5 * D.agility) * (eng.lev < 0 ? 1 : 0.35) - Math.max(0, eng.lev) * (0.4 + 0.8 * D.agility);
+    // Rotate the contact angle toward the goal side (positive work) or away from it (defender winning).
+    const cross = a.x * toGoal.y - a.y * toGoal.x, dot = a.x * toGoal.x + a.y * toGoal.y;
+    const ang = Math.atan2(cross, dot);                                  // angle from attach to goal direction
+    const stepA = clamp(work * 1.6 * dt, -0.12, 0.12) * Math.sign(ang || 1);
+    const ca = Math.cos(stepA), sa = Math.sin(stepA);
+    a = norm({ x: a.x * ca - a.y * sa, y: a.x * sa + a.y * ca });
+    if (eng.blockers.length > 1) {
+      // Double team: hip to hip, side by side in front of the man.
+      const off = (i - 0.5) * 0.75;
+      a = norm({ x: toGoal.x * 0.85 - toGoal.y * off, y: toGoal.y * 0.85 + toGoal.x * off });
+    }
+    if (b === eng.blockers[0]) eng.attach = a;
+    const tx = d.pos.x + a.x * 0.85, ty = d.pos.y + a.y * 0.85;
+    b.vel.x = vx; b.vel.y = vy;
+    const k = Math.min(1, dt * 9);
+    b.pos.x += (tx - b.pos.x) * k; b.pos.y += (ty - b.pos.y) * k;
+  });
+}
+
+// Double-team state machine. Returns true when the engagement was dissolved this tick.
+function updateDouble(sim, eng, dt) {
+  const dbl = eng.double || (eng.double = { phase: 'DOUBLE', t: 0 });
+  dbl.t += dt;
+  const hold = sim.runPlan?.doubleHold ?? 0.5;
+  const lb = eng.blockers.map(b => b.assignment?.climbTo).find(Boolean);
+  if (dbl.phase === 'DOUBLE' && dbl.t > 0.2 && eng.lev < -0.2) {
+    dbl.phase = 'CONTROL';
+    sim.emit('DOUBLE_CONTROL', { on: eng.def.id, by: eng.blockers.map(b => b.id), lev: +eng.lev.toFixed(2) }, true);
+  }
+  if (dbl.phase === 'CONTROL') {
+    if (eng.lev > 0.15) { dbl.phase = 'DOUBLE'; return false; } // lost control: both stay on him
+    dbl.phase = 'READ';
+  }
+  if (dbl.phase === 'READ') {
+    if (eng.lev > 0.15) { dbl.phase = 'DOUBLE'; return false; }
+    // Read the backer: he fits downhill / into our gap (close) or the hold time expires -> one blocker climbs.
+    const target = lb && !lb.down && !lb.engagedWith ? lb : null;
+    const close = target && dist(target.pos, eng.def.pos) < 3.6;
+    const fired = target && target.vel.x < -1.2;
+    if (!(close || fired || dbl.t > hold + 0.5 || (target && dbl.t > hold))) return false;
+    if (!target && dbl.t < hold + 0.5) return false;
+    // Climber: the blocker on the backer's side (so the other keeps leverage on the down lineman).
+    const ref = target ? target.pos : { x: eng.def.pos.x + 3, y: eng.def.pos.y };
+    const [b0, b1] = eng.blockers;
+    const climber = Math.abs(b0.pos.y - ref.y) < Math.abs(b1.pos.y - ref.y) ? b0 : b1;
+    eng.blockers.splice(eng.blockers.indexOf(climber), 1);
+    climber.engagedWith = null; climber.eng = null; climber.noBlock = 0.05;
+    eng.def.engagedWith = eng.blockers[0];
+    eng.attach = norm(sub(eng.blockers[0].pos, eng.def.pos));
+    eng.lev += 0.15; // the remaining blocker loses the help
+    climber.assignment = { ...climber.assignment, tech: 'CLIMB', target, partner: null, fromDouble: true };
+    labelBlock(climber);
+    dbl.phase = 'CLIMB';
+    sim.emit('CLIMB', { by: climber.id, from: eng.def.id, to: target ? target.id : null, t: +sim.t.toFixed(2) }, true);
+  }
+  return false;
+}
+
 // Try to start new engagements / double teams between free blockers and defenders.
 export function tryEngage(sim, blocker, def, mode) {
   if (!def || def.down || blocker.down || blocker.engagedWith || (blocker.noBlock > 0) || def === sim.carrier) return false;
-  if (dist(blocker.pos, def.pos) > 1.15) return false;
+  // Run blockers on the second level can fit up a backer from a bit further (he runs into them).
+  if (dist(blocker.pos, def.pos) > (mode === 'RUN' && def.prof.group !== 'DL' ? 1.35 : 1.15)) return false;
   if (mode === 'PASS') {
     // A rusher who just shed is through the gap; and a blocker can only pick up a rusher he is in front of.
     if (def.noBlock > 0 && !def.eng) return false;
@@ -132,8 +251,14 @@ export function tryEngage(sim, blocker, def, mode) {
   }
   if (def.eng) {
     if (def.eng.blockers.length < 2 && def.eng.mode === mode) {
+      // A climber that already left this double does not come back to it.
+      if (mode === 'RUN' && def.eng.double?.phase === 'CLIMB') return false;
       def.eng.blockers.push(blocker); blocker.engagedWith = def; blocker.eng = def.eng;
       def.eng.lev -= 0.25;
+      if (mode === 'RUN') {
+        def.eng.double = { phase: 'DOUBLE', t: 0 };
+        sim.emit('DOUBLE_TEAM', { on: def.id, by: def.eng.blockers.map(b => b.id), tech: blocker.assignment?.tech || null }, true);
+      }
       return true;
     }
     return false;

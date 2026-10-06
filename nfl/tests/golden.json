@@ -2,49 +2,49 @@
   "NFL_TEST_PASS_001": {
     "concept": "SLANT_FLAT",
     "defCall": "COVER_2",
-    "outcome": "INCOMPLETE",
-    "yards": 0,
-    "duration": 3.37,
-    "events": "SNAP SHED SHED SHED PASS_ATTEMPT INCOMPLETE WHISTLE"
+    "outcome": "COMPLETE",
+    "yards": 26,
+    "duration": 4.4,
+    "events": "SNAP SHED PASS_ATTEMPT PASS_COMPLETE TACKLE WHISTLE"
   },
   "NFL_TEST_PASS_002": {
     "concept": "STICK",
     "defCall": "COVER_1",
     "outcome": "COMPLETE",
-    "yards": 3,
-    "duration": 2.1,
-    "events": "SNAP SHED PASS_ATTEMPT PASS_COMPLETE TACKLE WHISTLE"
+    "yards": 6,
+    "duration": 5.5,
+    "events": "SNAP SHED SHED SCRAMBLE SHED PASS_ATTEMPT PASS_COMPLETE BROKEN_TACKLE BROKEN_TACKLE TACKLE WHISTLE"
   },
   "NFL_TEST_DEEP_001": {
     "concept": "SMASH",
     "defCall": "COVER_2",
     "outcome": "SACK",
-    "yards": -7,
-    "duration": 2.8,
+    "yards": -9,
+    "duration": 3.03,
     "events": "SNAP SHED SACK WHISTLE"
   },
   "NFL_TEST_PRESSURE_001": {
     "concept": "DRIVE",
     "defCall": "COVER_1_BLITZ",
-    "outcome": "COMPLETE",
-    "yards": 13,
-    "duration": 2.93,
-    "events": "SNAP PASS_ATTEMPT PASS_COMPLETE TACKLE WHISTLE"
+    "outcome": "INCOMPLETE",
+    "yards": 0,
+    "duration": 3.1,
+    "events": "SNAP PASS_ATTEMPT INCOMPLETE PASS_BREAKUP WHISTLE"
   },
   "NFL_TEST_RUN_001": {
     "concept": "INSIDE_ZONE_R",
     "defCall": "COVER_1",
     "outcome": "RUSH",
-    "yards": 70,
-    "duration": 11.1,
-    "events": "SNAP HANDOFF BROKEN_TACKLE BROKEN_TACKLE BROKEN_TACKLE TOUCHDOWN WHISTLE"
+    "yards": 2,
+    "duration": 1.53,
+    "events": "SNAP HANDOFF TACKLE WHISTLE"
   },
   "NFL_TEST_RUN_002": {
     "concept": "OUTSIDE_ZONE_L",
     "defCall": "COVER_1",
     "outcome": "RUSH",
-    "yards": -3,
-    "duration": 1.33,
+    "yards": 1,
+    "duration": 1.8,
     "events": "SNAP HANDOFF TACKLE WHISTLE"
   }
 }

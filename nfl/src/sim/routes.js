@@ -14,8 +14,9 @@ export function initRoute(e, name, side) {
   let len = 0, prev = { x: ax, y: ay }, breakLen = null;
   pts.forEach((p, i) => { len += dist(prev, p); if (i === 0) breakLen = len; prev = p; });
   e.route = { name, pts, idx: 0, settle: !!def.settle, cont: !!def.cont, check: !!def.check, block: !!def.block, phase: 'RELEASE', breakLen, t: 0, inSign };
-  // Expected time to reach the first break at ~85% speed (used by the QB for timing).
-  e.route.breakTime = breakLen / (e.prof.maxSpeed * 0.85) + 0.35;
+  // Expected time to reach the first break at ~85% speed (used by the QB for timing). Vertical routes have no real
+  // break: their timing point is the end of the stem (def.timing yards).
+  e.route.breakTime = (def.timing ? Math.min(def.timing, len) : breakLen) / (e.prof.maxSpeed * 0.85) + 0.35;
   e.assignment = { type: def.block ? 'STALK_BLOCK' : def.check ? 'CHECK_RELEASE' : 'ROUTE', label: name };
 }
 

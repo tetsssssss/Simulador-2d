@@ -104,8 +104,8 @@ test('scenario D — incomplete passes do not invent catches, yards or reception
 test('scenario E — defensive play: coverage can produce breakups and interceptions', () => {
   const ballhawk = { ratings: { manCoverage: 195, zoneCoverage: 195, playRecognition: 195, anticipation: 195, catching: 190, jumping: 190, speed: 190 } };
   const wildQB = { ratings: { shortAccuracy: 40, mediumAccuracy: 40, deepAccuracy: 40, awareness: 30, decisionMaking: 30, composure: 30 } };
-  const base = batch(80, 'E0');
-  const def = batch(80, 'E1', { overrides: { QB: wildQB, CBL: ballhawk, CBR: ballhawk, FS: ballhawk, SS: ballhawk } });
+  const base = batch(160, 'E0');
+  const def = batch(160, 'E1', { overrides: { QB: wildQB, CBL: ballhawk, CBR: ballhawk, FS: ballhawk, SS: ballhawk } });
   const dp = r => r.outcome === 'INTERCEPTION' || has(r, 'PASS_BREAKUP') || r.events.some(e => e.type === 'INCOMPLETE' && e.reason === 'DEFLECTED');
   assert.ok(def.some(r => r.outcome === 'INTERCEPTION'), 'interceptions possible');
   assert.ok(def.some(r => has(r, 'PASS_BREAKUP')), 'breakups possible');
