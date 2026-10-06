@@ -1,0 +1,422 @@
+[
+  {
+    "sb": "I",
+    "year": 1967,
+    "champion": "Green Bay Packers",
+    "runnerUp": "Kansas City Chiefs",
+    "score": "35-10"
+  },
+  {
+    "sb": "II",
+    "year": 1968,
+    "champion": "Green Bay Packers",
+    "runnerUp": "Oakland Raiders",
+    "score": "33-14"
+  },
+  {
+    "sb": "III",
+    "year": 1969,
+    "champion": "New York Jets",
+    "runnerUp": "Baltimore Colts",
+    "score": "16-7"
+  },
+  {
+    "sb": "IV",
+    "year": 1970,
+    "champion": "Kansas City Chiefs",
+    "runnerUp": "Minnesota Vikings",
+    "score": "23-7"
+  },
+  {
+    "sb": "V",
+    "year": 1971,
+    "champion": "Baltimore Colts",
+    "runnerUp": "Dallas Cowboys",
+    "score": "16-13"
+  },
+  {
+    "sb": "VI",
+    "year": 1972,
+    "champion": "Dallas Cowboys",
+    "runnerUp": "Miami Dolphins",
+    "score": "24-3"
+  },
+  {
+    "sb": "VII",
+    "year": 1973,
+    "champion": "Miami Dolphins",
+    "runnerUp": "Washington Redskins",
+    "score": "14-7"
+  },
+  {
+    "sb": "VIII",
+    "year": 1974,
+    "champion": "Miami Dolphins",
+    "runnerUp": "Minnesota Vikings",
+    "score": "24-7"
+  },
+  {
+    "sb": "IX",
+    "year": 1975,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Minnesota Vikings",
+    "score": "16-6"
+  },
+  {
+    "sb": "X",
+    "year": 1976,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Dallas Cowboys",
+    "score": "21-17"
+  },
+  {
+    "sb": "XI",
+    "year": 1977,
+    "champion": "Oakland Raiders",
+    "runnerUp": "Minnesota Vikings",
+    "score": "32-14"
+  },
+  {
+    "sb": "XII",
+    "year": 1978,
+    "champion": "Dallas Cowboys",
+    "runnerUp": "Denver Broncos",
+    "score": "27-10"
+  },
+  {
+    "sb": "XIII",
+    "year": 1979,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Dallas Cowboys",
+    "score": "35-31"
+  },
+  {
+    "sb": "XIV",
+    "year": 1980,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Los Angeles Rams",
+    "score": "31-19"
+  },
+  {
+    "sb": "XV",
+    "year": 1981,
+    "champion": "Oakland Raiders",
+    "runnerUp": "Philadelphia Eagles",
+    "score": "27-10"
+  },
+  {
+    "sb": "XVI",
+    "year": 1982,
+    "champion": "San Francisco 49ers",
+    "runnerUp": "Cincinnati Bengals",
+    "score": "26-21"
+  },
+  {
+    "sb": "XVII",
+    "year": 1983,
+    "champion": "Washington Redskins",
+    "runnerUp": "Miami Dolphins",
+    "score": "27-17"
+  },
+  {
+    "sb": "XVIII",
+    "year": 1984,
+    "champion": "Los Angeles Raiders",
+    "runnerUp": "Washington Redskins",
+    "score": "38-9"
+  },
+  {
+    "sb": "XIX",
+    "year": 1985,
+    "champion": "San Francisco 49ers",
+    "runnerUp": "Miami Dolphins",
+    "score": "38-16"
+  },
+  {
+    "sb": "XX",
+    "year": 1986,
+    "champion": "Chicago Bears",
+    "runnerUp": "New England Patriots",
+    "score": "46-10"
+  },
+  {
+    "sb": "XXI",
+    "year": 1987,
+    "champion": "New York Giants",
+    "runnerUp": "Denver Broncos",
+    "score": "39-20"
+  },
+  {
+    "sb": "XXII",
+    "year": 1988,
+    "champion": "Washington Redskins",
+    "runnerUp": "Denver Broncos",
+    "score": "42-10"
+  },
+  {
+    "sb": "XXIII",
+    "year": 1989,
+    "champion": "San Francisco 49ers",
+    "runnerUp": "Cincinnati Bengals",
+    "score": "20-16"
+  },
+  {
+    "sb": "XXIV",
+    "year": 1990,
+    "champion": "San Francisco 49ers",
+    "runnerUp": "Denver Broncos",
+    "score": "55-10"
+  },
+  {
+    "sb": "XXV",
+    "year": 1991,
+    "champion": "New York Giants",
+    "runnerUp": "Buffalo Bills",
+    "score": "20-19"
+  },
+  {
+    "sb": "XXVI",
+    "year": 1992,
+    "champion": "Washington Redskins",
+    "runnerUp": "Buffalo Bills",
+    "score": "37-24"
+  },
+  {
+    "sb": "XXVII",
+    "year": 1993,
+    "champion": "Dallas Cowboys",
+    "runnerUp": "Buffalo Bills",
+    "score": "52-17"
+  },
+  {
+    "sb": "XXVIII",
+    "year": 1994,
+    "champion": "Dallas Cowboys",
+    "runnerUp": "Buffalo Bills",
+    "score": "30-13"
+  },
+  {
+    "sb": "XXIX",
+    "year": 1995,
+    "champion": "San Francisco 49ers",
+    "runnerUp": "San Diego Chargers",
+    "score": "49-26"
+  },
+  {
+    "sb": "XXX",
+    "year": 1996,
+    "champion": "Dallas Cowboys",
+    "runnerUp": "Pittsburgh Steelers",
+    "score": "27-17"
+  },
+  {
+    "sb": "XXXI",
+    "year": 1997,
+    "champion": "Green Bay Packers",
+    "runnerUp": "New England Patriots",
+    "score": "35-21"
+  },
+  {
+    "sb": "XXXII",
+    "year": 1998,
+    "champion": "Denver Broncos",
+    "runnerUp": "Green Bay Packers",
+    "score": "31-24"
+  },
+  {
+    "sb": "XXXIII",
+    "year": 1999,
+    "champion": "Denver Broncos",
+    "runnerUp": "Atlanta Falcons",
+    "score": "34-19"
+  },
+  {
+    "sb": "XXXIV",
+    "year": 2000,
+    "champion": "St. Louis Rams",
+    "runnerUp": "Tennessee Titans",
+    "score": "23-16"
+  },
+  {
+    "sb": "XXXV",
+    "year": 2001,
+    "champion": "Baltimore Ravens",
+    "runnerUp": "New York Giants",
+    "score": "34-7"
+  },
+  {
+    "sb": "XXXVI",
+    "year": 2002,
+    "champion": "New England Patriots",
+    "runnerUp": "St. Louis Rams",
+    "score": "20-17"
+  },
+  {
+    "sb": "XXXVII",
+    "year": 2003,
+    "champion": "Tampa Bay Buccaneers",
+    "runnerUp": "Oakland Raiders",
+    "score": "48-21"
+  },
+  {
+    "sb": "XXXVIII",
+    "year": 2004,
+    "champion": "New England Patriots",
+    "runnerUp": "Carolina Panthers",
+    "score": "32-29"
+  },
+  {
+    "sb": "XXXIX",
+    "year": 2005,
+    "champion": "New England Patriots",
+    "runnerUp": "Philadelphia Eagles",
+    "score": "24-21"
+  },
+  {
+    "sb": "XL",
+    "year": 2006,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Seattle Seahawks",
+    "score": "21-10"
+  },
+  {
+    "sb": "XLI",
+    "year": 2007,
+    "champion": "Indianapolis Colts",
+    "runnerUp": "Chicago Bears",
+    "score": "29-17"
+  },
+  {
+    "sb": "XLII",
+    "year": 2008,
+    "champion": "New York Giants",
+    "runnerUp": "New England Patriots",
+    "score": "17-14"
+  },
+  {
+    "sb": "XLIII",
+    "year": 2009,
+    "champion": "Pittsburgh Steelers",
+    "runnerUp": "Arizona Cardinals",
+    "score": "27-23"
+  },
+  {
+    "sb": "XLIV",
+    "year": 2010,
+    "champion": "New Orleans Saints",
+    "runnerUp": "Indianapolis Colts",
+    "score": "31-17"
+  },
+  {
+    "sb": "XLV",
+    "year": 2011,
+    "champion": "Green Bay Packers",
+    "runnerUp": "Pittsburgh Steelers",
+    "score": "31-25"
+  },
+  {
+    "sb": "XLVI",
+    "year": 2012,
+    "champion": "New York Giants",
+    "runnerUp": "New England Patriots",
+    "score": "21-17"
+  },
+  {
+    "sb": "XLVII",
+    "year": 2013,
+    "champion": "Baltimore Ravens",
+    "runnerUp": "San Francisco 49ers",
+    "score": "34-31"
+  },
+  {
+    "sb": "XLVIII",
+    "year": 2014,
+    "champion": "Seattle Seahawks",
+    "runnerUp": "Denver Broncos",
+    "score": "43-8"
+  },
+  {
+    "sb": "XLIX",
+    "year": 2015,
+    "champion": "New England Patriots",
+    "runnerUp": "Seattle Seahawks",
+    "score": "28-24"
+  },
+  {
+    "sb": "50",
+    "year": 2016,
+    "champion": "Denver Broncos",
+    "runnerUp": "Carolina Panthers",
+    "score": "24-10"
+  },
+  {
+    "sb": "LI",
+    "year": 2017,
+    "champion": "New England Patriots",
+    "runnerUp": "Atlanta Falcons",
+    "score": "34-28 OT"
+  },
+  {
+    "sb": "LII",
+    "year": 2018,
+    "champion": "Philadelphia Eagles",
+    "runnerUp": "New England Patriots",
+    "score": "41-33"
+  },
+  {
+    "sb": "LIII",
+    "year": 2019,
+    "champion": "New England Patriots",
+    "runnerUp": "Los Angeles Rams",
+    "score": "13-3"
+  },
+  {
+    "sb": "LIV",
+    "year": 2020,
+    "champion": "Kansas City Chiefs",
+    "runnerUp": "San Francisco 49ers",
+    "score": "31-20"
+  },
+  {
+    "sb": "LV",
+    "year": 2021,
+    "champion": "Tampa Bay Buccaneers",
+    "runnerUp": "Kansas City Chiefs",
+    "score": "31-9"
+  },
+  {
+    "sb": "LVI",
+    "year": 2022,
+    "champion": "Los Angeles Rams",
+    "runnerUp": "Cincinnati Bengals",
+    "score": "23-20"
+  },
+  {
+    "sb": "LVII",
+    "year": 2023,
+    "champion": "Kansas City Chiefs",
+    "runnerUp": "Philadelphia Eagles",
+    "score": "38-35"
+  },
+  {
+    "sb": "LVIII",
+    "year": 2024,
+    "champion": "Kansas City Chiefs",
+    "runnerUp": "San Francisco 49ers",
+    "score": "25-22 OT"
+  },
+  {
+    "sb": "LIX",
+    "year": 2025,
+    "champion": "Philadelphia Eagles",
+    "runnerUp": "Kansas City Chiefs",
+    "score": "40-22"
+  },
+  {
+    "sb": "LX",
+    "year": 2026,
+    "champion": "Seattle Seahawks",
+    "runnerUp": "New England Patriots",
+    "score": "29-13"
+  }
+]

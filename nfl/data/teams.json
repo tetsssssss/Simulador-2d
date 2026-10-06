@@ -1,0 +1,290 @@
+[
+  {
+    "abbr": "ARI",
+    "name": "Arizona Cardinals",
+    "city": "Glendale",
+    "conference": "NFC",
+    "division": "West",
+    "stadium": "State Farm Stadium",
+    "espn": "ari"
+  },
+  {
+    "abbr": "ATL",
+    "name": "Atlanta Falcons",
+    "city": "Atlanta",
+    "conference": "NFC",
+    "division": "South",
+    "stadium": "Mercedes-Benz Stadium",
+    "espn": "atl"
+  },
+  {
+    "abbr": "BAL",
+    "name": "Baltimore Ravens",
+    "city": "Baltimore",
+    "conference": "AFC",
+    "division": "North",
+    "stadium": "M&T Bank Stadium",
+    "espn": "bal"
+  },
+  {
+    "abbr": "BUF",
+    "name": "Buffalo Bills",
+    "city": "Buffalo",
+    "conference": "AFC",
+    "division": "East",
+    "stadium": "Highmark Stadium",
+    "espn": "buf"
+  },
+  {
+    "abbr": "CAR",
+    "name": "Carolina Panthers",
+    "city": "Charlotte",
+    "conference": "NFC",
+    "division": "South",
+    "stadium": "Bank of America Stadium",
+    "espn": "car"
+  },
+  {
+    "abbr": "CHI",
+    "name": "Chicago Bears",
+    "city": "Chicago",
+    "conference": "NFC",
+    "division": "North",
+    "stadium": "Soldier Field",
+    "espn": "chi"
+  },
+  {
+    "abbr": "CIN",
+    "name": "Cincinnati Bengals",
+    "city": "Cincinnati",
+    "conference": "AFC",
+    "division": "North",
+    "stadium": "Paycor Stadium",
+    "espn": "cin"
+  },
+  {
+    "abbr": "CLE",
+    "name": "Cleveland Browns",
+    "city": "Cleveland",
+    "conference": "AFC",
+    "division": "North",
+    "stadium": "Huntington Bank Field",
+    "espn": "cle"
+  },
+  {
+    "abbr": "DAL",
+    "name": "Dallas Cowboys",
+    "city": "Arlington",
+    "conference": "NFC",
+    "division": "East",
+    "stadium": "AT&T Stadium",
+    "espn": "dal"
+  },
+  {
+    "abbr": "DEN",
+    "name": "Denver Broncos",
+    "city": "Denver",
+    "conference": "AFC",
+    "division": "West",
+    "stadium": "Empower Field at Mile High",
+    "espn": "den"
+  },
+  {
+    "abbr": "DET",
+    "name": "Detroit Lions",
+    "city": "Detroit",
+    "conference": "NFC",
+    "division": "North",
+    "stadium": "Ford Field",
+    "espn": "det"
+  },
+  {
+    "abbr": "GB",
+    "name": "Green Bay Packers",
+    "city": "Green Bay",
+    "conference": "NFC",
+    "division": "North",
+    "stadium": "Lambeau Field",
+    "espn": "gb"
+  },
+  {
+    "abbr": "HOU",
+    "name": "Houston Texans",
+    "city": "Houston",
+    "conference": "AFC",
+    "division": "South",
+    "stadium": "NRG Stadium",
+    "espn": "hou"
+  },
+  {
+    "abbr": "IND",
+    "name": "Indianapolis Colts",
+    "city": "Indianapolis",
+    "conference": "AFC",
+    "division": "South",
+    "stadium": "Lucas Oil Stadium",
+    "espn": "ind"
+  },
+  {
+    "abbr": "JAX",
+    "name": "Jacksonville Jaguars",
+    "city": "Jacksonville",
+    "conference": "AFC",
+    "division": "South",
+    "stadium": "EverBank Stadium",
+    "espn": "jax"
+  },
+  {
+    "abbr": "KC",
+    "name": "Kansas City Chiefs",
+    "city": "Kansas City",
+    "conference": "AFC",
+    "division": "West",
+    "stadium": "GEHA Field at Arrowhead Stadium",
+    "espn": "kc"
+  },
+  {
+    "abbr": "LV",
+    "name": "Las Vegas Raiders",
+    "city": "Las Vegas",
+    "conference": "AFC",
+    "division": "West",
+    "stadium": "Allegiant Stadium",
+    "espn": "lv"
+  },
+  {
+    "abbr": "LAC",
+    "name": "Los Angeles Chargers",
+    "city": "Inglewood",
+    "conference": "AFC",
+    "division": "West",
+    "stadium": "SoFi Stadium",
+    "espn": "lac"
+  },
+  {
+    "abbr": "LA",
+    "name": "Los Angeles Rams",
+    "city": "Inglewood",
+    "conference": "NFC",
+    "division": "West",
+    "stadium": "SoFi Stadium",
+    "espn": "lar"
+  },
+  {
+    "abbr": "MIA",
+    "name": "Miami Dolphins",
+    "city": "Miami Gardens",
+    "conference": "AFC",
+    "division": "East",
+    "stadium": "Hard Rock Stadium",
+    "espn": "mia"
+  },
+  {
+    "abbr": "MIN",
+    "name": "Minnesota Vikings",
+    "city": "Minneapolis",
+    "conference": "NFC",
+    "division": "North",
+    "stadium": "U.S. Bank Stadium",
+    "espn": "min"
+  },
+  {
+    "abbr": "NE",
+    "name": "New England Patriots",
+    "city": "Foxborough",
+    "conference": "AFC",
+    "division": "East",
+    "stadium": "Gillette Stadium",
+    "espn": "ne"
+  },
+  {
+    "abbr": "NO",
+    "name": "New Orleans Saints",
+    "city": "New Orleans",
+    "conference": "NFC",
+    "division": "South",
+    "stadium": "Caesars Superdome",
+    "espn": "no"
+  },
+  {
+    "abbr": "NYG",
+    "name": "New York Giants",
+    "city": "East Rutherford",
+    "conference": "NFC",
+    "division": "East",
+    "stadium": "MetLife Stadium",
+    "espn": "nyg"
+  },
+  {
+    "abbr": "NYJ",
+    "name": "New York Jets",
+    "city": "East Rutherford",
+    "conference": "AFC",
+    "division": "East",
+    "stadium": "MetLife Stadium",
+    "espn": "nyj"
+  },
+  {
+    "abbr": "PHI",
+    "name": "Philadelphia Eagles",
+    "city": "Philadelphia",
+    "conference": "NFC",
+    "division": "East",
+    "stadium": "Lincoln Financial Field",
+    "espn": "phi"
+  },
+  {
+    "abbr": "PIT",
+    "name": "Pittsburgh Steelers",
+    "city": "Pittsburgh",
+    "conference": "AFC",
+    "division": "North",
+    "stadium": "Acrisure Stadium",
+    "espn": "pit"
+  },
+  {
+    "abbr": "SF",
+    "name": "San Francisco 49ers",
+    "city": "Santa Clara",
+    "conference": "NFC",
+    "division": "West",
+    "stadium": "Levi's Stadium",
+    "espn": "sf"
+  },
+  {
+    "abbr": "SEA",
+    "name": "Seattle Seahawks",
+    "city": "Seattle",
+    "conference": "NFC",
+    "division": "West",
+    "stadium": "Lumen Field",
+    "espn": "sea"
+  },
+  {
+    "abbr": "TB",
+    "name": "Tampa Bay Buccaneers",
+    "city": "Tampa",
+    "conference": "NFC",
+    "division": "South",
+    "stadium": "Raymond James Stadium",
+    "espn": "tb"
+  },
+  {
+    "abbr": "TEN",
+    "name": "Tennessee Titans",
+    "city": "Nashville",
+    "conference": "AFC",
+    "division": "South",
+    "stadium": "Nissan Stadium",
+    "espn": "ten"
+  },
+  {
+    "abbr": "WAS",
+    "name": "Washington Commanders",
+    "city": "Landover",
+    "conference": "NFC",
+    "division": "East",
+    "stadium": "Northwest Stadium",
+    "espn": "wsh"
+  }
+]

@@ -1,0 +1,402 @@
+[
+  {
+    "year": 1927,
+    "champion": "Ottawa Senators"
+  },
+  {
+    "year": 1928,
+    "champion": "New York Rangers"
+  },
+  {
+    "year": 1929,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 1930,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1931,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1932,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1933,
+    "champion": "New York Rangers"
+  },
+  {
+    "year": 1934,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 1935,
+    "champion": "Montreal Maroons"
+  },
+  {
+    "year": 1936,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1937,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1938,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 1939,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 1940,
+    "champion": "New York Rangers"
+  },
+  {
+    "year": 1941,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 1942,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1943,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1944,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1945,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1946,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1947,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1948,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1949,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1950,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1951,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1952,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1953,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1954,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1955,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1956,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1957,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1958,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1959,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1960,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1961,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 1962,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1963,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1964,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1965,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1966,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1967,
+    "champion": "Toronto Maple Leafs"
+  },
+  {
+    "year": 1968,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1969,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1970,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 1971,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1972,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 1973,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1974,
+    "champion": "Philadelphia Flyers"
+  },
+  {
+    "year": 1975,
+    "champion": "Philadelphia Flyers"
+  },
+  {
+    "year": 1976,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1977,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1978,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1979,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1980,
+    "champion": "New York Islanders"
+  },
+  {
+    "year": 1981,
+    "champion": "New York Islanders"
+  },
+  {
+    "year": 1982,
+    "champion": "New York Islanders"
+  },
+  {
+    "year": 1983,
+    "champion": "New York Islanders"
+  },
+  {
+    "year": 1984,
+    "champion": "Edmonton Oilers"
+  },
+  {
+    "year": 1985,
+    "champion": "Edmonton Oilers"
+  },
+  {
+    "year": 1986,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1987,
+    "champion": "Edmonton Oilers"
+  },
+  {
+    "year": 1988,
+    "champion": "Edmonton Oilers"
+  },
+  {
+    "year": 1989,
+    "champion": "Calgary Flames"
+  },
+  {
+    "year": 1990,
+    "champion": "Edmonton Oilers"
+  },
+  {
+    "year": 1991,
+    "champion": "Pittsburgh Penguins"
+  },
+  {
+    "year": 1992,
+    "champion": "Pittsburgh Penguins"
+  },
+  {
+    "year": 1993,
+    "champion": "Montreal Canadiens"
+  },
+  {
+    "year": 1994,
+    "champion": "New York Rangers"
+  },
+  {
+    "year": 1995,
+    "champion": "New Jersey Devils"
+  },
+  {
+    "year": 1996,
+    "champion": "Colorado Avalanche"
+  },
+  {
+    "year": 1997,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1998,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 1999,
+    "champion": "Dallas Stars"
+  },
+  {
+    "year": 2000,
+    "champion": "New Jersey Devils"
+  },
+  {
+    "year": 2001,
+    "champion": "Colorado Avalanche"
+  },
+  {
+    "year": 2002,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 2003,
+    "champion": "New Jersey Devils"
+  },
+  {
+    "year": 2004,
+    "champion": "Tampa Bay Lightning"
+  },
+  {
+    "year": 2005,
+    "champion": "No champion (lockout)"
+  },
+  {
+    "year": 2006,
+    "champion": "Carolina Hurricanes"
+  },
+  {
+    "year": 2007,
+    "champion": "Anaheim Ducks"
+  },
+  {
+    "year": 2008,
+    "champion": "Detroit Red Wings"
+  },
+  {
+    "year": 2009,
+    "champion": "Pittsburgh Penguins"
+  },
+  {
+    "year": 2010,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 2011,
+    "champion": "Boston Bruins"
+  },
+  {
+    "year": 2012,
+    "champion": "Los Angeles Kings"
+  },
+  {
+    "year": 2013,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 2014,
+    "champion": "Los Angeles Kings"
+  },
+  {
+    "year": 2015,
+    "champion": "Chicago Blackhawks"
+  },
+  {
+    "year": 2016,
+    "champion": "Pittsburgh Penguins"
+  },
+  {
+    "year": 2017,
+    "champion": "Pittsburgh Penguins"
+  },
+  {
+    "year": 2018,
+    "champion": "Washington Capitals"
+  },
+  {
+    "year": 2019,
+    "champion": "St. Louis Blues"
+  },
+  {
+    "year": 2020,
+    "champion": "Tampa Bay Lightning"
+  },
+  {
+    "year": 2021,
+    "champion": "Tampa Bay Lightning"
+  },
+  {
+    "year": 2022,
+    "champion": "Colorado Avalanche"
+  },
+  {
+    "year": 2023,
+    "champion": "Vegas Golden Knights"
+  },
+  {
+    "year": 2024,
+    "champion": "Florida Panthers"
+  },
+  {
+    "year": 2025,
+    "champion": "Florida Panthers"
+  },
+  {
+    "year": 2026,
+    "champion": "Carolina Hurricanes"
+  }
+]

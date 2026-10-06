@@ -1,0 +1,6 @@
+{
+  "roster": "https://github.com/nflverse/nflverse-data/releases/download/rosters/roster_2026.csv",
+  "roster_dictionary": "https://nflreadr.nflverse.com/articles/dictionary_rosters.html",
+  "logo_pattern": "https://a.espncdn.com/i/teamlogos/nfl/500/{team}.png",
+  "generated_on": "2026-10-06"
+}

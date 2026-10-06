@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>American Sports Universe 2D — NFL</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">ASU</div><div><strong>American Sports</strong><span>Universe 2D · NFL</span></div></div>
+    <nav id="nav"></nav>
+    <div class="source-pill" id="sourcePill">Base: aguardando sincronização</div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub">NFL Universe 2026</p></div>
+      <div class="top-actions"><button id="syncBtn" class="primary">Sincronizar roster 2026</button><button id="saveBtn">Salvar carreira</button></div>
+    </header>
+    <section id="content"></section>
+  </main>
+</div>
+<input id="csvFile" type="file" accept=".csv,text/csv" hidden />
+<div id="toast" class="toast" aria-live="polite"></div>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

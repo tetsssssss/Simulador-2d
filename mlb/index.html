@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MLB Universe 2D</title><link rel="stylesheet" href="styles.css"></head>
+<body><div id="app"><aside>
+<div class="brand"><div class="ball">⚾</div><div><strong>MLB Universe</strong><small>2D Franchise Lab</small></div></div>
+<nav id="nav">
+<button class="active" data-view="home">Visão Geral</button><button data-view="teams">Franquias</button>
+<button data-view="rosters">Elencos</button><button data-view="prospects">Prospectos</button><button data-view="draft">Draft</button>
+<button data-view="stadiums">Estádios</button><button data-view="rivalries">Rivalidades</button><button data-view="history">Histórico</button>
+<button data-view="diamond">Diamond 2D</button></nav>
+<div class="foot"><span id="status">MLB StatsAPI sob demanda</span><button id="sync">Sincronizar 30 rosters</button></div>
+</aside><main><header><div><h1 id="title">MLB Universe 2D</h1><p id="subtitle">Franquias, atletas, prospectos, draft e baseball vivo.</p></div><div class="season">2026</div></header><section id="content"></section></main></div>
+<div id="modal" class="modal hidden"><div class="modalbox"><button id="close" class="close">×</button><div id="modalContent"></div></div></div>
+<script src="js/data.js"></script><script src="js/app.js"></script></body></html>

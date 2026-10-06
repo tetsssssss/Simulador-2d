@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NHL Universe 2D</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="shield">NHL</div>
+      <div><strong>Universe 2D</strong><small>Franchise Simulator</small></div>
+    </div>
+    <nav id="nav">
+      <button data-view="home" class="active">Visão Geral</button>
+      <button data-view="teams">Franquias</button>
+      <button data-view="roster">Elencos</button>
+      <button data-view="prospects">Prospectos</button>
+      <button data-view="arenas">Arenas</button>
+      <button data-view="rivalries">Rivalidades</button>
+      <button data-view="history">Histórico</button>
+      <button data-view="rink">Rink 2D</button>
+    </nav>
+    <div class="syncbox">
+      <span id="syncStatus">Dados NHL sob demanda</span>
+      <button id="syncAll">Sincronizar 32 elencos</button>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <h1 id="viewTitle">NHL Universe 2D</h1>
+        <p id="viewSubtitle">Liga, atletas, prospectos e história em uma única base.</p>
+      </div>
+      <div class="season">2026–27</div>
+    </header>
+    <section id="content"></section>
+  </main>
+</div>
+<div id="modal" class="modal hidden"><div class="modal-card"><button id="closeModal" class="close">×</button><div id="modalContent"></div></div></div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

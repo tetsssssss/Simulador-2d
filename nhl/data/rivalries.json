@@ -1,0 +1,152 @@
+[
+  {
+    "a": "MTL",
+    "b": "BOS",
+    "score": 100,
+    "label": "Original Six / histórica"
+  },
+  {
+    "a": "MTL",
+    "b": "TOR",
+    "score": 99,
+    "label": "Original Six / Canadá"
+  },
+  {
+    "a": "TOR",
+    "b": "BOS",
+    "score": 97,
+    "label": "Atlantic / playoffs"
+  },
+  {
+    "a": "EDM",
+    "b": "CGY",
+    "score": 100,
+    "label": "Battle of Alberta"
+  },
+  {
+    "a": "NYR",
+    "b": "NYI",
+    "score": 98,
+    "label": "Battle of New York"
+  },
+  {
+    "a": "NYR",
+    "b": "NJD",
+    "score": 97,
+    "label": "Hudson River"
+  },
+  {
+    "a": "PIT",
+    "b": "PHI",
+    "score": 99,
+    "label": "Battle of Pennsylvania"
+  },
+  {
+    "a": "WSH",
+    "b": "PIT",
+    "score": 97,
+    "label": "era Crosby–Ovechkin"
+  },
+  {
+    "a": "CHI",
+    "b": "DET",
+    "score": 94,
+    "label": "Original Six / histórica"
+  },
+  {
+    "a": "DET",
+    "b": "COL",
+    "score": 96,
+    "label": "rivalidade dos anos 1990"
+  },
+  {
+    "a": "LAK",
+    "b": "ANA",
+    "score": 93,
+    "label": "Freeway Face-Off"
+  },
+  {
+    "a": "FLA",
+    "b": "TBL",
+    "score": 95,
+    "label": "Battle of Florida"
+  },
+  {
+    "a": "VAN",
+    "b": "EDM",
+    "score": 88,
+    "label": "Pacífico canadense"
+  },
+  {
+    "a": "DAL",
+    "b": "COL",
+    "score": 86,
+    "label": "Central / playoffs"
+  },
+  {
+    "a": "VGK",
+    "b": "SJS",
+    "score": 92,
+    "label": "Pacífico / playoffs"
+  },
+  {
+    "a": "VGK",
+    "b": "EDM",
+    "score": 90,
+    "label": "Pacífico moderno"
+  },
+  {
+    "a": "STL",
+    "b": "CHI",
+    "score": 96,
+    "label": "Central histórica"
+  },
+  {
+    "a": "OTT",
+    "b": "TOR",
+    "score": 94,
+    "label": "Battle of Ontario"
+  },
+  {
+    "a": "BUF",
+    "b": "TOR",
+    "score": 89,
+    "label": "QEW"
+  },
+  {
+    "a": "CAR",
+    "b": "WSH",
+    "score": 84,
+    "label": "Metropolitan"
+  },
+  {
+    "a": "SEA",
+    "b": "VAN",
+    "score": 82,
+    "label": "Cascadia"
+  },
+  {
+    "a": "UTA",
+    "b": "COL",
+    "score": 78,
+    "label": "Rockies emergente"
+  },
+  {
+    "a": "NSH",
+    "b": "DAL",
+    "score": 82,
+    "label": "Central / sul"
+  },
+  {
+    "a": "WPG",
+    "b": "MIN",
+    "score": 86,
+    "label": "Central"
+  },
+  {
+    "a": "CBJ",
+    "b": "PIT",
+    "score": 80,
+    "label": "Metropolitan"
+  }
+]
