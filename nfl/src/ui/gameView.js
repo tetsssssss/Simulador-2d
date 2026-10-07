@@ -4,6 +4,9 @@
 import { step } from '../sim/playSim.js';
 import { applyPlayEvents } from '../sim/stats.js';
 import { createRenderer } from './fieldRenderer.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { openAvatarEditor } from '../../../core/ui/avatarEditor.js';
+import { mountFocus } from '../../../core/ui/focusMode.js';
 import {
   newGameState, offAbbr, defAbbr, clockStr, ballSpot, downText, makeLineupCache, cpuOffenseCall, cpuDefenseCall,
   snap, applyPlay, summarize, logText, runFamilies, passConcepts, defCalls, conceptLabel, simulateRest, PLAY_TYPES,
@@ -41,7 +44,7 @@ export function mountGame(root, deps) {
   const view = {
     sim: null, raf: 0, acc: 0, last: 0, speed: disp.animSpeed || 1, paused: false, debug: !!disp.debug, zoom: 'medium',
     follow: disp.cameraFollow !== false, phase: 'AWAIT', deadAt: null, resultAt: null, auto: m.mode === 'SPECTATOR' || !!m.auto,
-    selected: null, playClock: 40, pendingCall: null, lastSum: null, boxTab: 'TEAM', simming: false, sel: { off: null, def: null },
+    selected: null, visual: getVisualMode(), playClock: 40, pendingCall: null, lastSum: null, boxTab: 'TEAM', simming: false, sel: { off: null, def: null },
   };
   const cache = makeLineupCache(() => m.roster ? m.roster(state.roster) : state.roster);
   const sandbox = m.mode === 'SANDBOX';
@@ -67,6 +70,8 @@ export function mountGame(root, deps) {
           <div class="seg" id="zoomSeg"><button data-zoom="close">Close</button><button data-zoom="medium" class="on">Mid</button><button data-zoom="full">Full</button></div>
           <button id="camBtn" class="toggle ${view.follow ? 'on' : ''}" title="Câmera segue a bola">Cam</button>
           <div class="seg" id="viewSeg"><button data-view="normal" class="${view.debug ? '' : 'on'}">Normal</button><button data-view="debug" class="${view.debug ? 'on' : ''}">Debug</button></div>
+          <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === view.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <button id="focusBtn" class="primary" title="Só o campo 2D em tela cheia (F)">⛶ Modo 2D</button>
           <button id="exitBtn" class="ghost" title="Sair para a seleção de modo">✕</button>
         </div>
         <div class="drive-strip" id="strip"></div>
@@ -85,7 +90,7 @@ export function mountGame(root, deps) {
   const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
   const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
 
@@ -313,7 +318,8 @@ export function mountGame(root, deps) {
     const p = e.p, { r, o } = ratingsOf(p), T = teamBy(p.team);
     const attrs = keyAttrs(p).slice(0, 6).map(a => `<div class="pc-attr"><span>${esc(a)}</span><b>${r[keyForAttribute(a)]}</b></div>`).join('');
     el.innerHTML = `<button class="pc-x" id="pcX">✕</button><div class="pc-head">${avatar(p, 'lg')}<div><b>${esc(p.full_name)}</b><div class="muted">${esc(p.position)} · #${esc(p.jersey_number || '—')} · ${esc(T?.abbr || p.team)}</div><div class="pc-slot">${esc(e.slot)} · energia ${Math.round(e.energy * 100)}%</div></div>${ovrBadge(o)}</div>
-      <div class="pc-attrs">${attrs}</div>${view.debug && e.assignment?.label ? `<div class="pc-asg mono">${esc(e.assignment.label)}</div>` : ''}<a class="pc-link" href="#player/${encodeURIComponent(pid(p))}">Perfil completo →</a>`;
+      <div class="pc-attrs">${attrs}</div>${view.debug && e.assignment?.label ? `<div class="pc-asg mono">${esc(e.assignment.label)}</div>` : ''}<a class="pc-link" href="#player/${encodeURIComponent(pid(p))}">Perfil completo →</a><button id="pcEdit" class="small">✎ Editar boneco</button>`;
+    $('#pcEdit').onclick = () => { const c = e.side === 'off' ? renderer.colors?.off : renderer.colors?.def; openAvatarEditor({ sport: 'nfl', id: pid(p), name: p.full_name, number: p.jersey_number, pos: p.position, color: c?.[0], color2: c?.[1], kit: 'football', prop: 'none' }); };
     el.classList.add('show');
     $('#pcX').onclick = () => { view.selected = null; drawPlayerCard(); };
   }
@@ -382,7 +388,9 @@ export function mountGame(root, deps) {
   function drawAll() { drawBug(); drawCallPanel(); drawLog(); drawBox(); syncControls(); drawDebug(); }
 
   // ---------- frame loop ----------
-  function cleanup() { cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
+  const unfocus = mountFocus(root.querySelector('.match'), { button: $('#focusBtn') });
+  $('#optVisual').onchange = e => { view.visual = e.target.value; setVisualMode(view.visual); };
+  function cleanup() { unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;
   let hudTick = 0;
   function frame(ts) {

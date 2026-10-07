@@ -6,6 +6,9 @@ import { buildLineup, faceoffSpots, skaterRecord } from './lineup.js';
 import { createRinkRenderer, CAMERAS } from '../rink/rinkRenderer.js';
 import { RINK, MIDY } from '../rink/geometry.js';
 import { photoUrl } from '../photos.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { openAvatarEditor, avatarThumb } from '../../../core/ui/avatarEditor.js';
+import { mountFocus } from '../../../core/ui/focusMode.js';
 import { separateKits, textColorOn } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
@@ -22,7 +25,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': 
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
 
 export function mountMatch(root, deps = {}) {
-  const pref = { home: store.get('asu_nhl_home') || 'BOS', away: store.get('asu_nhl_away') || 'TOR', camera: store.get('asu_nhl_cam') || 'BROADCAST', names: store.get('asu_nhl_names') !== '0', photos: store.get('asu_nhl_photos') !== '0', debug: false };
+  const pref = { home: store.get('asu_nhl_home') || 'BOS', away: store.get('asu_nhl_away') || 'TOR', camera: store.get('asu_nhl_cam') || 'BROADCAST', names: store.get('asu_nhl_names') !== '0', visual: getVisualMode(), debug: false };
   const view = { raf: 0, disposed: false, state: null, selected: null, renderer: null, engine: null, last: 0 };
   const teamOpts = sel => D.teams.map(t => `<option value="${t.abbr}" ${t.abbr === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
   root.innerHTML = `<div class="nhl-match">
@@ -35,8 +38,9 @@ export function mountMatch(root, deps = {}) {
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
           <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
-          <label class="chk"><input type="checkbox" id="optPhotos" ${pref.photos ? 'checked' : ''}> Fotos</label>
+          <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === pref.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk"><input type="checkbox" id="optDebug"> Rotas/Debug</label>
+          <button id="focusBtn" class="primary" title="Só o rinque 2D em tela cheia (F)">⛶ Modo 2D</button>
         </div>
       </div>
       <aside class="nhl-side"><div id="liveComm"></div><div id="side"></div></aside>
@@ -107,7 +111,7 @@ export function mountMatch(root, deps = {}) {
     let alpha = 1;
     if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
-    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
     if (pend && view.engine?.state.over && !view.reported) reportToCareer();
@@ -119,7 +123,8 @@ export function mountMatch(root, deps = {}) {
   $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_nhl_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_nhl_names', pref.names ? '1' : '0'); };
-  $('#optPhotos').onchange = e => { pref.photos = e.target.checked; store.set('asu_nhl_photos', pref.photos ? '1' : '0'); };
+  $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); };
+  const unfocus = mountFocus(root.querySelector('.nhl-match'), { button: $('#focusBtn') });
   $('#optDebug').onchange = e => { pref.debug = e.target.checked; };
   $('#homeSel').onchange = e => { pref.home = e.target.value; store.set('asu_nhl_home', pref.home); restart(); };
   $('#awaySel').onchange = e => { pref.away = e.target.value; store.set('asu_nhl_away', pref.away); restart(); };
@@ -128,7 +133,10 @@ export function mountMatch(root, deps = {}) {
     view.selected = p && view.selected !== p.id ? p.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
-    el.innerHTML = `<img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(p.name)}</b><div class="muted small">#${esc(p.num)} · ${p.pos} · ${esc(view.state[p.team].abbr)}</div>${p.energy != null ? `<div class="muted small">Energia ${Math.round(p.energy * 100)}%</div>` : ''}</div>`;
+    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(p.name)}</b><div class="muted small">#${esc(p.num)} · ${p.pos} · ${esc(view.state[p.team].abbr)}</div>${p.energy != null ? `<div class="muted small">Energia ${Math.round(p.energy * 100)}%</div>` : ''}<button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
+    const tm = view.state[p.team] || {}, pid = p.p?.id ?? p.pid ?? p.id, ctxA = { sport: 'nhl', id: pid, color: tm.color, color2: tm.color2, number: p.num, kit: 'hockey', prop: 'stick' };
+    if (pref.visual === 'photo') el.querySelector('#pcThumb').innerHTML = `<img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'">`; else el.querySelector('#pcThumb').appendChild(avatarThumb(ctxA));
+    el.querySelector('#pcEdit').onclick = () => openAvatarEditor({ ...ctxA, name: p.name, pos: p.pos, role: p.goalie ? 'goalie' : 'skater', onSave: () => el.querySelector('#pcThumb').replaceChildren(avatarThumb(ctxA)) });
     el.classList.add('show');
   });
   // ---------- presentation (commentary) — one per engine run; events drained from state.events ----------
@@ -181,7 +189,7 @@ export function mountMatch(root, deps = {}) {
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;

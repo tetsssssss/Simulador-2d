@@ -1,0 +1,30 @@
+/* "Modo 2D": the match canvas takes the whole viewport (optionally real browser fullscreen). Shared by NFL/NHL/MLB.
+   The root of each match view gets .asu-focus; side panels become an optional overlay (☰ Painel). */
+.asu-focus{position:fixed!important;inset:0;z-index:9000;background:#03060a;display:flex!important;flex-direction:column;gap:0!important;padding:0!important;margin:0!important;max-width:none!important;overflow:hidden}
+.asu-focus .mlb-setup,.asu-focus .nhl-setup,.asu-focus .box-panel,.asu-focus .drive-strip{display:none!important}
+.asu-focus .mlb-bug,.asu-focus .nhl-bug,.asu-focus .scorebug{flex:none;border-radius:0;transform-origin:top;zoom:.88}
+.asu-focus .mlb-match-grid,.asu-focus .nhl-match-grid,.asu-focus .match-grid{display:flex!important;flex:1;min-height:0;gap:0!important}
+.asu-focus .mlb-field-col,.asu-focus .nhl-ice-col,.asu-focus .field-col{flex:1;min-width:0;display:flex!important;flex-direction:column;gap:0!important}
+.asu-focus .mlb-field-wrap2,.asu-focus .nhl-ice-wrap,.asu-focus .field-wrap{flex:1;min-height:0;border:0!important;border-radius:0!important;position:relative;padding:0!important}
+.asu-focus canvas#fieldCanvas,.asu-focus canvas#rinkCanvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.asu-focus .mlb-controls,.asu-focus .nhl-controls,.asu-focus .controls{flex:none;border-radius:0;border-width:1px 0 0;opacity:.94}
+.asu-focus aside{display:none!important}
+.asu-focus.asu-side aside{display:grid!important;position:absolute;right:0;top:0;bottom:46px;width:min(360px,92vw);overflow:auto;background:rgba(5,8,13,.93);border-left:1px solid var(--line2);z-index:20;padding:8px}
+.asu-exit{display:none;position:absolute;right:10px;top:10px;z-index:30;gap:6px}
+.asu-focus .asu-exit{display:flex}
+.asu-exit button{background:rgba(7,11,17,.82);border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:6px 11px;font-weight:800;cursor:pointer}
+.asu-exit button:hover{background:#162233}
+.asu-focus .mlb-pcard2,.asu-focus .nhl-pcard,.asu-focus .pcard{top:54px}
+/* avatar editor */
+.asu-ave{position:fixed;inset:0;z-index:10000;background:rgba(2,5,9,.72);display:grid;place-items:center;padding:12px}
+.asu-ave-card{display:grid;grid-template-columns:minmax(220px,360px) minmax(260px,420px);gap:16px;background:#0c131d;border:1px solid var(--line2,#2b3d54);border-radius:14px;padding:16px;max-height:94vh;overflow:auto;color:#e9f0f7;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.asu-ave-prev canvas{width:100%;height:auto;border-radius:10px;display:block}
+.asu-ave-btns{display:flex;gap:6px;margin-top:8px}.asu-ave-btns button.on,.asu-ave .chips button.on{background:#1d5fa8;border-color:#5cc8ff;color:#fff}
+.asu-ave-form h3{margin:0 0 8px;font-size:17px}.asu-ave-form h3 small{color:#8295aa;font-weight:600}
+.asu-ave-row{display:grid;gap:4px;margin:8px 0}.asu-ave-row>b{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#8295aa}
+.asu-ave .sw{display:flex;gap:6px;flex-wrap:wrap}.asu-ave .sw i{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer;display:block}.asu-ave .sw i.on{border-color:#fff;box-shadow:0 0 0 2px #5cc8ff}
+.asu-ave .chips{display:flex;gap:5px;flex-wrap:wrap}
+.asu-ave button{border:1px solid #2b3d54;background:#142130;color:#e9f0f7;padding:5px 10px;border-radius:7px;cursor:pointer;font-weight:600;font-size:12px}
+.asu-ave button:hover{background:#1c2f45}.asu-ave button.primary{background:#1d8f5a;border-color:#2fe08f}
+.asu-ave-act{display:flex;gap:6px;margin-top:14px;align-items:center}.asu-ave-act .grow{flex:1}
+@media (max-width:760px){.asu-ave-card{grid-template-columns:1fr}}

@@ -4,6 +4,7 @@
 // (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
+import { getAvatar } from '../../../core/render/avatars.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { TEAM_COLORS } from './teamColors.js';
@@ -19,7 +20,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
   const ctx = hd.ctx;
   const cam = { x: 35, y: FIELD_W / 2, zoom: 'medium', init: false };
   let W = hd.w, H = hd.h;
-  let screen = new Map(), prefs = { photos: true, follow: true, selected: null };
+  let screen = new Map(), prefs = { photos: true, visual: 'photo', follow: true, selected: null };
   let teamCols = { off: ['#1d4ed8', '#ffffff'], def: ['#b91c1c', '#ffffff'] }, lastSim = null;
 
   function resize() { hd.measure(); W = hd.w; H = hd.h; }
@@ -132,13 +133,15 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const p = lerpPos(e, a);
     const X = sx(p.x), Y = sy(p.y);
     const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
-    const r = level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55);
+    const av = prefs.visual === 'avatar';
+    const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = off ? teamCols.off : teamCols.def;
     const qb = e === lastSim?.qb;
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
-      img: prefs.photos && level !== 'far' ? photoImage(e.p) : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing,
+      img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
+      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1 } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000,
     });
     return { X, Y, r };
@@ -278,7 +281,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     W = hd.w; H = hd.h;
     hd.begin();
     if (opts.zoom) cam.zoom = opts.zoom;
-    prefs = { photos: opts.photos !== false, follow: opts.follow !== false, selected: opts.selected || null };
+    prefs = { photos: opts.photos !== false, visual: opts.visual || (opts.photos === false ? 'plain' : 'photo'), follow: opts.follow !== false, selected: opts.selected || null };
     lastSim = sim;
     teamCols = sideColors(opts.teams?.off, opts.teams?.def);
     updateCamera(sim, alpha);
@@ -297,7 +300,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     return best;
   }
 
-  return { render, resize, pick, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
+  return { render, resize, pick, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
 
 function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }

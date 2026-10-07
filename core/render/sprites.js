@@ -6,6 +6,7 @@
 // team color + number (still identifiable). Indicators are subtle rings: carrier (gold), selected (white dashed),
 // target/receiving (cyan). `shape: 'goalie'` / 'pitcher' / 'batter' give role-specific silhouettes.
 import { drawCirclePhoto } from './images.js';
+import { drawAvatar } from './avatars.js';
 
 export function zoomLevel(pxRadius) { return pxRadius >= 15 ? 'close' : pxRadius >= 9 ? 'mid' : 'far'; }
 
@@ -24,6 +25,7 @@ export function drawSprite(ctx, o) {
     shape = 'circle', facing = null, carrier = false, selected = false, target = false, dim = false, level = zoomLevel(r), t = 0 } = o;
   ctx.save();
   if (dim) ctx.globalAlpha = 0.55;
+  if (o.avatar) { drawAvatarSprite(ctx, o, level); ctx.restore(); return; }
   // soft shadow
   ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.beginPath(); ctx.ellipse(x + r * 0.15, y + r * 0.3, r * 1.02, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
@@ -135,4 +137,31 @@ export function separateKits(home, away) {
   const [a, b] = [rgb(home[0]), rgb(away[0])];
   if (Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) >= 90) return [home, away];
   return [home, ['#f2f4f7', away[0]]];
+}
+
+// Avatar ("boneco") variant of the sprite: same indicators and name plate, but the body is a procedural chibi athlete.
+// Feet stand at (x, y + r*0.62); the figure is ~3.1r tall so it reads at the same zoom levels as the circle sprite.
+function drawAvatarSprite(ctx, o, level) {
+  const { x, y, r, color = '#1d4ed8', color2 = '#ffffff', number = '', pos = '', name = '', facing = null, carrier = false, selected = false, target = false, t = 0, avatar } = o;
+  const fy = y + r * 0.62, h = r * 3.1;
+  // ground rings (ellipses at the feet): carrier gold, target cyan, selected white
+  const ring = (rad, style, w, dash) => { ctx.strokeStyle = style; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath(); ctx.ellipse(x, fy, rad, rad * 0.42, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); };
+  if (carrier) ring(r * 1.45, `rgba(246,196,83,${0.6 + 0.35 * Math.sin(t * 6)})`, 2.4);
+  if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
+  if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
+  drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, seed: avatar.seed, dir: avatar.dir,
+    color, color2, number, facing, t, showNumber: true });
+  if (h / 10 < 3.3 && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
+    const bw = Math.max(13, r * 0.95), bh = Math.max(10, r * 0.62), fg = textColorOn(color);
+    ctx.fillStyle = color; roundRect(ctx, x + r * 0.45, fy - bh * 0.5, bw, bh, bh * 0.35); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = fg; ctx.font = `800 ${Math.max(8, bh * 0.78)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(number), x + r * 0.45 + bw / 2, fy + 0.5);
+  }
+  if (level !== 'far' && name) {
+    const label = `${name}${pos && level === 'close' ? ' · ' + pos : ''}`;
+    ctx.font = `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(label).width + 10, hh = Math.max(14, r * 0.72), py = fy + 3 + r * 0.25;
+    ctx.fillStyle = 'rgba(5,10,16,.82)'; roundRect(ctx, x - w / 2, py, w, hh, 4); ctx.fill();
+    ctx.fillStyle = color; ctx.fillRect(x - w / 2, py, 3, hh);
+    ctx.fillStyle = '#f2f6fb'; ctx.fillText(label, x + 1.5, py + hh / 2 + 0.5);
+  }
 }

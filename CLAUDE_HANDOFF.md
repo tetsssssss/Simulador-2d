@@ -6,6 +6,14 @@
 > construída sobre a v11 deste repositório. Próximas MLB: B elencos/fotos/OVR posicional · C diamond grande · D sprites ·
 > E pitch+batter · F física/fielding/baserunning · G HUD/partida. NHL B–G seguem pendentes aqui.
 
+## v19 · Bonecos + Modo 2D + campo MLB (sessão atual)
+- `core/render/avatars.js`: bonequinhos procedurais (canvas, sem imagens). Opções por atleta: pele (6), cabelo (7 estilos, 7 cores), barba, acessório, porte, equipamento. Padrão determinístico pelo id; escolhas em `localStorage` (`asu_avatars_v1`, por esporte+id). Modo visual global `asu_visual_mode`: **Bonecos (padrão) | Fotos | Cor + número**.
+- `core/ui/avatarEditor.js`: editor modal (pré-visualização parado/correndo, aleatório, padrão, salvar) + `avatarThumb` para cartões. Aberto por “✎ Editar boneco” no cartão do jogador selecionado (NFL/NHL/MLB).
+- `core/render/sprites.js`: `drawSprite({ avatar })` desenha o boneco (anéis de portador/alvo/seleção no chão, placa de nome, badge do número quando pequeno). Kits: baseball (boné/capacete de rebatedor), hockey (capacete, goleiro com pernas grandes), football (capacete+máscara).
+- `core/ui/focusMode.js` + `core/ui/focus.css`: **Modo 2D** (botão ⛶ / tecla F): campo ocupa a tela toda (fullscreen real quando permitido; o shell esconde a barra via `postMessage`). Esc/✕ sai; ☰ Painel (P) abre narração/escalações como overlay. O iframe do shell tem `allow="fullscreen"`.
+- MLB: novo visual do estádio (listras circulares, caminhos de base, pistas de aviso, muro com painéis do time da casa, postes de falta, coaches boxes, on-deck, vinheta); câmeras novas **Infield** e **Seguir bola**; Broadcast mostra o outfield inteiro.
+- Testes: `tests/avatars.test.mjs` (determinismo, persistência, render de todas as combinações).
+
 ## CURRENT STATE
 - Abrir a raiz via servidor (`START_APP.bat` na raiz ou `python -m http.server 8765`) → `http://localhost:8765`.
 - Barra **NFL | NHL | MLB** sempre visível no topo (`index.html` da raiz). Cada esporte é um app separado em seu próprio

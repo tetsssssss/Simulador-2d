@@ -45,7 +45,7 @@
   <span class="su-grow"></span><span class="su-hint" id="suHint"></span>
   <div class="su-audio"><button id="suAudioBtn" title="Áudio: volumes por categoria">🔊</button><div class="su-pop" id="suAudioPop"></div></div>
 </header>
-<iframe id="sportFrame" title="Universo do esporte"></iframe>
+<iframe id="sportFrame" title="Universo do esporte" allow="fullscreen; autoplay"></iframe>
 <script>
 (() => {
   const SPORTS = { nfl: { path: 'nfl/index.html', label: 'NFL Universe 2D' }, nhl: { path: 'nhl/index.html', label: 'NHL Universe 2D' }, mlb: { path: 'mlb/index.html', label: 'MLB Universe 2D' }, career: { path: 'career/index.html', label: 'Career Hub' } };
@@ -74,6 +74,8 @@
   const initial = location.hash.slice(1) || store.get('asu_sport') || 'nfl';
   if (location.hash.slice(1) !== initial) history.replaceState(null, '', '#' + initial);
   show(initial);
+  // 2D focus mode (sent by the sport frame): hide the shell bar so only the match is on screen
+  window.addEventListener('message', e => { if (e.source === frame.contentWindow && e.data?.asu === 'focus') document.querySelector('.su-bar').style.display = e.data.on ? 'none' : ''; });
   window.__asu = { get sport() { return current; }, frame };
 })();
 </script>

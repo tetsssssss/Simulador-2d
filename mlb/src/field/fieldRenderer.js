@@ -8,11 +8,14 @@ import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
 import { BASES, MOUND, FENCE, fenceDist, fencePoint } from './geometry.js';
 import { photoImage } from '../photos.js';
+import { getAvatar } from '../../../core/render/avatars.js';
 
 export const CAMERAS = {
-  BROADCAST: { label: 'Broadcast', cx: 0, cy: 76, view: 240, viewH: 184 },
+  BROADCAST: { label: 'Broadcast', cx: 0, cy: 160, view: 450, viewH: 345 },
   BATTER: { label: 'Batter', cx: 0, cy: 26, view: 92, viewH: 68 },
   PITCHER: { label: 'Pitcher', cx: 0, cy: 34, view: 120, viewH: 86 },
+  INFIELD: { label: 'Infield', cx: 0, cy: 64, view: 170, viewH: 128 },
+  BALL: { label: 'Seguir bola', cx: 0, cy: 80, view: 150, viewH: 112 },
   TACTICAL: { label: 'Tactical', cx: 0, cy: 175, view: 470, viewH: 380 },
   FULL: { label: 'Full field', cx: 0, cy: 190, view: 640, viewH: 470 },
 };
@@ -48,15 +51,22 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1018'); g.addColorStop(1, '#06090e');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     if (crowd) crowd.draw(ctx, { cam, t: state.t ?? performance.now() / 1000, view: { w: W, h: H } });
-    // grass (whole park incl. foul territory) with mowing stripes
+    // grass (whole park incl. foul territory): concentric mowing rings around home plate + soft light falloff
     const park = parkOutline();
-    poly(park); ctx.fillStyle = '#2e7d3c'; ctx.fill();
+    poly(park); ctx.fillStyle = '#2b7637'; ctx.fill();
     ctx.save(); poly(park); ctx.clip();
-    for (let k = -8; k < 30; k++) { if (k % 2) continue; ctx.fillStyle = 'rgba(255,255,255,.035)'; const y0 = k * 18; poly([{ x: -400, y: y0 }, { x: 400, y: y0 }, { x: 400, y: y0 + 18 }, { x: -400, y: y0 + 18 }]); ctx.fill(); }
+    const hx = X(0), hy = Y(0);
+    for (let k = 0; k < 24; k++) {
+      if (k % 2) continue; const r0 = k * 20 * s, r1 = (k + 1) * 20 * s;
+      ctx.beginPath(); ctx.arc(hx, hy, r1, 0, Math.PI * 2); ctx.arc(hx, hy, r0, 0, Math.PI * 2, true); ctx.fillStyle = 'rgba(255,255,255,.05)'; ctx.fill();
+    }
+    const lg = ctx.createRadialGradient(X(0), Y(150), 40 * s, X(0), Y(150), 330 * s); lg.addColorStop(0, 'rgba(255,255,220,.09)'); lg.addColorStop(1, 'rgba(0,0,0,.18)');
+    ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H);
     ctx.restore();
     // warning track (15 ft) inside the wall
     const outer = fenceArc(0), inner = fenceArc(15);
-    poly([...outer, ...inner.reverse()]); ctx.fillStyle = '#a07a4e'; ctx.fill();
+    poly([...outer, ...inner.reverse()]); ctx.fillStyle = '#9c734a'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,190,.16)'; ctx.lineWidth = Math.max(1, 0.5 * s); ctx.beginPath(); fenceArc(7.5).forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)))); ctx.stroke();
     // infield dirt: circle around the mound clipped to a wedge slightly wider than fair territory
     ctx.save();
     poly([{ x: 0, y: -14 }, { x: -170, y: 150 }, { x: 170, y: 150 }]); ctx.clip();
@@ -64,9 +74,13 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     ctx.restore();
     // home plate area dirt
     ctx.fillStyle = '#b98a57'; ctx.beginPath(); ctx.arc(X(0), Y(0), 13 * s, 0, Math.PI * 2); ctx.fill();
-    // infield grass
+    // basepaths (dirt strips along the diamond edges)
     const f = BASES.first, sc = BASES.second;
-    poly([{ x: 0, y: 12 }, { x: f.x - 5, y: f.y - 0.5 }, { x: 0, y: sc.y - 9 }, { x: -f.x + 5, y: f.y - 0.5 }]); ctx.fillStyle = '#35893f'; ctx.fill();
+    ctx.strokeStyle = '#b98a57'; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(2, 7 * s);
+    ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(f.x), Y(f.y)); ctx.lineTo(X(sc.x), Y(sc.y)); ctx.lineTo(X(-f.x), Y(f.y)); ctx.closePath(); ctx.stroke(); ctx.lineCap = 'butt';
+    // infield grass
+    poly([{ x: 0, y: 12 }, { x: f.x - 5, y: f.y - 0.5 }, { x: 0, y: sc.y - 9 }, { x: -f.x + 5, y: f.y - 0.5 }]); ctx.fillStyle = '#38903f'; ctx.fill();
+    ctx.save(); ctx.clip(); for (let k = -14; k < 14; k++) { if (k % 2) continue; ctx.fillStyle = 'rgba(255,255,255,.055)'; poly([{ x: -90 + k * 9, y: -10 }, { x: -90 + k * 9 + 9, y: -10 }, { x: 90 + k * 9 + 9, y: 190 }, { x: 90 + k * 9, y: 190 }]); ctx.fill(); } ctx.restore();
     // base cut-outs + mound
     for (const b of [BASES.first, BASES.second, BASES.third]) { ctx.fillStyle = '#b98a57'; ctx.beginPath(); ctx.arc(X(b.x), Y(b.y), 11 * s, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = '#c0915d'; ctx.beginPath(); ctx.arc(X(MOUND.x), Y(MOUND.y), MOUND.r * s, 0, Math.PI * 2); ctx.fill();
@@ -84,11 +98,20 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     // outfield wall + distance markers
     ctx.strokeStyle = '#1d3b2b'; ctx.lineWidth = Math.max(3, 2.2 * s);
     ctx.beginPath(); fenceArc(0).forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)))); ctx.stroke();
+    { const n = 28, arc = fenceArc(0, n); ctx.lineWidth = Math.max(3, 2.2 * s); for (let i = 0; i < n; i++) { ctx.strokeStyle = i % 2 ? '#1b4a33' : (state.home?.color ? hexA(state.home.color, 0.85) : '#245a3f'); ctx.beginPath(); ctx.moveTo(X(arc[i].x), Y(arc[i].y)); ctx.lineTo(X(arc[i + 1].x), Y(arc[i + 1].y)); ctx.stroke(); } }
     ctx.strokeStyle = '#f2c230'; ctx.lineWidth = Math.max(1, 0.4 * s);
     ctx.beginPath(); fenceArc(-1).forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)))); ctx.stroke();
     if (s > 0.9) {
       ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = `800 ${Math.max(9, 7 * s)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       for (const a of [-Math.PI / 4 + 0.05, -Math.PI / 8, 0, Math.PI / 8, Math.PI / 4 - 0.05]) { const p = fencePoint(a, 9); ctx.fillText(String(Math.round(fenceDist(a) / 5) * 5), X(p.x), Y(p.y)); }
+    }
+    // foul poles
+    for (const sgn of [-1, 1]) { const e = fencePoint(sgn * Math.PI / 4); ctx.strokeStyle = '#f2c230'; ctx.lineWidth = Math.max(2, 0.9 * s); ctx.beginPath(); ctx.moveTo(X(e.x), Y(e.y)); ctx.lineTo(X(e.x), Y(e.y) - 16 * s); ctx.stroke(); }
+    // coaches' boxes (1B / 3B) and on-deck circles
+    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = Math.max(1, 0.22 * s);
+    for (const sgn of [-1, 1]) {
+      ctx.save(); ctx.translate(X(sgn * (BASES.first.x + 16)), Y(BASES.first.y - 14)); ctx.rotate(sgn > 0 ? Math.PI / 4 : -Math.PI / 4); ctx.strokeRect(-3 * s, -10 * s, 6 * s, 20 * s); ctx.restore();
+      ctx.beginPath(); ctx.arc(X(sgn * 44), Y(14), 5 * s, 0, Math.PI * 2); ctx.stroke();
     }
     // dugouts (team colored roofs) + bullpens, all in foul territory
     const dug = (sgn, team) => {
@@ -121,18 +144,24 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     screen = new Map();
     const s = S();
     // Athletes are drawn larger than their physical size so photos/numbers stay readable on wide shots.
-    const base = Math.max(8.5, Math.min(24, 2.6 * s));
+    const base = Math.max(8.5, Math.min(24, 2.6 * s)) * (opts.visual === 'avatar' ? 1.55 : 1);
     const items = [];
     for (const f of state.fielders || []) items.push({ e: f, role: f.pos === 'P' ? 'pitcher' : 'circle', scale: f.pos === 'P' ? 1.22 : 1 });
     if (state.batter) items.push({ e: state.batter, role: 'batter', scale: 1.28 });
     for (const r of state.runners || []) items.push({ e: r, role: 'circle', scale: 1.05 });
     for (const { e, role, scale } of items) {
       const team = state[e.team] || {}, p = lerp(e, a), r = base * scale;
-      const img = opts.showPhotos !== false ? photoImage(e.p) : null;
+      const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
+      const img = mode === 'photo' ? photoImage(e.p) : null;
       const X0 = X(p.x), Y0 = Y(p.y);
+      let avatar = null;
+      if (mode === 'avatar') {
+        const moving = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) > 0.02, isC = e.pos === 'C', rl = e.role || (role === 'batter' ? 'batter' : role === 'pitcher' ? 'pitcher' : e.base != null || e.runner ? 'runner' : isC ? 'catcher' : 'fielder');
+        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1 };
+      }
       drawSprite(ctx, {
         x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,
-        shape: role, facing: e.facing != null ? -e.facing : null, carrier: state.ball?.holder === e.id, target: state.throwTarget === e.id,
+        shape: role, avatar, facing: e.facing != null ? -e.facing : null, carrier: state.ball?.holder === e.id, target: state.throwTarget === e.id,
         selected: opts.selected === e.id, level: zoomLevel(r), t: state.t || 0,
       });
       screen.set(e.id, { X: X0, Y: Y0, r, e });
@@ -155,6 +184,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
 
   function cameraTarget(state) {
     const c = CAMERAS[mode];
+    if (mode === 'BALL') { const b = state.ball && !state.ball.hidden ? state.ball : null; return b ? [b.x * 0.8, Math.max(c.cy, b.y * 0.85), c.view, c.viewH] : [c.cx, c.cy, c.view, c.viewH]; }
     if (mode === 'BROADCAST' && state.ball && !state.ball.hidden && (state.ball.y > 120 || Math.abs(state.ball.x) > 90)) {
       const b = state.ball; return [b.x * 0.7, Math.max(c.cy, b.y * 0.75), c.view * 1.25, c.viewH * 1.25];
     }
@@ -171,6 +201,8 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     if (opts.debug && opts.drawDebug) opts.drawDebug(ctx, cam, state, screen);
     drawAthletes(state, alpha, opts);
     drawBall(state, alpha);
+    const vg = ctx.createRadialGradient(hd.w / 2, hd.h / 2, Math.min(hd.w, hd.h) * 0.35, hd.w / 2, hd.h / 2, Math.max(hd.w, hd.h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, hd.w, hd.h);
   }
 
   return {

@@ -7,6 +7,9 @@ import { buildLineup, demoRoster } from './lineup.js';
 import { createFieldRenderer, CAMERAS } from '../field/fieldRenderer.js';
 import { DEF_SPOTS, BATTER_SPOT } from '../field/geometry.js';
 import { photoUrl } from '../photos.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { openAvatarEditor, avatarThumb } from '../../../core/ui/avatarEditor.js';
+import { mountFocus } from '../../../core/ui/focusMode.js';
 import { separateKits } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
@@ -36,7 +39,7 @@ export function withSide(team, side) {
 }
 
 export function mountMatch(root, deps = {}) {
-  const pref = { home: store.get('asu_mlb_home') || 'NYY', away: store.get('asu_mlb_away') || 'BOS', camera: store.get('asu_mlb_cam') || 'BROADCAST', names: store.get('asu_mlb_names') !== '0', photos: store.get('asu_mlb_photos') !== '0', debug: false };
+  const pref = { home: store.get('asu_mlb_home') || 'NYY', away: store.get('asu_mlb_away') || 'BOS', camera: store.get('asu_mlb_cam') || 'BROADCAST', names: store.get('asu_mlb_names') !== '0', visual: getVisualMode(), debug: false };
   const view = { raf: 0, disposed: false, state: null, engine: null, selected: null, last: 0 };
   const teamOpts = sel => D.teams.map(t => `<option value="${t.abbr}" ${t.abbr === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
   root.innerHTML = `<div class="mlb-match">
@@ -48,8 +51,9 @@ export function mountMatch(root, deps = {}) {
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
           <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
-          <label class="chk"><input type="checkbox" id="optPhotos" ${pref.photos ? 'checked' : ''}> Fotos</label>
+          <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === pref.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk"><input type="checkbox" id="optDebug"> Debug</label>
+          <button id="focusBtn" class="primary" title="Só o campo 2D em tela cheia (F)">⛶ Modo 2D</button>
         </div></div>
       <aside class="mlb-side"><div id="liveComm"></div><div id="side"></div></aside>
     </div></div>`;
@@ -103,15 +107,23 @@ export function mountMatch(root, deps = {}) {
     const px = 50 + lp.x / 1.6 * 50, pz = 100 - (lp.z - 0.5) / 4 * 100;
     el.innerHTML = `<div class="pi-zone"><i class="pi-box"></i><b class="${lp.inZone ? 'in' : 'out'}" style="left:${Math.max(4, Math.min(96, px))}%;top:${Math.max(4, Math.min(96, pz))}%"></b></div><div><b>${esc(lp.type)}</b><span>${lp.mph} mph</span><small>${view.state.balls}-${view.state.strikes}</small></div>`;
   }
+  function fillThumbs(scope) {
+    scope.querySelectorAll('.th').forEach(th => {
+      if (pref.visual === 'photo') { th.innerHTML = `<img src="${esc(th.dataset.photo)}" alt="" onerror="this.style.visibility='hidden'">`; return; }
+      const tm = view.state?.[th.dataset.team] || {};
+      th.replaceChildren(avatarThumb({ sport: 'mlb', id: th.dataset.pid, color: tm.color, color2: tm.color2, number: th.dataset.num, kit: 'baseball', prop: th.dataset.role === 'BATTER' ? 'bat' : 'glove' }));
+    });
+  }
   function drawSide() {
     const s = view.state; if (!s) return;
     const fieldTeam = s.half === 'top' ? 'home' : 'away';
     const pitcher = (s.fielders || []).find(f => f.pos === 'P'), batter = s.batter;
-    const card = (e, role) => e ? `<div class="mlb-matchcard"><img src="${esc(photoUrl(e.p))}" alt="" onerror="this.style.visibility='hidden'"><div><small class="muted">${role}</small><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · ${role === 'PITCHER' ? 'Throws ' + e.throws : 'Bats ' + e.bats}</div>${deps.cardExtra ? deps.cardExtra(e, role, s) : ''}</div></div>` : '';
+    const card = (e, role) => e ? `<div class="mlb-matchcard"><span class="th" data-pid="${esc(e.pid ?? e.id)}" data-team="${esc(e.team)}" data-role="${role}" data-num="${esc(e.num)}" data-photo="${esc(photoUrl(e.p))}"></span><div><small class="muted">${role}</small><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · ${role === 'PITCHER' ? 'Throws ' + e.throws : 'Bats ' + e.bats}</div>${deps.cardExtra ? deps.cardExtra(e, role, s) : ''}</div></div>` : '';
     const order = s[s.half === 'top' ? 'away' : 'home'].lineup.order;
     $('#side').innerHTML = `<div class="panel">${card(pitcher, 'PITCHER')}${card(batter, 'BATTER')}</div>
       <div class="panel"><div class="panel-h"><b>Lineup ${esc(s[s.half === 'top' ? 'away' : 'home'].abbr)}</b></div>${order.map((o, i) => `<div class="mlb-lu ${batter && o.pid === batter.pid ? 'now' : ''}"><span>${i + 1}</span><b>${esc(o.last)}</b><small>${esc(o.pos)}</small></div>`).join('')}</div>
       <div class="panel"><div class="panel-h"><b>Defesa ${esc(s[fieldTeam].abbr)}</b></div>${(s.fielders || []).map(f => `<div class="mlb-lu"><span>${esc(f.pos)}</span><b>${esc(f.last)}</b><small>#${esc(f.num)}</small></div>`).join('')}</div>` + (deps.sidePanels ? deps.sidePanels(s) : '');
+    fillThumbs($('#side'));
   }
 
   function frame(ts) {
@@ -120,7 +132,7 @@ export function mountMatch(root, deps = {}) {
     let alpha = 1;
     if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); drawPitchInfo(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
-    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
     if (pend && view.engine?.state.over && !view.reported) reportToCareer();
@@ -131,7 +143,8 @@ export function mountMatch(root, deps = {}) {
   $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_mlb_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_mlb_names', pref.names ? '1' : '0'); };
-  $('#optPhotos').onchange = e => { pref.photos = e.target.checked; store.set('asu_mlb_photos', pref.photos ? '1' : '0'); };
+  $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); fillThumbs($('#side')); };
+  const unfocus = mountFocus(root.querySelector('.mlb-match'), { button: $('#focusBtn') });
   $('#optDebug').onchange = e => { pref.debug = e.target.checked; };
   $('#homeSel').onchange = e => { pref.home = e.target.value; store.set('asu_mlb_home', pref.home); restart(); };
   $('#awaySel').onchange = e => { pref.away = e.target.value; store.set('asu_mlb_away', pref.away); restart(); };
@@ -140,7 +153,11 @@ export function mountMatch(root, deps = {}) {
     view.selected = e && view.selected !== e.id ? e.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
-    el.innerHTML = `<img src="${esc(photoUrl(e.p))}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · B/T ${e.bats}/${e.throws}</div></div>`;
+    const tm = view.state?.[e.team] || {}, rl = e.role || (e === view.state?.batter ? 'batter' : 'fielder');
+    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · B/T ${e.bats}/${e.throws}</div><button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
+    const pid = e.pid ?? e.id, ctxA = { sport: 'mlb', id: pid, color: tm.color, color2: tm.color2, number: e.num, kit: 'baseball', prop: rl === 'batter' ? 'bat' : 'glove' };
+    if (pref.visual === 'photo') el.querySelector('#pcThumb').innerHTML = `<img src="${esc(photoUrl(e.p))}" alt="" onerror="this.style.visibility='hidden'">`; else el.querySelector('#pcThumb').appendChild(avatarThumb(ctxA));
+    el.querySelector('#pcEdit').onclick = () => openAvatarEditor({ ...ctxA, name: e.name, pos: e.pos, role: rl, onSave: () => { el.querySelector('#pcThumb').replaceChildren(avatarThumb(ctxA)); } });
     el.classList.add('show');
   });
   // ---------- presentation (commentary) — one per engine run; events drained from state.events ----------
@@ -190,7 +207,7 @@ export function mountMatch(root, deps = {}) {
   function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__mlbLoops = Math.max(0, (window.__mlbLoops || 1) - 1);
   }
   window.__mlbLoops = (window.__mlbLoops || 0) + 1;

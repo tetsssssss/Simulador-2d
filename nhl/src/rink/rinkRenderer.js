@@ -7,6 +7,7 @@ import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
 import { RINK, MIDY, FACEOFF_DOTS } from './geometry.js';
 import { photoImage } from '../photos.js';
+import { getAvatar } from '../../../core/render/avatars.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', view: 128 },
@@ -132,16 +133,19 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
   function drawPlayers(state, a, opts) {
     screen = new Map();
     const s = S();
-    const r = Math.max(4.5, Math.min(26, 1.55 * s)); // ~1.55 ft body radius
+    const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (opts.visual === 'avatar' ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
     const list = [...state.players].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
       const pos = lerp(p, a), team = state[p.team] || {};
-      const img = opts.showPhotos !== false ? photoImage(p.p) : null;
+      const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
+      const img = mode === 'photo' ? photoImage(p.p) : null;
+      const avatar = mode === 'avatar' ? { opts: getAvatar('nhl', p.p?.id ?? p.pid ?? p.id), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: p.goalie ? 'stick' : 'stick', pose: p.goalie ? 'goalie' : 'stand',
+        moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: pos.x > (state.center ?? 100) ? -1 : 1 } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
       drawSprite(ctx, {
         x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',
-        img, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
+        img, avatar, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
         selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0,
       });
       screen.set(p.id, { X: X0, Y: Y0, r: rr, p });
