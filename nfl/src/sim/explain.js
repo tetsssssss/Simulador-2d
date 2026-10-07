@@ -10,7 +10,7 @@ const fx = n => (Math.round(n * 10) / 10).toString().replace('.', ',');
 
 const INCOMPLETE_TEXT = {
   BREAKUP: 'passe quebrado pela defesa', DEFLECTED: 'passe desviado na linha de passe', DROP: 'o receptor deixou cair',
-  UNCATCHABLE: 'passe impossível de pegar', OVERTHROWN: 'passe longo demais', INCOMPLETE: 'bola no chão (sem posse)',
+  UNCATCHABLE: 'passe impossível de pegar', OVERTHROWN: 'passe longo demais', INCOMPLETE: 'receptor não segurou a bola (sem quebra nem drop claro)',
   OUT_OF_BOUNDS: 'receptor fora de campo', THROWAWAY: 'QB jogou fora para evitar o sack',
 };
 const TECH_TEXT = { REACH: 'reach', DRIVE: 'drive', DOUBLE: 'dobra', COMBO: 'combo', PULL: 'pull', SEAL: 'seal', CLIMB: 'climb', KICK: 'kick-out', TRAP: 'trap' };

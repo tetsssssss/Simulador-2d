@@ -176,15 +176,12 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
   function drawPitch(state) {
     const s = S(); if (s < 2.2) return;
     const lift = z => z * s * 0.55, y0 = Y(0.5), x0 = X(0);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(1, 0.12 * s); ctx.setLineDash([3, 3]);
-    ctx.strokeRect(X(-0.83), y0 - lift(3.5), 1.66 * s, lift(2));
-    ctx.setLineDash([]); ctx.restore();
     const tr = state.pitchTrail, lp = state.lastPitch; if (!tr?.pts?.length) return;
     const col = PITCH_COL[tr.type] || '#fff', live = state.phase === 'PITCH';
     ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (let i = 1; i < tr.pts.length; i++) {
-      const a = tr.pts[i - 1], b = tr.pts[i], f = i / tr.pts.length;
+    const n = tr.pts.length, step = Math.max(1, Math.floor(n / 10)); // ~10 fading segments (cheap), full path
+    for (let i = step; i < n + step; i += step) {
+      const a = tr.pts[i - step], b = tr.pts[Math.min(n - 1, i)], f = Math.min(1, i / n);
       ctx.strokeStyle = col; ctx.globalAlpha = (live ? 0.18 + 0.6 * f : 0.1 + 0.28 * f); ctx.lineWidth = Math.max(1.2, 0.34 * s * (0.4 + 0.6 * f));
       ctx.beginPath(); ctx.moveTo(X(a.x), Y(a.y) - lift(a.z)); ctx.lineTo(X(b.x), Y(b.y) - lift(b.z)); ctx.stroke();
     }
@@ -194,6 +191,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
   }
   // Discreet highlights: runners (dashed ring), the batter (bat arc while swinging) and the fielder holding the ball.
   function drawHighlights(state) {
+    if (S() >= 2.2) { const s = S(); ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = Math.max(1, 0.12 * s); ctx.setLineDash([3, 3]); ctx.strokeRect(X(-0.83), Y(0.5) - 3.5 * s * 0.55, 1.66 * s, 2 * s * 0.55); ctx.restore(); } // strike zone
     ctx.save(); ctx.lineWidth = 1.4;
     for (const r of state.runners || []) { const sc = screen.get(r.id); if (!sc) continue; ctx.strokeStyle = 'rgba(255,224,130,.75)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(sc.X, sc.Y, sc.r * 1.45, 0, Math.PI * 2); ctx.stroke(); }
     ctx.setLineDash([]);
@@ -222,7 +220,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     const sx = X(x), sy = Y(y), lift = z * S() * 0.55;
     trail.push({ x: sx, y: sy - lift }); while (trail.length > 18) trail.shift();
     drawOffscreenArrow(sx, sy - lift);
-    const r = Math.max(3.2, Math.min(7, 0.55 * S()));
+    const r = Math.max(4.2, Math.min(8.5, 0.7 * S()));
     drawTrackedObject(ctx, { x: sx, y: sy, z: lift, r, color: '#ffffff', rim: '#d23a3a', halo: 'rgba(255,255,255,.85)', trail: b.holder ? [] : trail, airborne: z > 3 });
     if (b.landing && z > 3) { // landing spot ring for fly balls (readability)
       ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;

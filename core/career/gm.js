@@ -43,7 +43,7 @@ export const FACILITY_INFO = {
   youth: { label: 'Academia de base', effect: 'Melhora o potencial dos prospectos e a classe do draft do clube' },
   stadium: { label: 'Estádio / arena', effect: 'Aumenta a receita de bilheteria' },
 };
-export const facilityCost = (spec, level) => round1(spec.salary.max * 0.4 * Math.pow(level, 1.5));
+export const facilityCost = (spec, level) => round1(spec.salary.max * 0.15 * Math.pow(level, 1.5));
 export function upgradeFacility(spec, c, key) {
   const x = c.x, abbr = c.userTeam; if (!abbr || c.role === 'PLAYER') return { ok: false, text: 'Sem clube para investir.' };
   if (!FACILITIES.includes(key)) return { ok: false, text: 'Instalação inválida.' };
@@ -53,7 +53,7 @@ export function upgradeFacility(spec, c, key) {
   if (x.fac.upgrades.some(u => u.key === key)) return { ok: false, text: 'Obra em andamento.' };
   const cost = facilityCost(spec, cur + 1), spentYear = x.fac.upgrades.reduce((a, u) => a + u.cost, 0);
   if (x.fin.cash < cost) return { ok: false, text: `Caixa insuficiente (${cost}M necessários, ${x.fin.cash}M em caixa).` };
-  if (spentYear + cost > x.fin.budget.facilities * 3) return { ok: false, text: 'Acima do orçamento de instalações aprovado pelo dono.' };
+  if (spentYear + cost > x.fin.budget.facilities * 6) return { ok: false, text: 'Acima do orçamento de instalações aprovado pelo dono.' };
   x.fin.cash = round1(x.fin.cash - cost);
   x.fac.upgrades.push({ key, to: cur + 1, cost, daysLeft: 45 * (cur + 1), start: x.cal.day });
   return { ok: true, text: `${FACILITY_INFO[key].label}: obra para o nível ${cur + 1} iniciada (${cost}M, ${45 * (cur + 1)} dias).`, cost };

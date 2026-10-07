@@ -56,7 +56,10 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const ballFocus = sim.ball ? sim.ball.pos : sim.carrier ? sim.carrier.pos : null;
     if (preset === 'BROADCAST') {
       const s = W / 50;
-      const fx = ballFocus ? ballFocus.x + 4 : sim.losX + 8, fy = ballFocus ? 0.55 * ballFocus.y + 0.45 * (FIELD_W / 2) : FIELD_W / 2;
+      // lead the ball downfield, but keep the passer in frame while the ball is in the air
+      const air = sim.ball && !sim.carrier;
+      const fx = ballFocus ? (air ? 0.65 * ballFocus.x + 0.35 * sim.qb.pos.x + 2 : ballFocus.x + 4) : sim.losX + 8;
+      const fy = ballFocus ? 0.55 * ballFocus.y + 0.45 * (FIELD_W / 2) : FIELD_W / 2;
       return { s, rot: 0, x: fx, y: fy };
     }
     if (preset === 'TACTICAL') {
@@ -75,14 +78,14 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       return { s, rot: ROT_UP, x: Math.max(sim.losX, f.x) + 9, y: FIELD_W / 2 + (f.y - FIELD_W / 2) * 0.25 };
     }
     // classic: zoom close/mid/full + follow
-    const s = W / ZOOMS[cam.zoom];
+    const s = cam.zoom === 'full' && crowd ? Math.min(W / ZOOMS.full, H / (FIELD_W + 32)) : W / ZOOMS[cam.zoom]; // full: show a few rows of stands
     const viewW = W / s, viewH = H / s;
     let fx = sim.losX + 6, fy = FIELD_W / 2;
     const focus = !prefs.follow ? null : ballFocus;
     if (focus) { fx = focus.x; fy = 0.6 * focus.y + 0.4 * (FIELD_W / 2); }
     if (cam.zoom === 'full') { fx = FIELD_LEN / 2; fy = FIELD_W / 2; }
     const clampX = v => viewW >= FIELD_LEN + 6 ? FIELD_LEN / 2 : Math.min(FIELD_LEN + 3 - viewW / 2, Math.max(viewW / 2 - 3, v));
-    const my = crowd ? 13 : 8; // with stands, the camera may show a few rows beyond the team areas
+    const my = crowd ? (cam.zoom === 'full' ? 18 : 13) : 8; // with stands, the camera may show a few rows beyond the team areas
     const clampY = v => viewH >= FIELD_W + 2 * my ? FIELD_W / 2 : Math.min(FIELD_W + my - viewH / 2, Math.max(viewH / 2 - my, v));
     return { s, rot: 0, x: clampX(fx), y: clampY(fy) };
   }

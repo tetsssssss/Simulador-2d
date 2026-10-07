@@ -557,17 +557,17 @@ export function requestPlayingTime(spec, c) {
   const list = teamPlayers(c, me.t), exp = spec.expectedRole(me, list);
   if (me.role === 'S') return { text: 'Você já é titular.' };
   const chance = (me.rel.tr - 30) / 100 + (exp === 'S' ? 0.3 : exp === 'R' ? 0.1 : -0.2);
-  if (rng.next() < chance) { me.userRole = me.role === 'B' ? 'R' : 'S'; me.role = me.userRole; me.rel.tr = clamp(me.rel.tr - 3, 0, 100); news(c, `O técnico atende ${me.n}: mais tempo de jogo (${me.role === 'S' ? 'titular' : 'rotação'}).`, 'good'); return { ok: true, text: 'O técnico vai te dar mais espaço.' }; }
-  me.rel.tr = clamp(me.rel.tr - 6, 0, 100); me.rel.sat = clamp(me.rel.sat - 4, 0, 100);
+  if (rng.next() < chance) { me.userRole = me.role === 'B' ? 'R' : 'S'; me.role = me.userRole; me.rel.tr = clamp(me.rel.tr - 3, 0, 100); H.prel(c, 'coachTrust', 1, 'Pedido de mais minutos atendido'); news(c, `O técnico atende ${me.n}: mais tempo de jogo (${me.role === 'S' ? 'titular' : 'rotação'}).`, 'good'); return { ok: true, text: 'O técnico vai te dar mais espaço.' }; }
+  me.rel.tr = clamp(me.rel.tr - 6, 0, 100); me.rel.sat = clamp(me.rel.sat - 4, 0, 100); H.prel(c, 'coachTrust', -3, 'Pedido de minutos recusado');
   return { ok: false, text: 'O técnico não gostou do pedido. Mostre serviço nos treinos.' };
 }
 export function requestTrade(spec, c) {
   const me = c.players[c.me.id], rng = rngFor(c, `rt-${(c.me.trq = (c.me.trq || 0) + 1)}`);
   if (!me || me.t === 'FA' || me.t === 'AMATEUR' || me.t === 'DRAFT') return { text: 'Você não está em um time.' };
   const willing = (100 - me.rel.tr) / 100 * 0.6 + (me.role === 'B' ? 0.3 : 0);
-  if (rng.next() > willing) { me.rel.tr = clamp(me.rel.tr - 8, 0, 100); return { ok: false, text: 'A diretoria recusou o pedido de troca.' }; }
+  if (rng.next() > willing) { me.rel.tr = clamp(me.rel.tr - 8, 0, 100); H.prel(c, 'management', -6, 'Pedido de troca recusado'); H.prel(c, 'coachTrust', -3, 'Pedido de troca vazou'); return { ok: false, text: 'A diretoria recusou o pedido de troca.' }; }
   const dest = rng.pick(c.teams.filter(t => t.abbr !== me.t && spec.teamNeeds(teamPlayers(c, t.abbr))[spec.posGroup(me.pos)]) || c.teams.filter(t => t.abbr !== me.t));
-  const from = me.t; me.t = dest.abbr; me.rel = { tr: 55, rs: 50, mo: 65, sat: 55 }; me.userRole = null;
+  const from = me.t; me.t = dest.abbr; me.rel = { tr: 55, rs: 50, mo: 65, sat: 55 }; me.userRole = null; H.prel(c, 'management', -2, 'Troca concedida'); H.prel(c, 'coachTrust', 55 - (c.x?.prel?.coachTrust ?? 55), 'Novo técnico'); H.prel(c, 'teammates', -8, 'Novo vestiário');
   spec.assignRoles(teamPlayers(c, dest.abbr), c, dest.abbr);
   c.history.transactions.push({ s: c.season, kind: 'TRADE', text: `${me.n} é trocado de ${from} para ${dest.abbr}`, teams: [from, dest.abbr], players: [me.id] });
   news(c, `${me.n} é trocado para o ${dest.name}.`, 'big');
@@ -586,7 +586,7 @@ export function acceptOffer(spec, c, offer) {
   const me = c.players[c.me.id]; if (!me) return;
   const moved = me.t !== offer.team;
   me.t = offer.team; me.st = 'ACT'; me.c = { sal: offer.sal, yrs: offer.yrs, kind: 'VET' }; me.expiring = false;
-  if (moved) me.rel = { tr: 55, rs: 50, mo: 70, sat: 60 };
+  if (moved) { me.rel = { tr: 55, rs: 50, mo: 70, sat: 60 }; H.prel(c, 'coachTrust', 55 - (c.x?.prel?.coachTrust ?? 55), 'Novo clube'); } else H.prel(c, 'management', 5, 'Contrato renovado');
   spec.assignRoles(teamPlayers(c, me.t), c, me.t); syncStage(spec, c);
   c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${me.n} assina com ${offer.team} (${offer.sal}M × ${offer.yrs})`, teams: [offer.team], players: [me.id] });
   news(c, `${me.n} assina com o ${offer.name}: ${offer.sal}M × ${offer.yrs} anos.`, 'big');

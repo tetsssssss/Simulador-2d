@@ -99,11 +99,14 @@ export function collectNews(spec, c) {
     else if (t.kind === 'FA' && star) add(make(c, 'LEAGUE', 'LEAGUE', { text: t.text }, 3, base));
   }
   cur.tx = tx.length;
-  // b) results since the last collect
-  {
-    const upto = c.phase === 'REGULAR' ? c.slate : c.phase === 'PRESEASON' ? 0 : c.slates;
-    for (let sl = cur.slate; sl < upto; sl++) for (const g of c.schedule) if (g.s === sl && g.r && (involved(c, g.h) || involved(c, g.a))) add(resultItem(spec, c, g));
-    cur.slate = Math.max(cur.slate, upto);
+  // b) results since the last collect (slates whose games already have scores)
+  if (c.phase !== 'PRESEASON') {
+    for (let sl = cur.slate; sl < c.slates; sl++) {
+      const games = c.schedule.filter(g => g.s === sl);
+      if (!games.some(g => g.r)) break;
+      for (const g of games) if (g.r && (involved(c, g.h) || involved(c, g.a))) add(resultItem(spec, c, g));
+      cur.slate = sl + 1;
+    }
     if (c.phase === 'REGULAR') add(standingsItems(spec, c));
   }
   if (c.phase === 'PLAYOFFS' || (c.phase === 'OFFSEASON' && c.playoffs)) add(playoffItems(spec, c));

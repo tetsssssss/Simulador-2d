@@ -7,6 +7,8 @@ import { createRenderer, CAMERAS } from './fieldRenderer.js';
 import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
 import { openAvatarEditor } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
+import { showFinal, hideFinal } from '../../../core/ui/finalOverlay.js';
+import { nflFinalData } from './final.js';
 import {
   newGameState, offAbbr, defAbbr, clockStr, ballSpot, downText, makeLineupCache, cpuOffenseCall, cpuDefenseCall,
   snap, applyPlay, summarize, logText, runFamilies, passConcepts, defCalls, conceptLabel, simulateRest, PLAY_TYPES,
@@ -260,7 +262,16 @@ export function mountGame(root, deps) {
   }
 
   function persist() { deps.onProgress?.(m); }
-  function onOver() { view.auto = false; deps.onGameOver?.(m); }
+  function onOver() {
+    view.auto = false; deps.onGameOver?.(m);
+    clearTimeout(view.finalT);
+    view.finalT = setTimeout(() => { // let the last play's result card be read first
+      const wrap = root.querySelector('.field-wrap'); if (!wrap || !g.over || !canvas.isConnected) return;
+      const acts = [{ id: 'close', label: 'Ver o campo', onClick: () => hideFinal(wrap) }, { id: 'box', label: 'Box score', onClick: () => { hideFinal(wrap); root.querySelector('.box-panel')?.scrollIntoView({ behavior: 'smooth' }); } }];
+      acts.unshift(m.mode === 'CAREER' ? { id: 'hub', label: 'Voltar à carreira', primary: true, onClick: () => deps.navigate('home') } : { id: 'new', label: 'Nova partida', primary: true, onClick: () => { state.match = null; mountGame(root, deps); } });
+      showFinal(wrap, { ...nflFinalData(g, { teamBy, colors: a => TEAM_COLORS[a] || '#24364d', mode: MODES[m.mode]?.label }), actions: acts });
+    }, 2600);
+  }
 
   // ---------- result card / final ----------
   function resultCard(sum, small = false) {
@@ -404,7 +415,7 @@ export function mountGame(root, deps) {
   // ---------- frame loop ----------
   const unfocus = mountFocus(root.querySelector('.match'), { button: $('#focusBtn') });
   $('#optVisual').onchange = e => { view.visual = e.target.value; setVisualMode(view.visual); };
-  function cleanup() { unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
+  function cleanup() { clearTimeout(view.finalT); unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;
   let hudTick = 0;
   function frame(ts) {

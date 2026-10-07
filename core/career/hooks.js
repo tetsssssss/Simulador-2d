@@ -13,6 +13,7 @@ import { scanEvents, jobOfferEvents, firedEvent, autoResolveEvents } from './eve
 import { collectNews, pushNews, seasonFinanceNews } from './news.js';
 import { playerGameUpdate, playerTrainingDay, afterProgression, progressionMods, rookieCamp, intlSignMe } from './playerCareer.js';
 import { clamp, round1, xr, dayOfSlate } from './kit.js';
+import { bumpPrel } from './prel.js';
 
 export const OFF_DAYS = { AWARDS: 3, PROGRESSION: 2, RESIGN: 21, DRAFT: 3, FREE_AGENCY: 45, CAMP: 30 };
 const ready = c => !!c.x?.ready;
@@ -72,6 +73,9 @@ function bigLabel(line) {
 }
 export function onAfterGames(spec, c, results) {
   if (!ready(c)) return;
+  try { afterGamesInner(spec, c, results); } finally { collectNews(spec, c); }
+}
+function afterGamesInner(spec, c, results) {
   const x = c.x, mine = myTeam(c);
   if (c.phase !== 'PLAYOFFS') enforceLegality(spec, c, { includeUser: false }); // IR returns, expirations: AI clubs stay compliant
   if (!mine) return;
@@ -205,6 +209,7 @@ export function serviceTick(spec, p) { return spec.v3.serviceTick ? spec.v3.serv
 export function skipContractTick(spec, p) { return !!spec.v3?.skipContractTick?.(p); }
 export function myOffseasonDays(c) { return OFF_DAYS[c.off] || 7; }
 export { autoResolveEvents, intlSignMe };
+export const prel = (c, key, d, why) => { if (ready(c)) bumpPrel(c, key, d, why); };
 export function tickPlayoffDay(spec, c) {
   if (!ready(c)) return;
   const step = Math.max(1, Math.round(spec.calendar.slateDays));
