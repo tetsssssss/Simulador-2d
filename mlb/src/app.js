@@ -96,6 +96,14 @@ function bindPlayers(scope) {
   }));
 }
 function attrList(list) { return list.map(a => `<div class="mlb-attr"><span>${esc(a.name)}</span><b>${a.value}</b><i style="width:${a.value}%" class="${ovrCls(a.value)}"></i></div>`).join(''); }
+function historyHtml(p) {
+  const s = p.stats2025, bio = [p.birthDate && `Nasc. ${esc(p.birthDate)}`, p.mlbDebutDate && `Estreia MLB ${esc(p.mlbDebutDate)}`].filter(Boolean).join(' · ');
+  const row = (k, o) => `<tr><td>${k}</td>${o.map(v => `<td>${v ?? '—'}</td>`).join('')}</tr>`;
+  const h = s?.hit, pi = s?.pit;
+  return `<div class="sec-h">Histórico</div><div class="muted small">${bio || 'Dados biográficos indisponíveis.'}</div>` + (s ? `<table class="table compact"><thead><tr><th>2025</th><th>J</th><th colspan="3">Linha</th><th>Outros</th></tr></thead><tbody>` +
+    (h ? row('Rebatidas', [h.gp, `AVG ${h.avg}`, `OBP ${h.obp}`, `SLG ${h.slg}`, `${h.hr} HR · ${h.rbi} RBI · ${h.sb} SB`]) : '') +
+    (pi ? row('Arremessos', [pi.gp, `ERA ${pi.era}`, `WHIP ${pi.whip}`, `${pi.ip} IP`, `${pi.w}-${pi.l} · ${pi.sv} SV · ${pi.so} K`]) : '') + '</tbody></table>' : '<div class="muted small">Sem estatísticas de 2025 no snapshot (estreante ou fora da amostra).</div>');
+}
 function showPlayer(p) {
   const nm = p.fullName || p.person?.fullName || 'Atleta', id = p.id || p.person?.id, fx = fixedRatings(p);
   let day = 0;
@@ -105,6 +113,7 @@ function showPlayer(p) {
     <div class="sec-h">40 atributos fixos</div><div class="mlb-attr-grid">${attrList(fx)}</div>
     <div class="sec-h" style="display:flex;align-items:center;gap:10px">30 atributos adaptativos (contexto do dia) <button id="reroll" class="small">Atualizar contexto do dia</button></div>
     <div class="mlb-attr-grid" id="adapt">${attrList(adaptiveRatings(p, 'initial'))}</div>
+    ${historyHtml(p)}
     <p class="muted small">Ratings próprios do simulador (determinísticos). Dados biográficos e foto: MLB.</p>`;
   $('#reroll').onclick = () => { day++; $('#adapt').innerHTML = attrList(adaptiveRatings(p, 'day' + day)); };
 }

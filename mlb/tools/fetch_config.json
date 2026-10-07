@@ -1,0 +1,14 @@
+{
+  "seasons": [2025, 2026],
+  "roster_types": ["active", "40Man"],
+  "download_photos": true,
+  "photo_width": 426,
+  "download_team_logos": true,
+  "include_year_by_year_history": true,
+  "include_season_stats": true,
+  "include_transactions": false,
+  "max_workers": 6,
+  "request_delay_seconds": 0.10,
+  "timeout_seconds": 30,
+  "retries": 4
+}

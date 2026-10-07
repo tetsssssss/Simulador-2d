@@ -52,3 +52,9 @@ Caso o navegador bloqueie APIs por ser um `file://`, execute `start_server.bat` 
 8. Injuries.
 9. Schedule e standings.
 10. Motor 2D de pitching, batting, ball physics, fielding e baserunning.
+
+## Base de dados 2025/2026 (snapshot local)
+- `data/roster_snapshot.json`: 30 times, 778 jogadores (elenco ativo 2026: nome real, MLB ID, camisa, posição, B/T, nascimento, estreia) + linha estatística de 2025 quando disponível (347 jogadores). O app usa este arquivo primeiro (offline, sem CORS); a StatsAPI só complementa a ficha (altura/peso).
+- Fotos: CDN oficial da MLB pelo ID (`photos.js`); com silhueta/iniciais como fallback.
+- Regerar/ampliar: `python3 tools/build_snapshot.py` (snapshot) ou, **no seu PC com internet**, `python tools/fetch_mlb_2025_2026.py` (pacote completo: fotos baixadas, histórico ano a ano, elencos 40-man). Veja `tools/PACOTE_MLB_README.md`.
+- Limite: o zip recebido continha apenas o gerador (pasta `output` vazia) e a StatsAPI/CDN são bloqueadas no ambiente de build; por isso fotos locais e histórico ano a ano completo ainda dependem de rodar o gerador.

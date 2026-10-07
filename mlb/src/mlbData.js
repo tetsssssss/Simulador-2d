@@ -58,14 +58,31 @@ export function adaptiveRatings(p, seed = 'day0') {
 }
 
 async function fetchJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
+// Local snapshot (data/roster_snapshot.json: 2026 active rosters + 2025 season line, built by tools/build_snapshot.py) is the
+// primary source: deterministic, offline and CORS-free. The StatsAPI only enriches the profile (height/weight) when reachable.
+let snapshot = null;
+const loadSnapshot = () => snapshot || (snapshot = fetch(new URL('../data/roster_snapshot.json', import.meta.url)).then(r => { if (!r.ok) throw new Error(`snapshot HTTP ${r.status}`); return r.json(); }));
+const snapRow = (x, t) => ({
+  person: { id: x.id, fullName: x.name, currentAge: x.age, birthDate: x.birth, mlbDebutDate: x.debut, primaryNumber: x.num,
+    batSide: x.bats ? { code: x.bats } : undefined, pitchHand: x.throws ? { code: x.throws } : undefined, primaryPosition: { abbreviation: x.pos, name: x.posName } },
+  jerseyNumber: x.num, position: { abbreviation: x.pos, name: x.posName }, status: { code: 'A', description: 'Active' }, stats2025: x.stats2025, teamAbbr: t.abbr, teamId: t.id });
 export async function roster(team) {
   if (cache.rosters[team.id]) return cache.rosters[team.id];
-  const j = await fetchJSON(`${API}/teams/${team.id}/roster?rosterType=active&season=2026&hydrate=person`);
-  cache.rosters[team.id] = (j.roster || []).map(x => ({ ...x, teamAbbr: team.abbr, teamId: team.id })); return cache.rosters[team.id];
+  let list;
+  try {
+    const s = await loadSnapshot(), st = s.teams?.[team.abbr];
+    if (st?.players?.length) list = st.players.map(x => snapRow(x, team));
+  } catch { /* fall through to the live API */ }
+  if (!list) { const j = await fetchJSON(`${API}/teams/${team.id}/roster?rosterType=active&season=2026&hydrate=person`); list = (j.roster || []).map(x => ({ ...x, teamAbbr: team.abbr, teamId: team.id })); }
+  cache.rosters[team.id] = list; return list;
 }
 export async function person(id) {
   if (cache.people[id]) return cache.people[id];
-  const j = await fetchJSON(`${API}/people/${id}`); cache.people[id] = j.people?.[0] || {}; return cache.people[id];
+  let base = null;
+  try { const s = await loadSnapshot(); for (const ab in s.teams) { const x = s.teams[ab].players.find(q => String(q.id) === String(id)); if (x) { base = { ...snapRow(x, teamBy(ab) || {}).person, jerseyNumber: x.num, stats2025: x.stats2025, currentTeam: { name: s.teams[ab].name } }; break; } } } catch { /* snapshot unavailable */ }
+  let live = null; try { live = (await fetchJSON(`${API}/people/${id}`)).people?.[0] || null; } catch { /* offline/blocked: keep snapshot */ }
+  if (base || live) return cache.people[id] = { ...(base || {}), ...(live || {}), stats2025: base?.stats2025, currentTeam: live?.currentTeam || base?.currentTeam };
+  return cache.people[id] = {};
 }
 export async function draft(year) {
   if (cache.drafts[year]) return cache.drafts[year];
