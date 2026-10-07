@@ -9,13 +9,13 @@ export { createCareer, attachSpec, playSlate, playPlayoffGameDay, advanceOffseas
 export { setTraining, FOCI } from './training.js';
 export { setTactics, autoTactics, getTactics, engineConfig, weeklyGameplan, tacticsReport } from './tactics.js';
 export { hireStaff, fireStaff, staffFx } from './staff.js';
-export { upgradeFacility, assignScout, signFree as signFreeAgent, extend as extendContract, contractOffer, sportAction, scoutKnowledge, fogged, FACILITY_INFO } from './gm.js';
+export { upgradeFacility, assignScout, signFree as signFreeAgent, extend as extendContract, contractOffer, sportAction, scoutKnowledge, fogged, FACILITY_INFO, facilityCost } from './gm.js';
 export { applyForJob, acceptOffer as acceptJobOffer, negotiateContract, jobMarket, jobSecurity, trackObjectives, squadRelationship } from './coach.js';
 export { evaluate as evaluateOffer, propose as makeOffer, setUserTradeBlock as setTradeBlock, getTradeBlock, getBlockOffers, assetValue, pickValue, aiTradeRound, tradeWindowOpen } from './tradeAI.js';
 export { teamPicks, pickOwner, pickKey } from './picks.js';
 export { resolveEvent, autoResolveEvents, getEvents } from './events.js';
 export { CareerNewsEngine, getFeed, latestNews, newsByTeam, newsByPlayer, pushNews } from './news.js';
-export { getCreatePlayerOptions, validatePlayerInput, setPlayerTraining, spendXP, projectCurve, attributeBudget } from './playerCareer.js';
+export { getCreatePlayerOptions, validatePlayerInput, setPlayerTraining, spendXP, projectCurve, attributeBudget, attrCost } from './playerCareer.js';
 export { CURVES } from './curves.js';
 export { legalityOf, ensureV3 } from './x.js';
 export { createCareerStore, createSaveManager, memoryStorage, CAREER_SAVE_VERSION, SaveVersion, MigrationManager, migrations, integrityCheck } from './saveStore.js';

@@ -4,16 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Career Hub — American Sports Universe</title>
+<link rel="icon" href="data:," />
 <link rel="stylesheet" href="../nfl/styles.css" />
 <link rel="stylesheet" href="career.css" />
 </head>
 <body class="hub">
-<div class="hub-wrap">
-  <header class="hub-head"><div><h1>Career Hub</h1><small class="muted" id="hubSub">Carreiras de NFL, NHL e MLB · Técnico · Dirigente · Jogador</small></div><span class="grow"></span><nav class="hub-nav" id="hubNav"></nav></header>
-  <main id="hub"></main>
+<a class="skip-link" href="#hub">Pular para o conteúdo</a>
+<div class="hub-wrap" id="hubWrap">
+  <header class="hub-head" id="hubHead"><div><h1>Career Hub</h1><small class="muted" id="hubSub">Carreiras de NFL, NHL e MLB · Técnico · Dirigente · Jogador</small></div><span class="grow"></span><nav class="hub-nav" id="hubNav" aria-label="Ações do Hub"></nav></header>
+  <main id="hub" tabindex="-1"></main>
 </div>
-<div class="hub-overlay" id="overlay"><div class="hub-ov-box"><b id="ovTitle">Simulando…</b><div class="hub-bar"><i id="ovBar"></i></div><small class="muted" id="ovText"></small><button id="ovCancel" class="ghost">Parar após o jogo atual</button></div></div>
-<div class="toast" id="toast"></div>
+<div class="hub-overlay" id="overlay" role="alertdialog" aria-live="polite" aria-label="Processando"><div class="hub-ov-box"><b id="ovTitle">Simulando…</b><div class="hub-bar"><i id="ovBar"></i></div><small class="muted" id="ovText"></small></div></div>
+<div id="modalRoot"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <!-- sport data layers (classic scripts: window.NHL_DATA / window.MLB_DATA) -->
 <script src="../nhl/js/data.js"></script>
 <script src="../mlb/js/data.js"></script>
