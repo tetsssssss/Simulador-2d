@@ -12,6 +12,8 @@ import { createPresentation } from '../../../core/presentation/presentationEngin
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
 import { mountEngineControls } from '../../../core/ui/engineControls.js';
+import { readPending, writeResult, goTo } from '../../../core/career/bridge.js';
+import { mlbLinesFromState } from '../career/mlbSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { MLB_ATMOSPHERE, mlbStands } from '../presentation/atmosphere.js';
@@ -66,14 +68,18 @@ export function mountMatch(root, deps = {}) {
     return { t: 0, home, away, fielders, batter: b && { ...b, ...BATTER_SPOT(b.bats) }, runners: [], ball: null, inning: 1, half: 'top', outs: 0, balls: 0, strikes: 0, score: { home: 0, away: 0 }, hits: { home: 0, away: 0 }, errors: { home: 0, away: 0 }, events: [] };
   }
 
+  const pend = readPending('mlb'); // career game handed over by the Career Hub
+  view.pending = pend;
   async function setup() {
     $('#bug').innerHTML = '<div class="muted" style="padding:10px">Carregando elencos…</div>';
-    const [h, a] = await Promise.all([loadTeam(pref.home), loadTeam(pref.away)]);
+    if (pend) { pref.home = pend.h; pref.away = pend.a; $('#homeSel').value = pend.h; $('#awaySel').value = pend.a; }
+    const [h, a] = pend ? [pend.rosters.home, pend.rosters.away].map((rows, i) => { const ab = i ? pend.a : pend.h, t = teamBy(ab); return { abbr: ab, name: t.name, color: mlbColor(ab), color2: mlbColor(ab, 1), lineup: buildLineup(rows, ''), source: 'career' }; }) : await Promise.all([loadTeam(pref.home), loadTeam(pref.away)]);
     if (view.disposed) return;
     const [hk, ak] = separateKits([h.color, h.color2], [a.color, a.color2]);
     const home = withSide({ ...h, brand: h.color, color: hk[0], color2: hk[1] }, 'home'), away = withSide({ ...a, brand: a.color, color: ak[0], color2: ak[1] }, 'away');
-    $('#srcNote').innerHTML = [h, a].some(t => t.source === 'demo') ? '<span class="bad">Elenco DEMO (MLB StatsAPI indisponível) — sem nomes/fotos reais</span>' : 'Elencos: MLB StatsAPI (2026)';
-    if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}#${view.seedN || 0}` }); view.state = view.engine.state; }
+    $('#srcNote').innerHTML = pend ? `★ Jogo da carreira “${esc(pend.careerName)}” — o resultado volta para o Career Hub` : [h, a].some(t => t.source === 'demo') ? '<span class="bad">Elenco DEMO (MLB StatsAPI indisponível) — sem nomes/fotos reais</span>' : 'Elencos: MLB StatsAPI (2026)';
+    if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: pend ? pend.seed : `${pref.away}@${pref.home}#${view.seedN || 0}` });
+      if (pend) { $('#homeSel').disabled = true; $('#awaySel').disabled = true; } view.state = view.engine.state; }
     else view.state = staticState(home, away);
     startPresentation(`${pref.away}@${pref.home}`);
     drawBug(); drawSide();
@@ -117,6 +123,7 @@ export function mountMatch(root, deps = {}) {
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
+    if (pend && view.engine?.state.over && !view.reported) reportToCareer();
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
   }
@@ -169,6 +176,15 @@ export function mountMatch(root, deps = {}) {
     if (pres.idx === ev.length) return;
     const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
     while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
+  }
+  // career game finished → result (score + per-player lines keyed by raw roster id) back to the Career Hub
+  function reportToCareer() {
+    view.reported = true;
+    const S = view.engine.state;
+    writeResult({ careerId: pend.careerId, key: pend.key, h: pend.h, a: pend.a, hs: S.score.home, as: S.score.away, ot: S.inning > 9, lines: mlbLinesFromState(S) });
+    const el = $('#ctrlExtra');
+    if (el) { el.insertAdjacentHTML('afterbegin', '<button class="primary" id="backHub">Voltar ao Career Hub ↩</button>'); el.querySelector('#backHub').onclick = () => goTo('career'); }
+    flash('Resultado enviado para a carreira ★', 'score');
   }
   view.presentation = pres;
   function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }

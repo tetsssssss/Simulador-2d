@@ -2,8 +2,9 @@
   "name": "american-sports-universe-2d",
   "private": true,
   "type": "module",
-  "description": "American Sports Universe 2D — NFL | NHL | MLB in one shell. No build step; serve this folder.",
+  "description": "American Sports Universe 2D \u2014 NFL | NHL | MLB in one shell. No build step; serve this folder.",
   "scripts": {
-    "test": "node --test tests/*.test.mjs && cd nfl && node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs && cd nfl && node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser/smoke.mjs 8200 && node tests/browser/career.mjs 8200"
   }
 }

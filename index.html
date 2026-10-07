@@ -20,6 +20,8 @@
   .su-seg a.on[data-sport=nfl]{background:rgba(47,224,143,.16);color:#c9ffe4;box-shadow:inset 0 -2px 0 var(--nfl)}
   .su-seg a.on[data-sport=nhl]{background:rgba(92,200,255,.16);color:#d6f1ff;box-shadow:inset 0 -2px 0 var(--nhl)}
   .su-seg a.on[data-sport=mlb]{background:rgba(255,122,89,.16);color:#ffe1d8;box-shadow:inset 0 -2px 0 var(--mlb)}
+  .su-car{padding:6px 14px;border:1px solid var(--line2);border-radius:8px;font-weight:800;letter-spacing:.04em;font-size:12.5px;color:#f5d67a;text-decoration:none}
+  .su-car:hover{background:#141f2d}.su-car.on{background:rgba(245,192,74,.16);box-shadow:inset 0 -2px 0 #f5c04a}
   .su-grow{flex:1}.su-hint{color:var(--muted);font-size:11px}
   #sportFrame{flex:1;width:100%;border:0;display:block;background:var(--bg)}
   .su-audio{position:relative}
@@ -39,13 +41,14 @@
 <header class="su-bar">
   <div class="su-brand">American Sports Universe <span>2D</span></div>
   <nav class="su-seg" aria-label="Esporte"><a href="#nfl" data-sport="nfl">NFL</a><a href="#nhl" data-sport="nhl">NHL</a><a href="#mlb" data-sport="mlb">MLB</a></nav>
+  <a class="su-car" href="#career" data-sport="career" title="Carreiras de NFL, NHL e MLB (Técnico, Dirigente, Jogador)">★ Carreiras</a>
   <span class="su-grow"></span><span class="su-hint" id="suHint"></span>
   <div class="su-audio"><button id="suAudioBtn" title="Áudio: volumes por categoria">🔊</button><div class="su-pop" id="suAudioPop"></div></div>
 </header>
 <iframe id="sportFrame" title="Universo do esporte"></iframe>
 <script>
 (() => {
-  const SPORTS = { nfl: { path: 'nfl/index.html', label: 'NFL Universe 2D' }, nhl: { path: 'nhl/index.html', label: 'NHL Universe 2D' }, mlb: { path: 'mlb/index.html', label: 'MLB Universe 2D' } };
+  const SPORTS = { nfl: { path: 'nfl/index.html', label: 'NFL Universe 2D' }, nhl: { path: 'nhl/index.html', label: 'NHL Universe 2D' }, mlb: { path: 'mlb/index.html', label: 'MLB Universe 2D' }, career: { path: 'career/index.html', label: 'Career Hub' } };
   const frame = document.getElementById('sportFrame');
   const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
   let current = null;
@@ -60,7 +63,7 @@
     rememberInner();
     current = sport;
     store.set('asu_sport', sport);
-    document.querySelectorAll('.su-seg a').forEach(a => a.classList.toggle('on', a.dataset.sport === sport));
+    document.querySelectorAll('.su-seg a, .su-car').forEach(a => a.classList.toggle('on', a.dataset.sport === sport));
     document.getElementById('suHint').textContent = SPORTS[sport].label;
     document.title = SPORTS[sport].label + ' — American Sports Universe';
     // A fresh document per sport: the previous sport's loops/timers are torn down with its page.

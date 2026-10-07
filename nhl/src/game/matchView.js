@@ -11,6 +11,8 @@ import { createPresentation } from '../../../core/presentation/presentationEngin
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
 import { mountEngineControls } from '../../../core/ui/engineControls.js';
+import { readPending, writeResult, goTo } from '../../../core/career/bridge.js';
+import { nhlLinesFromState } from '../career/nhlSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
@@ -47,17 +49,21 @@ export function mountMatch(root, deps = {}) {
   const renderer = view.renderer = createRinkRenderer(canvas, { ...deps, crowd: deps.crowd || stands });
   renderer.setCamera(pref.camera);
 
+  const pend = readPending('nhl'); // career game handed over by the Career Hub
+  view.pending = pend;
   async function setup() {
     $('#bug').innerHTML = '<div class="muted" style="padding:10px">Carregando elencos…</div>';
-    const [hr, ar] = await Promise.all([getRoster(pref.home), getRoster(pref.away)]);
+    if (pend) { pref.home = pend.h; pref.away = pend.a; $('#homeSel').value = pend.h; $('#awaySel').value = pend.a; }
+    const [hr, ar] = pend ? [pend.rosters.home, pend.rosters.away] : await Promise.all([getRoster(pref.home), getRoster(pref.away)]);
     if (view.disposed) return;
     const [hk, ak] = separateKits([nhlColor(pref.home), nhlColor(pref.home, 1)], [nhlColor(pref.away), nhlColor(pref.away, 1)]);
     const home = { abbr: pref.home, name: teamBy(pref.home).name, brand: nhlColor(pref.home), color: hk[0], color2: hk[1], lineup: buildLineup(hr) };
     const away = { abbr: pref.away, name: teamBy(pref.away).name, brand: nhlColor(pref.away), color: ak[0], color2: ak[1], lineup: buildLineup(ar) };
     const src = [rosterSource(pref.home), rosterSource(pref.away)];
-    $('#srcNote').textContent = src.includes('snapshot') ? 'Elencos: snapshot local 2023-24 (NHL API indisponível)' : 'Elencos: NHL Web API';
+    $('#srcNote').textContent = pend ? `★ Jogo da carreira “${pend.careerName}” — o resultado volta para o Career Hub` : src.includes('snapshot') ? 'Elencos: snapshot local 2023-24 (NHL API indisponível)' : 'Elencos: NHL Web API';
     if (deps.createEngine) {
-      view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}#${view.seedN || 0}` });
+      view.engine = deps.createEngine({ home, away, seed: pend ? pend.seed : `${pref.away}@${pref.home}#${view.seedN || 0}` });
+      if (pend) { $('#homeSel').disabled = true; $('#awaySel').disabled = true; }
       view.state = view.engine.state;
     } else view.state = faceoffState(home, away);
     startPresentation(`${pref.away}@${pref.home}`);
@@ -104,6 +110,7 @@ export function mountMatch(root, deps = {}) {
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
+    if (pend && view.engine?.state.over && !view.reported) reportToCareer();
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
   }
@@ -159,6 +166,15 @@ export function mountMatch(root, deps = {}) {
     if (pres.idx === ev.length) return;
     const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
     while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
+  }
+  // career game finished → result (score + per-player lines keyed by raw roster id) back to the Career Hub
+  function reportToCareer() {
+    view.reported = true;
+    const S = view.engine.state;
+    writeResult({ careerId: pend.careerId, key: pend.key, h: pend.h, a: pend.a, hs: S.score.home, as: S.score.away, ot: S.period >= 4, lines: nhlLinesFromState(S) });
+    const el = $('#ctrlExtra');
+    if (el) { el.insertAdjacentHTML('afterbegin', '<button class="primary" id="backHub">Voltar ao Career Hub ↩</button>'); el.querySelector('#backHub').onclick = () => goTo('career'); }
+    flash('Resultado enviado para a carreira ★', 'score');
   }
   view.presentation = pres;
   function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="nhl-notice bad">${esc(err.message)}</div>`; }); }
