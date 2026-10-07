@@ -27,10 +27,10 @@ export function mountMatch(root, deps = {}) {
       <span class="grow"></span><span class="muted small" id="srcNote"></span></div>
     <div class="nhl-bug" id="bug"></div>
     <div class="nhl-match-grid">
-      <div class="nhl-ice-col"><div class="nhl-ice-wrap"><canvas id="rinkCanvas"></canvas><div class="nhl-pcard" id="pcard"></div></div>
+      <div class="nhl-ice-col"><div class="nhl-ice-wrap"><canvas id="rinkCanvas"></canvas><div class="nhl-pcard" id="pcard"></div><div class="evt-flash" id="evtFlash"></div></div>
         <div class="controls nhl-controls" id="controls">
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
-          <span class="grow"></span>
+          <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
           <label class="chk"><input type="checkbox" id="optPhotos" ${pref.photos ? 'checked' : ''}> Fotos</label>
           <label class="chk"><input type="checkbox" id="optDebug"> Rotas/Debug</label>
@@ -56,7 +56,8 @@ export function mountMatch(root, deps = {}) {
     const src = [rosterSource(pref.home), rosterSource(pref.away)];
     $('#srcNote').textContent = src.includes('snapshot') ? 'Elencos: snapshot local 2023-24 (NHL API indisponível)' : 'Elencos: NHL Web API';
     if (deps.createEngine) {
-      view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}` });
+      view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}#${view.seedN || 0}` });
+      const spd = +store.get('asu_nhl_speed'); if (spd && view.engine.setSpeed) view.engine.setSpeed(spd);
       view.state = view.engine.state;
     } else view.state = faceoffState(home, away);
     startPresentation(`${pref.away}@${pref.home}`);
@@ -98,7 +99,8 @@ export function mountMatch(root, deps = {}) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
     const dt = view.last ? Math.min(0.1, (ts - view.last) / 1000) : 0; view.last = ts;
     let alpha = 1;
-    if (view.engine) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
@@ -134,6 +136,41 @@ export function mountMatch(root, deps = {}) {
     if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
     pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => audio.volume('COMMENTARY') });
     pres.idx = 0;
+    pres.comm.subscribe(l => { if (l.priority >= 3) flash(l.text, l.tone); });
+    drawEngineControls();
+  }
+  // Big moments (goal, breakaway, big save…) flash over the ice for ~2.5 s.
+  function flash(text, tone) {
+    const el = $('#evtFlash'); if (!el) return;
+    el.className = `evt-flash show tone-${tone}`; el.textContent = text;
+    clearTimeout(view.flashT); view.flashT = setTimeout(() => { if (!view.disposed) el.classList.remove('show'); }, 2600);
+  }
+  // Speed / simulation controls (only when an engine drives the match).
+  function drawEngineControls() {
+    const e = view.engine, el = $('#ctrlExtra'); if (!el) return;
+    if (!e?.setSpeed) { el.innerHTML = ''; return; }
+    const speeds = [1, 2, 4, 8];
+    el.innerHTML = `<div class="seg" id="spdSeg">${speeds.map(v => `<button data-spd="${v}" class="${e.speed === v ? 'on' : ''}">${v}x</button>`).join('')}</div>
+      <button id="pauseBtn" title="Pausar / continuar (espaço)">${view.paused ? '▶' : '❚❚'}</button>
+      ${e.simulate ? '<button id="simPeriodBtn" title="Simula o resto do período">Sim período ⏭</button><button id="simEndBtn" title="Simula até o fim do jogo">Sim to end ⏭⏭</button>' : ''}
+      <button id="newGameBtn" class="ghost" title="Nova partida (nova seed)">↻</button>`;
+    el.querySelector('#spdSeg').onclick = ev => { const v = +ev.target.dataset.spd; if (!v) return; e.setSpeed(v); store.set('asu_nhl_speed', String(v)); drawEngineControls(); };
+    el.querySelector('#pauseBtn').onclick = () => { view.paused = !view.paused; drawEngineControls(); };
+    el.querySelector('#newGameBtn').onclick = () => { view.seedN = (view.seedN || 0) + 1; restart(); };
+    const sim = (untilPeriodEnd) => {
+      if (view.simming) return; view.simming = true;
+      const S = e.state, p0 = S.period;
+      const chunk = () => {
+        if (view.disposed || view.engine !== e) return;
+        e.simulate(90);
+        drainEvents(); view.redraw();
+        if (S.over || (untilPeriodEnd && S.period !== p0)) { view.simming = false; drawEngineControls(); return; }
+        setTimeout(chunk, 0);
+      };
+      chunk();
+    };
+    el.querySelector('#simPeriodBtn') && (el.querySelector('#simPeriodBtn').onclick = () => sim(true));
+    el.querySelector('#simEndBtn') && (el.querySelector('#simEndBtn').onclick = () => sim(false));
   }
   function drainEvents() {
     const s = view.state, ev = s?.events; if (!ev || !pres.engine) return;

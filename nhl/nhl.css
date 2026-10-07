@@ -71,3 +71,8 @@
 .nhl-pcard-big{align-items:center}
 .nhl-pc-tags{display:flex;gap:6px;align-items:center;margin:3px 0}
 .nhl-num{font-weight:900;font-size:15px}
+/* engine: box score */
+.nhl-bx{margin-top:6px}.nhl-bx-h,.nhl-bx-r{display:grid;grid-template-columns:1fr repeat(6,30px);gap:2px;font-size:11.5px;padding:2px 0;align-items:center}
+.nhl-bx-h{color:var(--muted);font-weight:800;border-bottom:1px solid var(--line)}.nhl-bx-h span,.nhl-bx-r span{text-align:center}.nhl-bx-h b,.nhl-bx-r span:first-child{text-align:left}
+.nhl-bx-r span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nhl-bx-r.g{grid-template-columns:1fr auto}.nhl-bx-r .wide{text-align:right;color:var(--muted)}
+.ctrl-extra{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}

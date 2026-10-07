@@ -3,6 +3,7 @@
 import { D, teamBy, logo, placeholder, playerName, nameOf, age, makeAttrs, overall, getRoster, getProspects, hash, POS_LABEL, cachedRosterCount, rosterSource } from './nhlData.js';
 import { mountMatch } from './game/matchView.js';
 import { photoUrl } from './photos.js';
+import { hockeyHook } from './game/engineHook.js';
 
 const $ = s => document.querySelector(s);
 const content = $('#content');
@@ -158,7 +159,7 @@ function rink() {
   cleanup = mountMatch(content, matchDeps());
 }
 // Extension point: later phases (engine, commentary, audio, crowd) register here without touching the view.
-export const matchHooks = [];
+export const matchHooks = [hockeyHook];
 function matchDeps() { return matchHooks.reduce((d, h) => h(d) || d, {}); }
 
 // ---------- router ----------

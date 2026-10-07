@@ -327,7 +327,7 @@ div.preset{display:flex}
 @media (min-width:1800px){body{font-size:13.5px}.match-grid{grid-template-columns:minmax(0,1fr) 380px}}
 
 /* ---------- LIVE COMMENTARY (shared by NFL / NHL / MLB) ---------- */
-.live-comm { display: flex; flex-direction: column; min-height: 0; }
+.live-comm { display: flex; flex-direction: column; flex: none; }
 .live-comm .lc-head { display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
 .live-comm .lc-head .grow { flex: 1; }
 .live-comm .lc-toggle { padding: 2px 8px; }
@@ -344,3 +344,8 @@ div.preset{display:flex}
 .live-comm .tone-good { border-left-color: #4fd18b; }
 .live-comm .tone-save { border-left-color: #6cc4ff; }
 @keyframes lcIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+/* event flash over the play area (NHL / MLB big moments) */
+.evt-flash{position:absolute;left:50%;top:14%;transform:translate(-50%,-8px);padding:10px 22px;border-radius:10px;background:rgba(5,9,14,.82);border:1px solid rgba(255,255,255,.15);font-weight:900;font-size:clamp(16px,2vw,28px);letter-spacing:.02em;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;text-align:center;max-width:80%;z-index:3}
+.evt-flash.show{opacity:1;transform:translate(-50%,0)}
+.evt-flash.tone-score{color:#ffd75a;border-color:#ffd75a;box-shadow:0 0 30px rgba(255,215,90,.35)}
+.evt-flash.tone-save{color:#8fd6ff}.evt-flash.tone-turnover{color:#ff8a8a}
