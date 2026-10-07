@@ -46,6 +46,7 @@ export async function advance(spec, c, mode = CalMode.NEXT_DAY, opts = {}) {
           const lg = spec.v3.legality(spec, c, c.userTeam);
           if (!lg.ok) { if (auto || opts.autoFix) { enforceLegality(spec, c, { includeUser: true }); } else { res.stopped = 'ILLEGAL_ROSTER'; res.issues = lg.issues; break; } }
         }
+        if (ug && c.role !== 'PLAYER') (res.compliance ||= []).push({ day: x.cal.day, season: c.season, ok: spec.v3.legality(spec, c, c.userTeam).ok });
         await playPending(spec, c, !!ug, res.played);
         if (mode === CalMode.NEXT_GAME && ug) { res.stopped = 'PLAYED'; break; }
         continue;

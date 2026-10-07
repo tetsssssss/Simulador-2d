@@ -21,7 +21,7 @@ export function createMigrationManager() {
   const steps = new Map();
   return {
     register(from, fn) { steps.set(from, fn); return this; },
-    needs: obj => (obj?.saveVersion ?? 1) < CAREER_SAVE_VERSION,
+    needs: obj => (obj?.saveVersion ?? 1) !== CAREER_SAVE_VERSION,
     migrate(obj) {
       let o = JSON.parse(JSON.stringify(obj));
       if (o.saveVersion == null) o.saveVersion = 1;

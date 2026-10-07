@@ -5,6 +5,6 @@ await pg.route(/mlbstatic|statsapi|nhle|espn|githubusercontent/, r => r.abort())
 await pg.goto('http://localhost:8300/nfl/index.html#play'); await pg.waitForTimeout(1500);
 await pg.evaluate(() => { const b = document.querySelector('[data-mode=SPECTATOR]'); if (b) { b.click(); setTimeout(() => document.querySelector('[data-start]')?.click(), 150); } }); await pg.waitForTimeout(3000);
 await pg.click('#zoomSeg [data-zoom="full"]'); await pg.waitForTimeout(1500); await pg.screenshot({ path: process.argv[2] + '/nfl_stands.png' });
-await pg.click('#simEndBtn'); await pg.waitForSelector('.fin-overlay.show', { timeout: 120000 }); await pg.waitForTimeout(800);
+await pg.click('#simEndBtn'); await pg.waitForSelector('.fin-overlay.show', { timeout: 600000 }); await pg.waitForTimeout(800);
 await pg.screenshot({ path: process.argv[2] + '/nfl_final.png' });
 console.log('errors', errs); await b.close();

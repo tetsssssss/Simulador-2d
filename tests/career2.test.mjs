@@ -373,3 +373,72 @@ test('contracts, facilities, waivers: cap rules in actions, facility upgrades co
   void cash;
   const coach = await mk('nhl', 'COACH'); assert.equal(A.upgradeFacility(coach.spec, coach.c, 'training').ok, false, 'coach cannot invest');
 });
+
+test('determinism by seed: same seed + same actions = identical save; different seed differs', async () => {
+  const run = async seed => { const { c, spec } = await mk('nhl', 'COACH', { seed }); A.setTraining(spec, c, { focus: 'technical' }); await days(spec, c, 25); return strip(c); };
+  const a = await run('det-1'), b = await run('det-1'), d = await run('det-2');
+  assert.equal(a, b); assert.notEqual(a, d);
+});
+
+test('save → load round trip equals the state and resuming gives the same future; autosave ring; quota', async () => {
+  const { c, spec } = await mk('nhl', 'GM', { seed: 'rt1' });
+  await days(spec, c, 20);
+  const store = A.createCareerStore(A.memoryStorage());
+  store.save(c); const back = store.load(c.id);
+  assert.equal(back.status, 'ok'); assert.equal(back.save.saveVersion, A.CAREER_SAVE_VERSION);
+  assert.equal(strip(back.save.career), strip(c), 'round trip equals state');
+  const c2 = back.save.career; A.attachSpec(c2, spec);
+  await days(spec, c, 15); await days(spec, c2, 15);
+  assert.equal(strip(c2), strip(c), 'resumed career follows the same future');
+  // autosave ring keeps two older copies, manual clears them
+  store.autosave(c); store.autosave(c); assert.ok(store.slots(c.id).some(s => s.slot === 'auto2'));
+  store.save(c); assert.deepEqual(store.slots(c.id).map(s => s.slot), ['manual']);
+  // export / import
+  const json = store.exportJSON(c.id), imp = store.importJSON(json); assert.notEqual(imp.id, c.id); assert.equal(store.list().length, 2);
+  // quota: a full storage throws a QUOTA error and leaves existing slots intact
+  const mem = A.memoryStorage(), full = { ...mem, getItem: k => mem.getItem(k), removeItem: k => mem.removeItem(k), setItem: (k, v) => { if (String(v).length > 5000 && k.includes('_auto')) throw new Error('QuotaExceededError'); mem.setItem(k, v); }, key: i => mem.key(i), get length() { return mem.length; } };
+  const s2 = A.createCareerStore(full); s2.save(c);
+  assert.throws(() => s2.autosave(c), e => e.code === 'QUOTA'); assert.equal(s2.load(c.id).status, 'ok');
+});
+
+test('migration v2 → v3: backup kept, state completed on attach, play continues; sizes are reasonable', async () => {
+  const { c, spec } = await mk('nhl', 'COACH', { seed: 'mig1' });
+  await days(spec, c, 12);
+  const v2 = JSON.parse(JSON.stringify(c)); delete v2.x; v2.saveVersion = 2;
+  for (const p of Object.values(v2.players)) { delete p.cv; delete p.xp; delete p.fm; }
+  const env = { saveVersion: 2, id: v2.id, sport: 'nhl', role: 'COACH', name: v2.name, createdAt: 'x', updatedAt: '2026-01-01T00:00:00Z', metadata: {}, career: v2 };
+  const mem = A.memoryStorage(); const raw = JSON.stringify(env); mem.setItem(`asu_career_${v2.id}`, raw);
+  const store = A.createCareerStore(mem);
+  const r = store.load(v2.id); assert.equal(r.status, 'ok'); assert.ok(r.migrated); assert.equal(r.save.saveVersion, 3); assert.equal(mem.getItem(`asu_career_${v2.id}_backup_v2`), raw, 'non-destructive backup');
+  const c3 = r.save.career; assert.equal(c3.saveVersion, 3); assert.equal(c3.x.ready, false);
+  A.attachSpec(c3, spec); assert.equal(c3.x.ready, true); assert.ok(c3.x.meta.BOS && c3.x.staff.hired.length && Object.values(c3.players).every(p => p.cv));
+  assert.equal(c3.players[Object.keys(c3.players)[0]].id != null, true);
+  await days(spec, c3, 20); assert.ok(finite(c3));
+  assert.ok(A.getDashboardView(c3).header.role === 'COACH');
+  assert.ok(JSON.stringify(c3).length < 3_000_000, 'NHL save stays far below the localStorage limit');
+});
+
+test('corrupted saves are rejected without crashing', async () => {
+  const mem = A.memoryStorage(), store = A.createCareerStore(mem);
+  mem.setItem('asu_career_a', '{not json'); assert.equal(store.load('a').status, 'corrupt'); assert.ok(mem.getItem('asu_career_a_corrupt'));
+  mem.setItem('asu_career_b', JSON.stringify({ saveVersion: 3, id: 'b', sport: 'nhl', career: { teams: [], players: {}, phase: 'REGULAR' } })); assert.equal(store.load('b').status, 'corrupt');
+  mem.setItem('asu_career_c', JSON.stringify({ saveVersion: 3, id: 'c', sport: 'cricket', career: {} })); assert.equal(store.load('c').status, 'corrupt');
+  mem.setItem('asu_career_d', JSON.stringify({ saveVersion: 99, id: 'd', sport: 'nhl', career: {} })); assert.equal(store.load('d').status, 'corrupt');
+  mem.setItem('asu_career_e', 'null'); assert.equal(store.load('e').status, 'corrupt');
+  assert.equal(store.load('zzz').status, 'missing');
+  assert.throws(() => store.importJSON('garbage'), /JSON/); assert.throws(() => store.importJSON('{"sport":"nhl","saveVersion":3,"career":{"phase":"X","teams":[1],"players":{}}}'));
+  // a good autosave survives a corrupt manual slot
+  const { c } = await mk('nhl', 'GM', { seed: 'cor' }); store.autosave(c); mem.setItem(`asu_career_${c.id}`, '###'); const ok = store.load(c.id); assert.equal(ok.status, 'ok'); assert.equal(ok.from, 'auto');
+});
+
+test('every screen view-model is serialisable for every role', async () => {
+  for (const role of ['COACH', 'GM', 'PLAYER']) {
+    const { c } = await mk('nhl', role, { seed: `v-${role}` });
+    await days(c._spec, c, 9);
+    for (const f of ['getDashboardView', 'getCalendarView', 'getTeamView', 'getRosterView', 'getStaffView', 'getTrainingView', 'getTacticsView', 'getContractsView', 'getTransactionsView', 'getScoutingView', 'getDraftView', 'getNewsView', 'getHistoryView', 'getProfileView']) {
+      const v = A[f](c); assert.deepEqual(JSON.parse(JSON.stringify(v)), JSON.parse(JSON.stringify(v)), `${role}/${f}`);
+    }
+    assert.ok(A.getDashboardView({ saveVersion: 3, career: c }).header.role === role, 'accepts the store envelope');
+  }
+  assert.throws(() => A.getDashboardView({ phase: 'x' }), /inicializada/);
+});

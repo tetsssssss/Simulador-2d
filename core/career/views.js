@@ -81,6 +81,7 @@ export function getCalendarView(save, { upcoming = 8, past = 6 } = {}, spec0) {
 // ---------- team / roster ----------
 export function getTeamView(save, abbr, spec0) {
   const { c, spec } = unwrap(save, spec0); abbr ||= myTeam(c);
+  if (!abbr) return { abbr: null, name: null, note: 'Sem clube (fase amadora / agente livre).' };
   const t = teamOf(c, abbr), m = c.x.meta[abbr], list = teamPlayers(c, abbr), st = c.standings[abbr];
   const fx = staffFx(spec, c, abbr);
   return { abbr, name: t.name, conf: t.conf, div: t.div, color: t.color, mode: t.mode, rank: t.rank, record: rec(st), pf: st.pf, pa: st.pa, streak: st.streak, rating: round1(spec.teamRating(list.filter(p => p.st === 'ACT' && !p.inj), c)),
@@ -90,6 +91,7 @@ export function getTeamView(save, abbr, spec0) {
 }
 export function getRosterView(save, abbr, spec0) {
   const { c, spec } = unwrap(save, spec0); abbr ||= myTeam(c);
+  if (!abbr) return { team: null, own: false, groups: [], counts: {}, legality: null, minors: null };
   const own = abbr === myTeam(c), list = teamPlayers(c, abbr).sort((a, b) => spec.positions.indexOf(spec.posGroup(a.pos)) - spec.positions.indexOf(spec.posGroup(b.pos)) || (a.st === 'MIN') - (b.st === 'MIN') || b.ovr - a.ovr);
   const groups = {}; for (const p of list) (groups[spec.posGroup(p.pos)] ||= []).push(playerRow(spec, c, p, { fog: !own }));
   return { team: abbr, own, groups: Object.entries(groups).map(([group, players]) => ({ group, players })), counts: { total: list.length, active: list.filter(p => p.st === 'ACT').length, minors: list.filter(p => p.st === 'MIN').length, injured: list.filter(p => p.inj).length, ir: list.filter(p => p.st === 'IR').length, on40: list.filter(p => p.on40).length }, legality: spec.v3.legality(spec, c, abbr), minors: spec.sport === 'mlb' ? farmLevels(spec, c, abbr) : null };
