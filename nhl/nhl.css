@@ -41,3 +41,28 @@
 .nhl-rink-wrap{background:#0b1420;border-radius:10px;padding:8px}
 .nhl-rink-wrap canvas{display:block;width:100%;height:auto;border-radius:6px}
 .nhl-logo-fb{display:inline-grid;place-items:center;flex:none;border-radius:8px;background:var(--panel3);border:1px solid var(--line2);color:#cfe7ff;font-weight:900;letter-spacing:.02em}
+/* ---------- NHL Partida 2D (rink is the protagonist: ≈78% of the content width) ---------- */
+.nhl-match{display:grid;gap:8px}
+.nhl-setup{margin-bottom:0}
+.nhl-bug{display:grid;grid-template-columns:1fr auto 1fr;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#05080d;min-height:52px}
+.nb-team{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;padding:6px 14px;background:linear-gradient(90deg,var(--tc),#05080d 75%)}
+.nb-team.right{background:linear-gradient(270deg,var(--tc),#05080d 75%);grid-template-columns:auto auto 1fr auto;direction:rtl}
+.nb-team b{font-size:18px;font-weight:900;letter-spacing:.04em}.nb-team small{color:rgba(255,255,255,.7);text-transform:uppercase;font-size:10.5px;letter-spacing:.08em}
+.nb-score{font-size:30px;font-weight:900;min-width:34px;text-align:center}.nb-sog{font-size:11px;color:rgba(255,255,255,.7);font-weight:700}
+.nb-team.has-puck b::after{content:" ●";color:#f6c453}
+.nb-mid{display:grid;place-items:center;padding:4px 18px;background:#0c141f;min-width:120px}.nb-mid b{font-size:12px;color:var(--muted);letter-spacing:.1em}.nb-mid span{font-size:24px;font-weight:900}.nb-mid em{font-style:normal;font-size:10.5px;font-weight:900;color:#04170d;background:var(--warn);padding:1px 6px;border-radius:4px}
+.nhl-match-grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(250px,21%,340px);gap:8px}
+.nhl-ice-col{min-width:0;display:grid;gap:6px;align-content:start}
+.nhl-ice-wrap{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line2);background:#05080d}
+#rinkCanvas{display:block;width:100%;height:clamp(320px,calc(100vh - 250px),1000px);cursor:crosshair}
+.nhl-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px}
+.nhl-side{display:grid;gap:8px;align-content:start;max-height:calc(100vh - 210px);overflow:auto;min-width:0}
+.nhl-side>.panel+.panel{margin-top:0}
+.nhl-onice{display:grid;grid-template-columns:34px 26px 1fr auto;gap:6px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)}
+.nhl-onice img{width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#1b2a3d}
+.nhl-onice .no-num{font-weight:900;font-size:11px;text-align:center;border-radius:4px;color:#fff;padding:1px 0}
+.nhl-onice small{color:var(--muted);font-weight:700}
+.nhl-energy{grid-column:3/-1;height:3px;background:var(--panel3);border-radius:9px;overflow:hidden;display:block}.nhl-energy i{display:block;height:100%;background:var(--accent)}
+.nhl-ice-wrap .nhl-pcard{position:absolute;right:10px;top:10px;display:none;gap:10px;align-items:center;background:rgba(7,11,17,.92);border:1px solid var(--line2);border-radius:10px;padding:8px 12px;max-width:320px;cursor:default}
+.nhl-ice-wrap .nhl-pcard.show{display:flex}.nhl-ice-wrap .nhl-pcard img{width:56px;height:56px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#1b2a3d}
+@media (max-width:1100px){.nhl-match-grid{grid-template-columns:1fr}.nhl-side{max-height:none}}

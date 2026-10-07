@@ -94,3 +94,31 @@ caminho relativo (`../../../core/...`), por isso o universo deve ser servido pel
 - Testes: NFL 32/32; Playwright 1980×1080 DPR 2 → canvas 2652×1560 para 1326×780 CSS; 0 erros.
 - Problemas: NHL/MLB ainda com canvas protótipo (substituídos na fase B).
 - Próxima: B — visual 2D dos três esportes.
+
+## CHECKPOINT B — Visual 2D dos três esportes
+- Feito:
+  - `core/render/camera.js` (câmera 2D suave, tempo-real, flipY) e `core/render/sprites.js` (sprite comum + bola/puck
+    com halo, trail, sombra e indicador de "no ar") — infraestrutura, sem regra esportiva.
+  - **NFL** (motor intacto): borda branca, áreas dos times entre as jardas 32 (cores do mandante/visitante), end zones
+    nas cores dos times, gol de 2 pontos, hashes NFL (70'9"), números com setas, marca do mandante no meio-campo,
+    pylons, traves (vista de cima), LOS azul, linha a ganhar amarela + marcadores de down/chains na lateral.
+  - **NHL**: rink oficial 200×85 ft (`nhl/src/rink/`): boards + kick plate + vidro, linhas de gol/azuis/vermelha,
+    5 círculos + 9 pontos de faceoff com hash marks, creases, trapézios, redes, bancos (cores dos times) e penalty boxes;
+    tinta da zona de ataque do time com o puck. Câmeras BROADCAST / TACTICAL / PUCK / FULL. Tela `game/matchView.js`
+    (mount/dispose, 1 rAF), linhas reais no faceoff, painel "no gelo" com fotos.
+  - **NHL dados**: `nhl/data/roster_snapshot.json` (774 atletas reais, 32 times, ids NHL, nº, posição, mão,
+    TOI/G/A/SOG/hits/blocks/faceoffs 2023-24; goleiros SA/SV) gerado de fastRhockey-data; `getRoster` usa a API e
+    cai no snapshot no mesmo formato (Elencos funcionam offline). Linhas por TOI real.
+  - **MLB**: ballpark (`mlb/src/field/`): grama justa/foul com faixas, terra do infield, grama do diamante, bases,
+    home plate, montinho + rubber, batter's/catcher's box, linhas de foul, warning track, muro 330/365/400 com marcas,
+    dugouts (cores) e bullpens. Câmeras BROADCAST / BATTER / PITCHER / TACTICAL / FULL. Tela `game/matchView.js`
+    (placar R/H/E, inning ▲▼, diamante de corredores, B/S/O, matchup pitcher×batter com fotos, lineup).
+  - **MLB OVR posicional** (`positionalOvr`): pitcher só com atributos de arremesso; C/IF/SS/OF = bat + defesa com peso
+    por posição. Substitui a média dos 40 na UI.
+  - **MLB elenco offline**: a StatsAPI é bloqueada neste ambiente e não há fonte pública de elencos 2025-26 acessível;
+    sem conexão usa-se um elenco **DEMO rotulado** (sem nomes/fotos inventados). Com internet: elencos reais.
+  - Protótipos `nhl/src/rink.js` e `mlb/src/diamond.js` **removidos** (substituídos pelas telas novas).
+- Testes: `npm test` na raiz (7 novos + 32 NFL), `tests/browser/smoke.mjs` 26/26 (NFL→NHL→MLB→NFL ×3, 1 loop por
+  esporte, montagem única, sem NaN, 0 erros).
+- Problemas: fotos externas não carregam neste sandbox (rede) → sprites mostram cor+número (fallback correto).
+- Próxima: C — sprites com fotos em todos os esportes.

@@ -42,3 +42,29 @@
 .mlb-rank{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:6px;background:var(--panel3);font-weight:900;font-size:12px;flex:none}
 .mlb-field-wrap{background:#0b1420;border-radius:10px;padding:8px}
 .mlb-field-wrap canvas{display:block;width:100%;height:auto;border-radius:6px}
+/* ---------- MLB Partida 2D (field is the protagonist: ≈78% of the content width) ---------- */
+.mlb-match{display:grid;gap:8px}.mlb-setup{margin-bottom:0}
+.mlb-bug{display:flex;align-items:stretch;gap:0;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:#05080d;min-height:58px}
+.mb-teams{display:grid;min-width:220px}.mb-head,.mb-row{display:grid;grid-template-columns:1fr 34px 34px 34px;align-items:center;padding:2px 10px;gap:4px}
+.mb-head{font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.1em;text-align:center}.mb-head span:first-child{text-align:left}
+.mb-row{background:linear-gradient(90deg,var(--tc),#05080d 80%)}.mb-row b{font-size:15px;font-weight:900;letter-spacing:.04em}.mb-row span{text-align:center;font-weight:900;font-size:16px}
+.mb-row.batting b::after{content:" ◂";color:#f6c453}
+.mb-inning{display:grid;place-items:center;padding:4px 16px;background:#0c141f;border-left:1px solid var(--line2)}.mb-inning b{font-size:20px;font-weight:900}.mb-inning small{font-size:10px;color:var(--muted);letter-spacing:.12em}
+.mb-diamond{position:relative;width:62px;margin:0 10px}.mb-diamond i{position:absolute;width:16px;height:16px;transform:rotate(45deg);border:2px solid #6c7f94;background:transparent}
+.mb-diamond i.on{background:#f6c453;border-color:#f6c453}.mb-diamond .b2{left:23px;top:8px}.mb-diamond .b3{left:7px;top:24px}.mb-diamond .b1{left:39px;top:24px}
+.mb-count{display:flex;gap:16px;align-items:center;padding:0 16px;font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.08em}.mb-count b{color:var(--text);font-size:18px;margin-left:4px}
+.mlb-match-grid{display:grid;grid-template-columns:minmax(0,1fr) clamp(250px,21%,340px);gap:8px}
+.mlb-field-col{min-width:0;display:grid;gap:6px;align-content:start}
+.mlb-field-wrap2{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line2);background:#05080d}
+#fieldCanvas{display:block;width:100%;height:clamp(340px,calc(100vh - 250px),1000px);cursor:crosshair}
+.mlb-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px}
+.mlb-side{display:grid;gap:8px;align-content:start;max-height:calc(100vh - 210px);overflow:auto;min-width:0}.mlb-side>.panel+.panel{margin-top:0}
+.mlb-matchcard{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.mlb-matchcard img{width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#1b2a3d}.mlb-matchcard b{display:block;font-size:14px}
+.mlb-lu{display:grid;grid-template-columns:28px 1fr auto;gap:6px;align-items:center;padding:3px 0;border-bottom:1px solid var(--line);font-size:12.5px}.mlb-lu span{color:var(--muted);font-weight:800}.mlb-lu small{color:var(--muted)}
+.mlb-lu.now{background:rgba(255,122,89,.12)}
+.mlb-pcard2{position:absolute;right:10px;top:10px;display:none;gap:10px;align-items:center;background:rgba(7,11,17,.92);border:1px solid var(--line2);border-radius:10px;padding:8px 12px}.mlb-pcard2.show{display:flex}
+.mlb-pcard2 img{width:56px;height:56px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#1b2a3d}
+.mlb-pitchinfo{position:absolute;left:12px;bottom:12px;display:none;background:rgba(7,11,17,.88);border:1px solid var(--line2);border-left:4px solid var(--accent);border-radius:8px;padding:8px 12px;font-weight:800;letter-spacing:.04em}
+.mlb-pitchinfo.show{display:block}
+@media (max-width:1100px){.mlb-match-grid{grid-template-columns:1fr}.mlb-side{max-height:none}}

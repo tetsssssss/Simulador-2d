@@ -74,7 +74,7 @@ export function mountGame(root, deps) {
   const canvas = $('#fieldCanvas');
   const renderer = createRenderer(canvas);
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g) } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
 

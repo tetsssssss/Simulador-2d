@@ -36,15 +36,39 @@ export function placeholder(name) { return `data:image/svg+xml;charset=UTF-8,${e
 export function playerName(p) { return `${nameOf(p.firstName)} ${nameOf(p.lastName)}`.trim(); }
 export const POS_LABEL = { C: 'C', L: 'LW', R: 'RW', D: 'D', G: 'G' };
 
+// Rosters: NHL Web API first (current roster + headshots); if it is unreachable (offline / browser CORS), the local
+// snapshot (data/roster_snapshot.json, 2023-24, real NHL ids) is converted to the same API shape so every screen and
+// the 2D engine keep working. `p.source` tells which one was used.
+let snapshot = null;
+export async function loadSnapshot() {
+  if (!snapshot) snapshot = fetch(new URL('../data/roster_snapshot.json', import.meta.url)).then(r => { if (!r.ok) throw new Error(`snapshot HTTP ${r.status}`); return r.json(); });
+  return snapshot;
+}
+export function fromSnapshot(sp) {
+  const parts = sp.name.split(' ');
+  return {
+    id: sp.id, firstName: { default: parts[0] }, lastName: { default: parts.slice(1).join(' ') || parts[0] }, positionCode: sp.pos,
+    sweaterNumber: sp.num, shootsCatches: sp.shoots || '', teamAbbr: sp.team, source: 'snapshot', photoSeason: '20232024', stats: sp,
+  };
+}
 export async function getRoster(abbr) {
   if (cache.rosters[abbr]) return cache.rosters[abbr];
-  let r = await fetch(`${API}/roster/${abbr}/current`);
-  if (!r.ok) r = await fetch(`${API}/roster/${abbr}/20262027`);
-  if (!r.ok) throw new Error(`Roster ${abbr}: HTTP ${r.status}`);
-  const j = await r.json();
-  const all = [...(j.forwards || []), ...(j.defensemen || []), ...(j.goalies || [])].map(p => ({ ...p, teamAbbr: abbr }));
-  cache.rosters[abbr] = all; return all;
+  try {
+    let r = await fetch(`${API}/roster/${abbr}/current`);
+    if (!r.ok) r = await fetch(`${API}/roster/${abbr}/20262027`);
+    if (!r.ok) throw new Error(`Roster ${abbr}: HTTP ${r.status}`);
+    const j = await r.json();
+    const all = [...(j.forwards || []), ...(j.defensemen || []), ...(j.goalies || [])].map(p => ({ ...p, teamAbbr: abbr, source: 'api' }));
+    if (!all.length) throw new Error(`Roster ${abbr}: vazio`);
+    cache.rosters[abbr] = all; return all;
+  } catch (e) {
+    const snap = await loadSnapshot();
+    const all = snap.players.filter(p => p.team === abbr).map(fromSnapshot);
+    if (!all.length) throw e;
+    cache.rosters[abbr] = all; return all;
+  }
 }
+export const rosterSource = abbr => cache.rosters[abbr]?.[0]?.source || null;
 export async function getProspects(abbr) {
   if (cache.prospects[abbr]) return cache.prospects[abbr];
   const r = await fetch(`${API}/prospects/${abbr}`); if (!r.ok) throw new Error(`Prospects ${abbr}: HTTP ${r.status}`);

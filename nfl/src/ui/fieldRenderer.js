@@ -6,6 +6,7 @@ import { playerPhoto, fallbackDataUri } from '../dataService.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { drawCirclePhoto } from '../../../core/render/images.js';
+import { TEAM_COLORS } from './teamColors.js';
 
 // ---- PlayerPhotoResolver cache: one Image per URL, loaded once, safe fallback on error ----
 const photoCache = new Map();
@@ -48,8 +49,8 @@ export function createRenderer(canvas) {
     const focus = !prefs.follow ? null : sim.ball ? sim.ball.pos : sim.carrier ? sim.carrier.pos : null;
     if (focus) { fx = focus.x; fy = 0.6 * focus.y + 0.4 * (FIELD_W / 2); }
     if (cam.zoom === 'full') { fx = FIELD_LEN / 2; fy = FIELD_W / 2; }
-    const clampX = v => viewW >= FIELD_LEN + 4 ? FIELD_LEN / 2 : Math.min(FIELD_LEN + 2 - viewW / 2, Math.max(viewW / 2 - 2, v));
-    const clampY = v => viewH >= FIELD_W + 4 ? FIELD_W / 2 : Math.min(FIELD_W + 2 - viewH / 2, Math.max(viewH / 2 - 2, v));
+    const clampX = v => viewW >= FIELD_LEN + 6 ? FIELD_LEN / 2 : Math.min(FIELD_LEN + 3 - viewW / 2, Math.max(viewW / 2 - 3, v));
+    const clampY = v => viewH >= FIELD_W + 16 ? FIELD_W / 2 : Math.min(FIELD_W + 8 - viewH / 2, Math.max(viewH / 2 - 8, v));
     const tx = clampX(fx), ty = clampY(fy);
     if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; }
     const k = Math.min(1, 0.12 * alpha + 0.04);
@@ -58,37 +59,80 @@ export function createRenderer(canvas) {
 
   function drawField(sim, teams) {
     const s = ppy();
-    ctx.fillStyle = '#1b5e35'; ctx.fillRect(0, 0, W, H);
-    // stripes every 5 yards
-    for (let x = 10; x < 110; x += 5) {
-      if ((x / 5) % 2) { ctx.fillStyle = '#1f6a3c'; ctx.fillRect(sx(x), sy(0), 5 * s, FIELD_W * s); }
-    }
-    // end zones
-    ctx.fillStyle = '#16325f'; ctx.fillRect(sx(0), sy(0), 10 * s, FIELD_W * s);
-    ctx.fillStyle = '#5c1620'; ctx.fillRect(sx(110), sy(0), 10 * s, FIELD_W * s);
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.font = `700 ${Math.max(10, s * 3)}px system-ui, sans-serif`; ctx.textAlign = 'center';
-    const ez = (x, label) => { ctx.save(); ctx.translate(sx(x), sy(FIELD_W / 2)); ctx.rotate(-Math.PI / 2); ctx.fillText(label, 0, s); ctx.restore(); };
-    ez(5, teams.off || ''); ez(115, teams.def || '');
-    ctx.restore();
-    // yard lines + numbers + hashes
-    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 1;
+    const col = abbr => TEAM_COLORS[abbr] || '#24364d';
+    // surroundings: team areas (between the 32-yard lines), white 2-yd border
+    ctx.fillStyle = '#123f24'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#f2f5f8'; ctx.fillRect(sx(-2), sy(-2), (FIELD_LEN + 4) * s, (FIELD_W + 4) * s);
+    const bench = (yTop, abbr) => {
+      ctx.fillStyle = hexA(col(abbr), 0.55); ctx.fillRect(sx(42), sy(yTop), 36 * s, 4.5 * s);
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1; ctx.strokeRect(sx(42), sy(yTop), 36 * s, 4.5 * s);
+      if (s > 4) { ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = `800 ${Math.max(9, s * 1.6)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${abbr || ''} TEAM AREA`, sx(60), sy(yTop + 2.25)); }
+    };
+    if (teams.home) bench(FIELD_W + 3, teams.home);
+    if (teams.away) bench(-7.5, teams.away);
+    // playing field with 5-yard mowing stripes
+    ctx.fillStyle = '#1b5e35'; ctx.fillRect(sx(0), sy(0), FIELD_LEN * s, FIELD_W * s);
+    for (let x = 10; x < 110; x += 5) if ((x / 5) % 2) { ctx.fillStyle = '#1f6a3c'; ctx.fillRect(sx(x), sy(0), 5 * s, FIELD_W * s); }
+    // end zones in team colors (offense defends the left one, attacks the right one)
+    const ez = (x0, abbr) => {
+      ctx.fillStyle = col(abbr); ctx.fillRect(sx(x0), sy(0), 10 * s, FIELD_W * s);
+      ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(sx(x0), sy(0), 10 * s, FIELD_W * s);
+      ctx.save(); ctx.translate(sx(x0 + 5), sy(FIELD_W / 2)); ctx.rotate(x0 < 60 ? -Math.PI / 2 : Math.PI / 2);
+      ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.font = `900 ${Math.max(10, s * 4.2)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(abbr || '', 0, 0); ctx.restore();
+    };
+    ez(0, teams.off); ez(110, teams.def);
+    // yard lines, hash marks (NFL hashes 70'9" from each sideline), sideline ticks
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = Math.max(1, s * 0.11);
     for (let x = 10; x <= 110; x += 5) { ctx.beginPath(); ctx.moveTo(sx(x), sy(0)); ctx.lineTo(sx(x), sy(FIELD_W)); ctx.stroke(); }
-    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = Math.max(1, s * 0.08);
     for (let x = 11; x < 110; x++) {
       if (x % 5 === 0) continue;
-      for (const hy of [0.4, 23.6, 29.7, FIELD_W - 0.4]) { ctx.beginPath(); ctx.moveTo(sx(x), sy(hy - 0.35)); ctx.lineTo(sx(x), sy(hy + 0.35)); ctx.stroke(); }
+      for (const hy of [0.35, 23.58, 29.75, FIELD_W - 0.35]) { ctx.beginPath(); ctx.moveTo(sx(x), sy(hy - 0.35)); ctx.lineTo(sx(x), sy(hy + 0.35)); ctx.stroke(); }
     }
+    // goal lines (thicker) and the 2-pt try line
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s * 0.22);
+    for (const x of [10, 110]) { ctx.beginPath(); ctx.moveTo(sx(x), sy(0)); ctx.lineTo(sx(x), sy(FIELD_W)); ctx.stroke(); }
+    for (const x of [12, 108]) { ctx.beginPath(); ctx.moveTo(sx(x), sy(FIELD_W / 2 - 0.5)); ctx.lineTo(sx(x), sy(FIELD_W / 2 + 0.5)); ctx.stroke(); }
+    // yard numbers (with direction arrows toward the nearest goal line)
     if (s > 5) {
-      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = `700 ${Math.max(9, s * 1.6)}px system-ui, sans-serif`; ctx.textAlign = 'center';
-      for (let x = 20; x <= 100; x += 10) { const n = x <= 60 ? x - 10 : 110 - x; ctx.fillText(String(n), sx(x), sy(9)); ctx.fillText(String(n), sx(x), sy(FIELD_W - 7.5)); }
+      ctx.fillStyle = 'rgba(255,255,255,.78)'; ctx.font = `800 ${Math.max(10, s * 2)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let x = 20; x <= 100; x += 10) {
+        const n = x <= 60 ? x - 10 : 110 - x;
+        for (const [yy, rot] of [[FIELD_W - 10.5, 0], [10.5, Math.PI]]) {
+          ctx.save(); ctx.translate(sx(x), sy(yy)); ctx.rotate(rot); ctx.fillText(String(n), 0, 0);
+          if (n !== 50) { const dir = (x < 60 ? -1 : 1) * (rot ? -1 : 1); const ax = dir * s * 2.6; ctx.beginPath(); ctx.moveTo(ax + dir * s * 0.7, 0); ctx.lineTo(ax, -s * 0.45); ctx.lineTo(ax, s * 0.45); ctx.closePath(); ctx.fill(); }
+          ctx.restore();
+        }
+      }
     }
-    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.strokeRect(sx(0), sy(0), FIELD_LEN * s, FIELD_W * s);
-    // LOS and line to gain
-    ctx.lineWidth = Math.max(2, s * 0.18);
-    ctx.strokeStyle = '#4ea1ff'; ctx.beginPath(); ctx.moveTo(sx(sim.losX), sy(0)); ctx.lineTo(sx(sim.losX), sy(FIELD_W)); ctx.stroke();
+    // midfield mark (home team)
+    if (teams.home && s > 3) {
+      ctx.fillStyle = hexA(col(teams.home), 0.55); ctx.beginPath(); ctx.arc(sx(60), sy(FIELD_W / 2), 5 * s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.font = `900 ${Math.max(10, s * 2.6)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(teams.home, sx(60), sy(FIELD_W / 2));
+    }
+    // pylons (8) and goalposts on the end lines (top-down: post + 18'6" crossbar)
+    ctx.fillStyle = '#ff7a1a';
+    for (const x of [0, 10, 110, 120]) for (const y of [0, FIELD_W]) { const w = Math.max(3, s * 0.45); ctx.fillRect(sx(x) - w / 2, sy(y) - w / 2, w, w); }
+    ctx.strokeStyle = '#f5d33a'; ctx.lineWidth = Math.max(2, s * 0.22);
+    for (const [x, d] of [[0, -1], [120, 1]]) {
+      ctx.beginPath(); ctx.moveTo(sx(x + d * 0.6), sy(FIELD_W / 2 - 3.08)); ctx.lineTo(sx(x + d * 0.6), sy(FIELD_W / 2 + 3.08)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx(x + d * 0.6), sy(FIELD_W / 2)); ctx.lineTo(sx(x + d * 1.6), sy(FIELD_W / 2)); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = Math.max(1.5, s * 0.12); ctx.strokeRect(sx(0), sy(0), FIELD_LEN * s, FIELD_W * s);
+    // line of scrimmage (blue) and line to gain (yellow) + sideline down markers (chains)
     const gain = Math.min(110, sim.losX + sim.distance);
-    ctx.strokeStyle = '#f6c453'; ctx.beginPath(); ctx.moveTo(sx(gain), sy(0)); ctx.lineTo(sx(gain), sy(FIELD_W)); ctx.stroke();
+    ctx.lineWidth = Math.max(2, s * 0.2);
+    ctx.strokeStyle = '#4ea1ff'; ctx.beginPath(); ctx.moveTo(sx(sim.losX), sy(0)); ctx.lineTo(sx(sim.losX), sy(FIELD_W)); ctx.stroke();
+    if (gain < 110) { ctx.strokeStyle = '#f6c453'; ctx.beginPath(); ctx.moveTo(sx(gain), sy(0)); ctx.lineTo(sx(gain), sy(FIELD_W)); ctx.stroke(); }
+    const marker = (x, txt, bg) => {
+      const w = Math.max(14, s * 1.6), h = Math.max(12, s * 1.2), y = sy(FIELD_W + 1.1);
+      ctx.fillStyle = bg; ctx.fillRect(sx(x) - w / 2, y - h / 2, w, h);
+      ctx.fillStyle = '#111'; ctx.font = `900 ${Math.max(9, h * 0.75)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, sx(x), y + 0.5);
+    };
+    marker(sim.losX, String(sim.down || ''), '#ff8a1a');
+    if (gain < 110) { marker(gain, '▮', '#ff8a1a'); ctx.strokeStyle = 'rgba(255,138,26,.8)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(sx(sim.losX), sy(FIELD_W + 1.1)); ctx.lineTo(sx(gain), sy(FIELD_W + 1.1)); ctx.stroke(); ctx.setLineDash([]); }
   }
 
   function lerpPos(e, a) { return { x: e.prev.x + (e.pos.x - e.prev.x) * a, y: e.prev.y + (e.pos.y - e.prev.y) * a }; }
@@ -281,3 +325,5 @@ export function createRenderer(canvas) {
 
   return { render, resize, pick, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
+
+function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }

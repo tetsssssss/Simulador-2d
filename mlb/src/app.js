@@ -1,7 +1,7 @@
 // MLB Universe 2D — shell (same visual identity as NFL/NHL Universe 2D, separate app/engine).
 // Hash routes: #home #teams #team/<ABBR> #roster/<ABBR> #prospects #draft/<YEAR> #stadiums #rivalries #history #diamond
-import { D, teamBy, photo, fallback, pos, avg, fixedRatings, adaptiveRatings, roster, person, draft, prospects, hash, cachedRosterCount } from './mlbData.js';
-import { mountDiamond } from './diamond.js';
+import { D, teamBy, photo, fallback, pos, positionalOvr, fixedRatings, adaptiveRatings, roster, person, draft, prospects, hash, cachedRosterCount } from './mlbData.js';
+import { mountMatch } from './game/matchView.js';
 
 const $ = s => document.querySelector(s);
 const content = $('#content');
@@ -72,7 +72,7 @@ async function team(abbr, tok) {
     <div class="panel"><div class="panel-h"><b>Rivalidades</b></div>${D.rivalries.filter(r => r.a === t.abbr || r.b === t.abbr).map(r => { const o = teamBy(r.a === t.abbr ? r.b : r.a); return `<div class="mlb-row">${logoImg(o, 22)}<b>${esc(o.name)}</b><span class="grow muted small">${esc(r.name)}</span><span class="badge">${r.score}</span></div>`; }).join('') || '<p class="muted">Nenhuma rivalidade cadastrada.</p>'}</div></div>`;
   try {
     const r = await roster(t); if (!alive(tok)) return;
-    const top = r.map(p => ({ p, o: avg(fixedRatings(p)) })).sort((a, b) => b.o - a.o).slice(0, 8);
+    const top = r.map(p => ({ p, o: positionalOvr(p) })).sort((a, b) => b.o - a.o).slice(0, 8);
     const el = $('#teamTop'); el.className = ''; el.innerHTML = top.map(({ p, o }) => `<div class="mlb-row clickable" data-player="${p.person?.id}">${img(photo(p.person?.id), p.person?.fullName, 'mlb-av')}<b>${esc(p.person?.fullName)}</b><span class="muted small">#${p.jerseyNumber || '—'} · ${pos(p)}</span><span class="grow"></span>${ovrBadge(o)}</div>`).join('');
     bindPlayers(el);
   } catch (e) { if (alive(tok)) $('#teamTop').innerHTML = apiError(e); }
@@ -80,7 +80,7 @@ async function team(abbr, tok) {
 
 function playerCard(p) {
   const id = p.person?.id || p.id, nm = p.person?.fullName || p.fullName || 'Atleta';
-  return `<div class="panel mlb-pcard" data-player="${id}">${img(photo(id), nm, 'mlb-photo')}<div class="mlb-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.jerseyNumber || '—'} · ${pos(p)}</div><div class="muted small">${esc(p.status?.description || '')}</div></div>${ovrBadge(avg(fixedRatings(p)))}</div>`;
+  return `<div class="panel mlb-pcard" data-player="${id}">${img(photo(id), nm, 'mlb-photo')}<div class="mlb-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.jerseyNumber || '—'} · ${pos(p)}</div><div class="muted small">${esc(p.status?.description || '')}</div></div>${ovrBadge(positionalOvr(p))}</div>`;
 }
 function bindPlayers(scope) {
   scope.querySelectorAll('[data-player]').forEach(el => el.addEventListener('click', async () => {
@@ -95,7 +95,7 @@ function showPlayer(p) {
   let day = 0;
   $('#modal').classList.remove('hidden');
   $('#modalContent').innerHTML = `<div class="hero-id">${img(photo(id), nm, 'mlb-photo big')}<div><div class="eyebrow">${esc(p.currentTeam?.name || '')}</div><h2>${esc(nm)}</h2>
-    <div class="hero-meta"><span>#${esc(p.primaryNumber || '—')}</span><span>${esc(p.primaryPosition?.name || pos(p))}</span><span>Bats ${esc(p.batSide?.code || '—')}</span><span>Throws ${esc(p.pitchHand?.code || '—')}</span><span>${p.currentAge ?? '—'} anos</span><span>${esc(p.height || '—')} · ${p.weight || '—'} lb</span></div></div><span class="grow"></span>${ovrBadge(avg(fx), true)}</div>
+    <div class="hero-meta"><span>#${esc(p.primaryNumber || '—')}</span><span>${esc(p.primaryPosition?.name || pos(p))}</span><span>Bats ${esc(p.batSide?.code || '—')}</span><span>Throws ${esc(p.pitchHand?.code || '—')}</span><span>${p.currentAge ?? '—'} anos</span><span>${esc(p.height || '—')} · ${p.weight || '—'} lb</span></div></div><span class="grow"></span>${ovrBadge(positionalOvr(p, fx), true)}</div>
     <div class="sec-h">40 atributos fixos</div><div class="mlb-attr-grid">${attrList(fx)}</div>
     <div class="sec-h" style="display:flex;align-items:center;gap:10px">30 atributos adaptativos (contexto do dia) <button id="reroll" class="small">Atualizar contexto do dia</button></div>
     <div class="mlb-attr-grid" id="adapt">${attrList(adaptiveRatings(p, 'initial'))}</div>
@@ -159,9 +159,12 @@ function history() {
 }
 
 function diamond() {
-  setTitle('Partida 2D', 'Diamond 2D — protótipo (motor MLB em desenvolvimento)');
-  cleanup = mountDiamond(content);
+  setTitle('Partida 2D', 'Ballpark 2D · câmeras Broadcast / Batter / Pitcher / Tactical / Full');
+  cleanup = mountMatch(content, matchDeps());
 }
+// Extension point: later phases (engine, commentary, audio, crowd) register here without touching the view.
+export const matchHooks = [];
+function matchDeps() { return matchHooks.reduce((d, h) => h(d) || d, {}); }
 
 // ---------- router ----------
 function route() {

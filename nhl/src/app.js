@@ -1,7 +1,8 @@
 // NHL Universe 2D — shell (same visual identity as NFL Universe 2D, separate app/engine).
 // Hash routes: #home #teams #team/<ABBR> #roster/<ABBR> #prospects/<ABBR> #arenas #history #rivalries #rink
 import { D, teamBy, logo, placeholder, playerName, nameOf, age, makeAttrs, overall, getRoster, getProspects, hash, POS_LABEL, cachedRosterCount } from './nhlData.js';
-import { mountRink } from './rink.js';
+import { mountMatch } from './game/matchView.js';
+import { photoUrl } from './photos.js';
 
 const $ = s => document.querySelector(s);
 const content = $('#content');
@@ -71,10 +72,10 @@ async function team(abbr) {
 }
 
 function apiError(e) { return `<div class="nhl-notice bad">${esc(e.message)} — a NHL Web API não respondeu (sem internet ou bloqueio do navegador). Abra via servidor local com internet.</div>`; }
-function playerRow(p, o) { const nm = playerName(p); return `<div class="nhl-row clickable" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(p.headshot, nm, 'nhl-av')}<b>${esc(nm)}</b><span class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'}</span><span class="grow"></span>${ovrBadge(o)}</div>`; }
+function playerRow(p, o) { const nm = playerName(p); return `<div class="nhl-row clickable" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(photoUrl(p), nm, 'nhl-av')}<b>${esc(nm)}</b><span class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'}</span><span class="grow"></span>${ovrBadge(o)}</div>`; }
 function playerCard(p) {
   const nm = playerName(p), o = overall(p, makeAttrs(p));
-  return `<div class="panel nhl-pcard" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(p.headshot, nm, 'nhl-photo')}<div class="nhl-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'} · ${p.shootsCatches || '—'}</div><div class="muted small">${age(p.birthDate) ?? '—'} anos · ${esc(p.birthCountry || '—')}</div></div>${ovrBadge(o)}</div>`;
+  return `<div class="panel nhl-pcard" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(photoUrl(p), nm, 'nhl-photo')}<div class="nhl-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'} · ${p.shootsCatches || '—'}</div><div class="muted small">${age(p.birthDate) ?? '—'} anos · ${esc(p.birthCountry || '—')}</div></div>${ovrBadge(o)}</div>`;
 }
 function bindPlayers(scope) {
   scope.querySelectorAll('[data-pid]').forEach(el => el.addEventListener('click', async () => {
@@ -85,7 +86,7 @@ function bindPlayers(scope) {
 function showPlayer(p) {
   const nm = playerName(p), attrs = makeAttrs(p), o = overall(p, attrs), t = teamBy(p.teamAbbr), goalie = p.positionCode === 'G';
   const m = $('#modal'); m.classList.remove('hidden');
-  $('#modalContent').innerHTML = `<div class="hero-id">${img(p.headshot, nm, 'nhl-photo big')}<div><div class="eyebrow">${esc(t?.name || p.teamAbbr)}</div><h2>${esc(nm)}</h2>
+  $('#modalContent').innerHTML = `<div class="hero-id">${img(photoUrl(p), nm, 'nhl-photo big')}<div><div class="eyebrow">${esc(t?.name || p.teamAbbr)}</div><h2>${esc(nm)}</h2>
     <div class="hero-meta"><span>#${p.sweaterNumber ?? '—'}</span><span>${POS_LABEL[p.positionCode] || p.positionCode}</span><span>${goalie ? 'Catches' : 'Shoots'} ${p.shootsCatches || '—'}</span><span>${age(p.birthDate) ?? '—'} anos</span><span>${p.heightInCentimeters || '—'} cm · ${p.weightInKilograms || '—'} kg</span><span>${esc(p.birthCountry || '—')}</span></div></div><span class="grow"></span>${ovrBadge(o, true)}</div>
     <div class="sec-h">35 atributos · ${goalie ? 'goleiro' : 'skater'}</div>
     <div class="nhl-attr-grid">${attrs.map(a => `<div class="nhl-attr"><span>${esc(a.name)}</span><b>${a.value}</b><i style="width:${a.value}%" class="${ovrCls(a.value)}"></i></div>`).join('')}</div>
@@ -145,9 +146,12 @@ function rivalries() {
 }
 
 function rink() {
-  setTitle('Partida 2D', 'Rink 2D — protótipo (motor NHL em desenvolvimento)');
-  cleanup = mountRink(content);
+  setTitle('Partida 2D', 'Rink oficial 200 × 85 ft · câmeras Broadcast / Tactical / Puck / Full');
+  cleanup = mountMatch(content, matchDeps());
 }
+// Extension point: later phases (engine, commentary, audio, crowd) register here without touching the view.
+export const matchHooks = [];
+function matchDeps() { return matchHooks.reduce((d, h) => h(d) || d, {}); }
 
 // ---------- router ----------
 function route() {

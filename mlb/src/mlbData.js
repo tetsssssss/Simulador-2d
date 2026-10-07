@@ -15,6 +15,29 @@ export const fallback = name => `data:image/svg+xml;charset=UTF-8,${encodeURICom
 export const pos = p => p?.position?.abbreviation || p?.primaryPosition?.abbreviation || '—';
 export const avg = a => Math.round(a.reduce((s, x) => s + x.value, 0) / a.length);
 
+// Positional OVR: pitchers are rated on pitching, catchers on bat + catching, infielders/outfielders on bat + their
+// defensive profile. (The Alpha averaged all 40 attributes — pitcher and hitter ratings mixed in one number.)
+const W = {
+  P: { 'Fastball Quality': 3, 'Breaking Ball Quality': 3, 'Offspeed Quality': 2, 'Pitch Command': 3, 'Pitch Control': 3, 'Pitch Movement': 2, 'Pitch Velocity': 3, 'Pitch Stamina': 1.5, 'Pitching Clutch': 1, 'Hold Runners': 0.5, 'Consistency': 1 },
+  HIT: { 'Contact vs R': 2, 'Contact vs L': 1.2, 'Power vs R': 2, 'Power vs L': 1.2, 'Plate Vision': 1.5, 'Plate Discipline': 1.5, 'Bat Speed': 1.5, 'Timing': 1.2 },
+  C: { 'Catcher Blocking': 2, 'Catcher Framing': 2, 'Pitch Calling': 1.5, 'Arm Strength': 1.5, 'Arm Accuracy': 1, 'Transfer Speed': 1 },
+  IF: { 'Fielding': 2, 'Range': 1.5, 'Hands': 1.5, 'Reaction': 1.5, 'Arm Strength': 1, 'Arm Accuracy': 1.2, 'Transfer Speed': 1 },
+  SS: { 'Fielding': 2, 'Range': 2.2, 'Hands': 1.5, 'Reaction': 1.5, 'Arm Strength': 1.6, 'Arm Accuracy': 1.2, 'Transfer Speed': 1.2, 'Running Speed': 0.8 },
+  OF: { 'Range': 2, 'Running Speed': 1.8, 'Reaction': 1.2, 'Fielding': 1, 'Arm Strength': 1.4, 'Arm Accuracy': 1, 'Jump': 1.2 },
+  DH: {},
+};
+export const isPitcher = po => po === 'P' || po === 'SP' || po === 'RP';
+export function positionalOvr(p, fx = fixedRatings(p)) {
+  const po = pos(p), v = Object.fromEntries(fx.map(a => [a.name, a.value]));
+  const wavg = w => { let s = 0, n = 0; for (const k in w) { if (v[k] != null) { s += v[k] * w[k]; n += w[k]; } } return n ? s / n : 50; };
+  if (isPitcher(po)) return Math.round(wavg(W.P));
+  const hit = wavg(W.HIT);
+  if (po === 'TWP') return Math.round(Math.max(wavg(W.P), hit));
+  const def = po === 'C' ? wavg(W.C) : po === 'SS' ? wavg(W.SS) : ['1B', '2B', '3B', 'IF'].includes(po) ? wavg(W.IF) : ['LF', 'CF', 'RF', 'OF'].includes(po) ? wavg(W.OF) : null;
+  const dw = po === 'C' ? 0.45 : po === 'SS' || po === 'CF' ? 0.4 : po === '1B' ? 0.2 : 0.32;
+  return Math.round(def == null ? hit : hit * (1 - dw) + def * dw);
+}
+
 export function fixedRatings(p) {
   const po = pos(p), id = p.person?.id || p.id || p.personId || hash(p.fullName || 'player');
   return D.fixedAttrs.map(n => {
