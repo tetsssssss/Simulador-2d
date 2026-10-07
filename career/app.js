@@ -41,7 +41,7 @@ function renderCareer() {
     : `<span class="big">${esc(nn(h.record, '0-0'))}</span> <small class="muted">${h.confRank ? `#${esc(h.confRank)} na conferência` : ''}</small>`;
   const adv = S.lastAdv;
   let note = '';
-  if (today) note = `<div class="adv-note warn" role="status">🏟️ Jogo do seu time ${next.home ? 'em casa' : 'fora'}: <b>${esc(next.a)} @ ${esc(next.h)}</b> — jogue no 2D${can2d ? '' : ' (indisponível neste esporte)'} ou simule o jogo.</div>`;
+  if (today) note = `<div class="adv-note warn" role="status">🏟️ Jogo do seu time ${next.home ? 'em casa' : 'fora'}: <b>${esc(next.a)} @ ${esc(next.h)}</b> — ${can2d ? 'jogue no 2D ou simule o jogo' : 'simule o jogo'}.</div>`;
   else if (adv) {
     const lines = adv.note ? [adv.note] : userResultsText(adv.res);
     const bad = adv.res.stopped === 'FIRED' || adv.res.stopped === 'ILLEGAL_ROSTER';
@@ -56,7 +56,7 @@ function renderCareer() {
     <div class="cs-main">
       <header class="dash-head" style="--tc:${esc(abbr ? tcolor(abbr) : '#1b2a3c')}">${crest(abbr || 'ME', abbr ? tcolor(abbr) : '#2a3b52', 'lg')}
         <div><h2>${esc(c.name)}</h2><div class="dash-meta"><span class="chip-role">${esc(SPORT_LABEL[c.sport])}</span><span class="chip-role">${esc(ROLE_LABEL[c.role])}</span><small class="muted">${esc(sub)}</small></div>
-          <small class="muted">${esc(h.date)} · ${esc(h.offLabel || PHASE_LABEL[h.phase] || h.phase)} · temporada ${esc(h.season)}${h.team ? ` · reputação ${esc(h.rep)}` : ''} · ${esc(h.difficulty)}</small></div>
+          <small class="muted">${esc(h.date)}${h.phase === 'OFFSEASON' ? '' : ` · ${esc(PHASE_LABEL[h.phase] || h.phase)}`} · temporada ${esc(h.season)}${h.team ? ` · reputação ${esc(h.rep)}` : ''} · ${esc(h.difficulty)}</small></div>
         <div class="big-wrap">${bigBox}</div></header>
       <div class="cs-actionbar" role="toolbar" aria-label="Calendário e save">
         <button id="advDay" data-act="adv" data-adv="NEXT_DAY" aria-label="Avançar para o próximo dia (NEXT DAY)" title="NEXT_DAY">Próximo dia</button>
@@ -90,7 +90,6 @@ async function route() {
   const m = h.match(/^#c\/([^/]+)\/?([\w-]*)/);
   if (m) {
     const id = decodeURIComponent(m[1]); let screen = m[2] || 'dashboard'; if (screen === 'overview') screen = 'dashboard';
-    let applied = false;
     if (!S.c || S.c.id !== id) {
       if (S.c) closeCareer();
       showBusy('Carregando carreira…', 'lendo o save e preparando a liga'); await sleep(30);
@@ -100,12 +99,11 @@ async function route() {
       if (!r.ok) { if (r.status === 'missing') toast('Carreira não encontrada.', true); return renderLoadError(id, r); }
       if (r.migrated) toast(`Save migrado para v${A.CAREER_SAVE_VERSION} (backup do original mantido).`);
       const had = S.c.extResult || null; void had;
-      await applyResultFrom2D(); applied = true;
+      await applyResultFrom2D();
       if (my !== seq) return;
     }
     S.screen = SCREENS[screen] ? screen : 'dashboard';
     renderCareer();
-    if (applied && S.c?.x.events.pending.length) openEvents();
     return;
   }
   if (S.c) closeCareer();

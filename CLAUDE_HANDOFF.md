@@ -14,6 +14,41 @@
 - MLB: novo visual do estádio (listras circulares, caminhos de base, pistas de aviso, muro com painéis do time da casa, postes de falta, coaches boxes, on-deck, vinheta); câmeras novas **Infield** e **Seguir bola**; Broadcast mostra o outfield inteiro.
 - Testes: `tests/avatars.test.mjs` (determinismo, persistência, render de todas as combinações).
 
+# FILA AUTÔNOMA v2 (A→F) + bonecos animados / FINAL — sessão atual
+
+## CHECKPOINT A — Campos 2D HQ
+- DONE: HiDPI (core/render/hidpi.js, desde o checkpoint A anterior); NFL: câmeras BROADCAST / TÁTICA / QB / ENDZONE (+ zoom Close/Mid/Full, tecla C), laterais com áreas/bancos/reservas/comissão em cores do time, equipe de correntes, tag CASA/VISIT., arquibancada visível no zoom Full. NHL: vidro visível, puck sempre visível (halo, rastro, anel de posse), câmeras Broadcast/Tactical/Puck/Full. MLB: estádio completo + câmeras Broadcast/Pitcher/Batter/Infield/Seguir bola (Field Follow)/Tactical/Full; bola sempre enquadrada, rastro de arremesso, zona de strike.
+- FILES: nfl/src/ui/{fieldRenderer,gameView}.js, nhl/src/rink/rinkRenderer.js, mlb/src/field/fieldRenderer.js, core/ui/{focusMode.js,focus.css}.
+- TESTS: smoke Playwright (ver abaixo). ISSUES: NFL câmeras QB/ENDZONE rotacionadas não desenham arquibancada (faixa escura); SEA×NE têm a mesma cor primária (diferenciação só por tags).
+
+## CHECKPOINT B — Sprites e leitura visual
+- DONE: bonecos procedurais (core/render/avatars.js) com editor (core/ui/avatarEditor.js), modo visual Bonecos/Fotos/Cor+número; animação: corrida com joelhos, lean, patinação, swing, arremesso, chute, check, comemoração (`avatar.action = {type,t}`), snap ao pixel do device (sem blur). Eventos → ações: NHL (SHOT→shoot, HIT→check, GOAL→celebrate), MLB (PITCH→throw/swing, HOME_RUN/RUN_SCORES→celebrate). Destaques discretos: NFL QB/portador/alvo/defensor mais próximo; NHL portador/goleiro/alvo de passe/último chutador; MLB pitcher/batter/fielder com a bola/runners.
+- TESTS: tests/avatars.test.mjs (5). ISSUES: ações de boneco só ligadas em NHL e MLB (NFL ainda sem ações por evento); fotos continuam via PlayerPhotoResolver por esporte.
+
+## CHECKPOINT C — NFL mais profundo (motor preservado)
+- DONE: Cover 0/4/6/Tampa 2 (+1/2/3), pass rush SPEED/POWER/FINESSE + RIP/SWIM/SPIN/COUNTER, stunts TE/ET (nfl/src/sim/stunts.js), bolsão medido fisicamente (pocket.js) e ações do QB STEP_UP/SLIDE/ROLL_OUT/SCRAMBLE/THROW_AWAY, log de bloqueios (BLOCK_ASSIGN/ENGAGE), "Por que terminou" (explain.js) no card/log.
+- FILES: nfl/src/sim/{stunts,pocket,explain,formation,coverage,blocking,qb,playSim,...}.js, nfl/tests/v06.test.mjs. nfl/tests/golden.json REGENERADO (jogadas de passe mudaram pelos novos rushes; corridas iguais).
+- TESTS: nfl 44/44. ISSUES: Cover 1 Blitz ~40% sacks (pré-existente); stunts/COUNTER pouco efetivos; teste "scenario E" (play.test) é estatístico e frágil.
+
+## CHECKPOINT D — NHL real
+- DONE: patinação (aceleração, turnRate, backward, crossover, energia), puck independente (dir/spin/bounces), 6 passes (short/cross/saucer/stretch/drop/bank), 5 chutes (wrist/snap/slap/backhand/one-timer) com release/altura, goleiro com máquina de estados (READY/BUTTERFLY/SLIDE/GLOVE/BLOCKER/PAD_SAVE/RECOVER), IA posicional (C/LW/RW/LD/RD/G), defesa (pressão, slot, linhas de passe, backcheck, gap), eventos PASS/RECEPTION/TURNOVER/SHOT/SAVE/REBOUND/HIT/PENALTY/GOAL. Icing ~20 → ~2,4/jogo.
+- FILES: nhl/src/sim/hockeyEngine.js, nhl/src/rink/rinkRenderer.js, nhl/src/game/*, tests/nhl_engine2.test.mjs. ISSUES: sem impedimento (offside) nem LINE_CHANGE; TURNOVER "loose" excessivo; ~1100 passes/jogo.
+
+## CHECKPOINT E — MLB real
+- DONE: pipeline explícito PITCH→READ→DECISION→CONTACT→FLIGHT→FIELDING→THROW→BASERUNNING→RESULT; 8 arremessos (FF/FT/SI/FC/SL/CU/CH/FS) com rpm/eixo/break/controle (sim/pitching.js); decisões TAKE/CONTACT/NORMAL/POWER/PROTECT (+bunt raro); contato por bat speed/timing; bola física (arrasto, Magnus, vento, parede); roubo/tag-up/HOLD/ADVANCE/RETURN; **30 atributos adaptativos calculados** (sim/adaptive.js: forma, fadiga, confiança, matchup, platoon, estádio, pressão, sequência) com "por quê" na ficha e efeito no motor.
+- FILES: mlb/src/sim/{baseballEngine,pitching,adaptive}.js, mlb/src/adaptiveCtx.js, tests/mlb_engine2.test.mjs. ISSUES: sem pickoffs; Injury Risk só informativo; career não alimenta history/rest/consecutive no motor.
+
+## CHECKPOINT F — Carreira 3.0
+- DONE: lógica (core/career/api.js + API.md, 20+ módulos): fluxo esporte→papel→time/criar jogador→dificuldade; técnico (contrato, reputação, objetivos, diretoria/elenco, staff, treino, táticas por esporte, demissão/propostas), dirigente (orçamento, contratos, trades com Trade AI multifatorial, draft, scouting com fog-of-war, free agency, instalações; NFL cap/tag/practice squad/picks, NHL cap/waivers/pipeline, MLB 40-man/minors/options/service time/arbitragem/internacional), jogador (6 curvas, XP/treino/forma/confiança, CoachTrust/Teammate/Management/FanSupport, caminhos College/Junior/Europe/HS/International), eventos reais, CareerNewsEngine, calendário NEXT_DAY/WEEK/GAME, saves v3 com migração v2→v3 + backup + autosave em 2 slots + export/import. UI (career/): wizard completo + criador de jogador com editor de boneco, 15 telas, barra de calendário, saves, ponte "Jogar no 2D".
+- TESTS: raiz 92/92 (inclui career2*, 41 de carreira); Playwright career_ui 952/952 (~12 min); career.mjs 11/11.
+- ISSUES: engineConfig/táticas só chegam ao NHL/MLB via lineup/rotação/ordem; as views 2D NHL/MLB ainda não leem `pending.engineConfig` completo; NFL no Hub = simulação (sem 2D); saves 0,7–4 MB por carreira vs ~5 MB do localStorage; aparência editada depois da criação grava direto no save (sem ação na API).
+
+## FINAL DE JOGO (core/ui/finalOverlay.js)
+- Card broadcast "FINAL" sobre o 2D nos 3 esportes: placar, line score por período/inning (+H/E no MLB), barras comparativas, 3 destaques, ações (Nova partida/Voltar ao Hub/Ver campo/Box score). Dados: nhl/src/game/final.js, mlb/src/game/final.js, nfl/src/ui/final.js.
+
+## Estado do KNOWN ISSUES NFL
+- A linha "sem Cover 0/4/6 e sem stunts" em nfl/CLAUDE_HANDOFF.md está obsoleta (ver checkpoint C).
+
 ## CURRENT STATE
 - Abrir a raiz via servidor (`START_APP.bat` na raiz ou `python -m http.server 8765`) → `http://localhost:8765`.
 - Barra **NFL | NHL | MLB** sempre visível no topo (`index.html` da raiz). Cada esporte é um app separado em seu próprio

@@ -1,6 +1,6 @@
 // New career wizard: 1 sport → 2 role → 3 team (cards) OR player creator → 4 difficulty → 5 start (saves the career).
 // Data comes from core/career/flow.js (getSports / getRoles / getTeams / getDifficulties / getPlayerOptions / validateFlow / startCareer).
-import { A, S, store, $, $$, esc, nn, fix, toast, showBusy, hideBusy, sleep, on, onChange, onInput, crest, meter, curveSvg, clamp, SPORT_LABEL, KIT, ensureAvatar, careerHash, mountAvatars, chip } from './core.js';
+import { resetUi, A, S, store, $, $$, esc, nn, fix, toast, showBusy, hideBusy, sleep, on, onChange, onInput, crest, meter, curveSvg, clamp, SPORT_LABEL, KIT, ensureAvatar, careerHash, mountAvatars, chip } from './core.js';
 import { openAvatarEditor, avatarThumb } from '../../core/ui/avatarEditor.js';
 import { getAvatar, setAvatar, resetAvatar, randomAvatar } from '../../core/render/avatars.js';
 
@@ -137,7 +137,7 @@ onInput('wiz-attr', el => {
 onChange('wiz-attr-done', () => paintCurves());
 on('wiz-av-edit', () => {
   const W = S.wiz, P = W.player;
-  openAvatarEditor({ sport: W.sport, id: TMP_AV, name: P.name || 'Seu atleta', number: P.num, pos: P.pos, color: '#1d4ed8', color2: '#ffffff', kit: KIT[W.sport], onSave: ap => { P.appearance = { ...ap }; mountThumb(); } });
+  S.avClose = openAvatarEditor({ sport: W.sport, id: TMP_AV, name: P.name || 'Seu atleta', number: P.num, pos: P.pos, color: '#1d4ed8', color2: '#ffffff', kit: KIT[W.sport], onSave: ap => { P.appearance = { ...ap }; mountThumb(); } });
 });
 on('wiz-av-rand', () => { const W = S.wiz; W.player.appearance = randomAvatar(); setAvatar(W.sport, TMP_AV, W.player.appearance); mountThumb(); });
 
@@ -172,7 +172,7 @@ on('wiz-go', async () => {
   try {
     const { career, spec } = await A.startCareer(draft, { store });
     if (W.role === 'PLAYER') { setAvatar(W.sport, career.me.id, { ...W.player.appearance }); resetAvatar(W.sport, TMP_AV); }
-    S.c = career; S.spec = spec; S.wiz = null; S.lastAdv = null; S.migrated = null; S.dirty = false; S.autosaveAt = null; S.ui.trade = null; S.screen = 'dashboard';
+    S.c = career; S.spec = spec; S.wiz = null; S.lastAdv = null; S.migrated = null; S.dirty = false; S.autosaveAt = null; resetUi(); S.screen = 'dashboard';
     ensureAvatar(career); store.setActive(career.id);
     location.hash = careerHash('dashboard', career.id);
   } catch (e) { console.error(e); W.errors = [`Erro ao criar: ${e.message}`]; toast(`Erro ao criar: ${e.message}`, true); renderWizard(); } finally { hideBusy(); }

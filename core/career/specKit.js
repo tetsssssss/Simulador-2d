@@ -1,7 +1,8 @@
 // Helpers for sport career specs (generic math only; the quotas and numbers are passed by each sport).
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function poisson(rng, mean) { const L = Math.exp(-Math.max(0, mean)); let k = 0, p = 1; do { k++; p *= rng.next(); } while (p > L); return k - 1; }
-export const avg = (a, f = x => x) => (a.length ? a.reduce((s, x) => s + f(x), 0) / a.length : 0);
+// default accessor: numbers as-is, player objects by .ovr (nfl/src/career/nflSpec.js calls avg(topBy(...)) without an accessor → was NaN)
+export const avg = (a, f = x => (x != null && typeof x === 'object' ? x.ovr : x)) => (a.length ? a.reduce((s, x) => s + f(x), 0) / a.length : 0);
 export function topBy(list, n, f = p => p.ovr) { return [...list].sort((a, b) => f(b) - f(a)).slice(0, n); }
 // quotas: { group: [starters, rotation] } — e.g. NHL { F: [6, 6], D: [4, 2], G: [1, 1] }
 export function assignByQuota(list, groupOf, quotas, { keepUser = false, trust = false } = {}) {

@@ -35,13 +35,13 @@ export const fix = (v, dec = 0, d = '—') => (isNum(v) ? (+v).toFixed(dec) : d)
 export const money = m => (isNum(m) ? `${(+m).toFixed(+m >= 10 ? 1 : 2)}M` : '—');
 export const pct = (v, d = 0) => (isNum(v) ? `${(+v * 100).toFixed(d)}%` : '—');
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-export const ovrCls = v => (v >= 80 ? 'h' : v >= 68 ? 'm' : v < 55 ? 'l' : '');
+export const ovrCls = v => (v >= 80 ? 'ovr-elite' : v >= 70 ? 'ovr-good' : v >= 58 ? 'ovr-avg' : 'ovr-low');
 export const ovrBadge = (v, range) => (range && range[0] !== range[1] ? `<span class="ovr f" title="estimativa: ${esc(range[0])}–${esc(range[1])}">${esc(range[0])}–${esc(range[1])}</span>` : `<span class="ovr ${ovrCls(v)}">${esc(nn(v))}</span>`);
 export const potTxt = (p, range) => (range && range[0] !== range[1] ? `${esc(range[0])}–${esc(range[1])}` : esc(nn(p)));
 export const tone = v => (v >= 60 ? 'good' : v >= 40 ? 'mid' : 'low');
-export const meter = (label, value, { max = 100, sub = '', cls = '' } = {}) => {
+export const meter = (label, value, { max = 100, sub = '', cls = '', show = null } = {}) => {
   const v = isNum(value) ? +value : null, p = v == null ? 0 : clamp((v / max) * 100, 0, 100);
-  return `<div class="meter ${cls || (v == null ? '' : tone(p))}" role="meter" aria-label="${esc(label)}" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${v == null ? 0 : Math.round(v)}"><span class="lbl">${esc(label)}</span><span class="bar"><i style="width:${p.toFixed(1)}%"></i></span><span class="val">${v == null ? '—' : Math.round(v)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ''}</div>`;
+  return `<div class="meter ${cls || (v == null ? '' : tone(p))}" role="meter" aria-label="${esc(label)}" aria-valuemin="0" aria-valuemax="${max}" aria-valuenow="${v == null ? 0 : Math.round(v)}"><span class="mlbl">${esc(label)}</span><span class="mbar"><i style="width:${p.toFixed(1)}%"></i></span><span class="mval">${show != null ? esc(show) : v == null ? '—' : Math.round(v)}</span>${sub ? `<span class="msub">${esc(sub)}</span>` : ''}</div>`;
 };
 export const chip = (t, cls = '') => `<span class="chip ${cls}">${esc(t)}</span>`;
 export const posTag = p => `<span class="pos">${esc(p)}</span>`;
@@ -83,6 +83,13 @@ export function installDelegation() {
   document.addEventListener('click', e => { if (e.target.closest('[data-act]')) dispatch(ACT, 'data-act', e); });
   document.addEventListener('change', e => { if (e.target.closest('[data-chg]')) dispatch(CHG, 'data-chg', e); });
   document.addEventListener('input', e => { if (e.target.closest('[data-inp]')) dispatch(INP, 'data-inp', e); });
+  // drag & drop for lineup / depth / line slots: dropping a slot onto another one re-selects its player there (the tactics select
+  // handler then swaps or replaces, exactly as when choosing from the list)
+  let dragSrc = null;
+  document.addEventListener('dragstart', e => { const r = e.target.closest?.('[data-dnd]'); if (!r) return; dragSrc = r; e.dataTransfer.setData('text/plain', r.querySelector('select')?.value || ''); e.dataTransfer.effectAllowed = 'move'; r.classList.add('dragging'); });
+  document.addEventListener('dragover', e => { if (dragSrc && e.target.closest?.('[data-dnd]')) e.preventDefault(); });
+  document.addEventListener('drop', e => { const r = e.target.closest?.('[data-dnd]'); if (!r || !dragSrc || r === dragSrc) return; e.preventDefault(); const s = r.querySelector('select'), v = e.dataTransfer.getData('text/plain'); if (s && v) { s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); } });
+  document.addEventListener('dragend', () => { dragSrc?.classList.remove('dragging'); dragSrc = null; });
   // flush a pending autosave when the page is hidden / closed (single listeners, registered once)
   window.addEventListener('pagehide', () => flushSave());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
@@ -125,7 +132,7 @@ export function openModal({ title, html = '', actions = [], wide = false, dismis
     (wrap.querySelector('[data-autofocus]') || wrap.querySelector('footer button.primary') || wrap.querySelector('footer button') || wrap.querySelector('button'))?.focus();
   });
 }
-export const closeModals = () => { for (const m of [...S.modals]) m.close(null); };
+export const closeModals = () => { for (const m of [...S.modals]) m.close(null); try { S.avClose?.(); } catch { /* editor already closed */ } S.avClose = null; };
 export const confirmBox = (title, text, { ok = 'Confirmar', danger = false } = {}) => openModal({ title, html: `<p>${esc(text)}</p>`, actions: [{ key: 'no', label: 'Cancelar' }, { key: 'ok', label: ok, primary: !danger, danger }] }).then(k => k === 'ok');
 
 // ---------- navigation / render ----------
@@ -182,6 +189,7 @@ export function paintAutosave() {
 }
 export function closeCareer({ discard = false } = {}) { if (!discard) flushSave(); clearTimeout(S.autoT); S.dirty = false; S.cleanup?.(); S.cleanup = null; closeModals(); S.c = null; S.spec = null; S.lastAdv = null; S.ui.trade = null; document.body.classList.remove('in-career'); }
 
+export const resetUi = () => { S.ui.rosterTeam = S.ui.teamView = null; S.ui.news = null; S.ui.filter = {}; S.ui.tab = {}; S.ui.sort = {}; S.ui.trade = null; S.ui.staffRole = null; };
 // ---------- opening a career (load → migrate notice → attach spec → apply 2D result) ----------
 export async function openCareer(id, { slot } = {}) {
   const r = store.load(id, slot ? { slot } : {});
@@ -199,7 +207,7 @@ export async function openCareer(id, { slot } = {}) {
     await spec.ensureRuntime?.(c);
     S.c = c; S.spec = spec; store.setActive(c.id); ensureAvatar(c);
     S.migrated = r.migrated ? { from: r.save.migratedFrom ?? 2, to: A.CAREER_SAVE_VERSION, backup: `asu_career_${c.id}_backup_v${c.x?.migratedFrom ?? 2}` } : null;
-    S.lastAdv = null; S.dirty = false; S.ui.trade = null; S.loadedFrom = r.from;
+    S.lastAdv = null; S.dirty = false; resetUi(); S.loadedFrom = r.from;
     return { ok: true, migrated: !!r.migrated };
   } catch (e) { console.error(e); return { ok: false, status: 'error', error: e.message }; }
 }
@@ -264,7 +272,7 @@ export async function afterAdvance(res) {
     if (k === 'roster') go('roster');
     return;
   }
-  if (c.x.events.pending.length) await openEvents();
+  if (res.stopped === 'EVENT' && c.x.events.pending.length) await openEvents(); // other stops keep a non-blocking banner ("Decidir agora")
 }
 export async function playGameNow() {
   const c = S.c, spec = S.spec; if (!c || S.busy) return;
@@ -275,7 +283,6 @@ export async function playGameNow() {
   const lines = userResultsText({ played: r.played });
   S.lastAdv = { mode: 'GAME', res: { stopped: 'PLAYED', days: 0, played: r.played, events: [] }, note: lines.join(' · ') };
   S.dirty = true; saveNow(false); toast(lines.join(' · ') || 'Jogo disputado.'); refresh();
-  if (c.x.events.pending.length) await openEvents();
 }
 
 // ---------- career events (modal with choices and consequences) ----------
