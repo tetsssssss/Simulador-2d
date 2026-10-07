@@ -10,6 +10,8 @@ import { photoUrl } from '../photos.js';
 import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
 import { openAvatarEditor, avatarThumb } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
+import { showFinal, hideFinal } from '../../../core/ui/finalOverlay.js';
+import { mlbFinalData } from './final.js';
 import { separateKits } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
@@ -140,6 +142,7 @@ export function mountMatch(root, deps = {}) {
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
+    if (view.engine?.state.over && !view.finalShown && !view.simming) showFinalCard();
     if (pend && view.engine?.state.over && !view.reported) reportToCareer();
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
@@ -207,6 +210,14 @@ export function mountMatch(root, deps = {}) {
     const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
     while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
   }
+  function showFinalCard() {
+    view.finalShown = true; const wrap = root.querySelector('.mlb-field-wrap2'); if (!wrap) return;
+    const acts = [{ id: 'close', label: 'Ver o campo', onClick: () => hideFinal(wrap) }];
+    if (!pend) acts.unshift({ id: 'new', label: 'Nova partida', primary: true, onClick: () => { view.seedN = (view.seedN || 0) + 1; restart(); } });
+    else acts.unshift({ id: 'hub', label: 'Voltar ao Career Hub ↩', primary: true, onClick: () => goTo('career') });
+    showFinal(wrap, { ...mlbFinalData(view.engine.state), actions: acts });
+    audio.play('ui', { category: 'UI', freq: 520 });
+  }
   // career game finished → result (score + per-player lines keyed by raw roster id) back to the Career Hub
   function reportToCareer() {
     view.reported = true;
@@ -217,7 +228,7 @@ export function mountMatch(root, deps = {}) {
     flash('Resultado enviado para a carreira ★', 'score');
   }
   view.presentation = pres;
-  function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }
+  function restart() { view.finalShown = false; hideFinal(root.querySelector('.mlb-field-wrap2') || root); view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }
   function dispose() {
     if (view.disposed) return;
     view.disposed = true; unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();

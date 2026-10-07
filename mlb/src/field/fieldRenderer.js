@@ -142,7 +142,20 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
 
   const lerp = (e, a) => ({ x: (e.px ?? e.x) + (e.x - (e.px ?? e.x)) * a, y: (e.py ?? e.y) + (e.y - (e.py ?? e.y)) * a });
 
+  // one-shot avatar actions driven by engine events (PITCH → throw, swing decisions → swing, RUN_SCORES / HOME_RUN → celebrate)
+  const acts = new Map(); let evIdx = 0;
+  function pumpActions(state) {
+    const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
+    for (; evIdx < ev.length; evIdx++) {
+      const e = ev[evIdx], t0 = state.t ?? 0;
+      if (e.type === 'PITCH') { acts.set(e.pitcher, { type: 'throw', t0, dur: 0.85 }); if (e.decision && e.decision !== 'TAKE') acts.set(e.batter, { type: 'swing', t0: t0 + 0.45, dur: 0.55 }); }
+      else if (e.type === 'HOME_RUN') acts.set(e.by, { type: 'celebrate', t0, dur: 3 });
+      else if (e.type === 'RUN_SCORES') acts.set(e.runner, { type: 'celebrate', t0, dur: 1.6 });
+    }
+  }
+  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
   function drawAthletes(state, a, opts) {
+    pumpActions(state);
     screen = new Map();
     const s = S();
     // Athletes are drawn larger than their physical size so photos/numbers stay readable on wide shots.
@@ -160,7 +173,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
       if (mode === 'avatar') {
         const moving = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) > 0.02, isC = e.pos === 'C', rl = e.role || (role === 'batter' ? 'batter' : role === 'pitcher' ? 'pitcher' : e.base != null || e.runner ? 'runner' : isC ? 'catcher' : 'fielder');
         const hasBall = state.ball?.holder === e.id;
-        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1 };
+        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1, action: actionOf(state, e.id) };
       }
       drawSprite(ctx, {
         x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,
