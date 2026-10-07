@@ -49,6 +49,15 @@
 ## Estado do KNOWN ISSUES NFL
 - A linha "sem Cover 0/4/6 e sem stunts" em nfl/CLAUDE_HANDOFF.md está obsoleta (ver checkpoint C).
 
+## SONOPLASTIA (core/audio) — sessão atual
+- `core/audio/audioEngine.js` reescrito (API compatível): cadeia de mixagem bus → master → compressor/limiter, **reverb por local** (arena/estádio/ballpark; IR gerada), **pan estéreo** (`pan`), **distância** (`far`), `delay`, variação de timbre por execução, nova categoria **MUSIC** (6 categorias), **ducking** da narração por voz (`duck/unduck`, ligado ao WebSpeech), `level()` (RMS/pico), `setBedLevel('skates', v)` (cama ao vivo), `setVenue`.
+- 41 receitas: apito/trilha, buzina, goal horn, órgão (+Charge, Take Me Out), fanfarra, stomp; taco (cresce com exit velocity), luva (pop), whoosh, catch slap, chute; pads crunch, snap cadence, correntes; slap/wrist shot, tabela, vidro, trave, defesa de pad, patins/spray; torcida em formantes (cheer, applause, groan, oohs, boo, gasp, chant, shout); UI (tick/confirm/error/swoosh).
+- Camas: torcida em 3 camadas (rumble/chatter/roar) + gritos aleatórios proporcionais à intensidade; ambiências ice/stadium/ballpark; cama de patins no NHL pela velocidade média dos jogadores.
+- Regras por esporte reescritas (nfl/nhl/mlb `presentation/atmosphere.js`): ex. MLB pan pelo spray da bola, 7º inning stretch com órgão, HR com fanfarra + stomp; NHL goal horn + stomp + órgão, tipo de chute → som; NFL pads por jardas, cadência, chains, chute/FG.
+- Shell: slider **Música / órgão** e botões **Testar** sons no popover 🔊.
+- TESTS: tests/atmosphere.test.mjs (todas as receitas citadas pelas regras existem), `node tests/browser/audio.mjs 8200` (renderiza as 41 receitas offline: audível, finito, sem clip; mixer ao vivo; camas; venue).
+- ISSUES: não há como "ouvir" no ambiente de CI — níveis e timbres foram validados por métricas (pico/RMS/cauda); ajuste fino por ouvido pode ser necessário.
+
 ## CURRENT STATE
 - Abrir a raiz via servidor (`START_APP.bat` na raiz ou `python -m http.server 8765`) → `http://localhost:8765`.
 - Barra **NFL | NHL | MLB** sempre visível no topo (`index.html` da raiz). Cada esporte é um app separado em seu próprio

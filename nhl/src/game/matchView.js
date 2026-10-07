@@ -114,6 +114,7 @@ export function mountMatch(root, deps = {}) {
     if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state?.players && !view.paused) { let v = 0, n = 0; for (const q of view.state.players) { if (q.onBench || q.goalie) continue; v += Math.hypot(q.vx || 0, q.vy || 0); n++; } audio.setBedLevel('skates', n ? Math.min(1, v / n / 24) : 0); } else audio.setBedLevel('skates', 0);
     drainEvents();
     pres.engine?.tick(dt);
     if (view.engine?.state.over && !view.finalShown && !view.simming) showFinalCard();
@@ -123,7 +124,7 @@ export function mountMatch(root, deps = {}) {
   }
 
   // ---------- controls ----------
-  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('uiTick', { category: 'UI' }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_nhl_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_nhl_names', pref.names ? '1' : '0'); };
   $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); };
@@ -184,7 +185,7 @@ export function mountMatch(root, deps = {}) {
     if (!pend) acts.unshift({ id: 'new', label: 'Nova partida', primary: true, onClick: () => { view.seedN = (view.seedN || 0) + 1; restart(); } });
     else acts.unshift({ id: 'hub', label: 'Voltar ao Career Hub ↩', primary: true, onClick: () => goTo('career') });
     showFinal(wrap, { ...nhlFinalData(view.engine.state), actions: acts });
-    audio.play('ui', { category: 'UI', freq: 520 });
+    audio.play('uiConfirm', { category: 'UI' });
   }
   // career game finished → result (score + per-player lines keyed by raw roster id) back to the Career Hub
   function reportToCareer() {
@@ -200,7 +201,7 @@ export function mountMatch(root, deps = {}) {
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; audio.setBedLevel('skates', 0); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;

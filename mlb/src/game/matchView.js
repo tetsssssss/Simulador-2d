@@ -148,7 +148,7 @@ export function mountMatch(root, deps = {}) {
     view.raf = requestAnimationFrame(frame);
   }
 
-  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('uiTick', { category: 'UI' }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_mlb_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_mlb_names', pref.names ? '1' : '0'); };
   $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); fillThumbs($('#side')); };
@@ -216,7 +216,7 @@ export function mountMatch(root, deps = {}) {
     if (!pend) acts.unshift({ id: 'new', label: 'Nova partida', primary: true, onClick: () => { view.seedN = (view.seedN || 0) + 1; restart(); } });
     else acts.unshift({ id: 'hub', label: 'Voltar ao Career Hub ↩', primary: true, onClick: () => goTo('career') });
     showFinal(wrap, { ...mlbFinalData(view.engine.state), actions: acts });
-    audio.play('ui', { category: 'UI', freq: 520 });
+    audio.play('uiConfirm', { category: 'UI' });
   }
   // career game finished → result (score + per-player lines keyed by raw roster id) back to the Career Hub
   function reportToCareer() {

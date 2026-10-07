@@ -8,8 +8,8 @@ import { NFL_ATMOSPHERE, nflStands } from '../nfl/src/presentation/atmosphere.js
 import { NHL_ATMOSPHERE, nhlStands } from '../nhl/src/presentation/atmosphere.js';
 import { MLB_ATMOSPHERE, mlbStands } from '../mlb/src/presentation/atmosphere.js';
 
-test('audio: five categories with separate volumes; silent no-op without WebAudio', () => {
-  assert.deepEqual(CATEGORIES, ['AMBIENCE', 'CROWD', 'GAME_EFFECT', 'UI', 'COMMENTARY']);
+test('audio: six categories with separate volumes; silent no-op without WebAudio', () => {
+  assert.deepEqual(CATEGORIES, ['AMBIENCE', 'CROWD', 'GAME_EFFECT', 'MUSIC', 'UI', 'COMMENTARY']);
   for (const c of CATEGORIES) assert.ok(DEFAULT_AUDIO[c] > 0 && DEFAULT_AUDIO[c] <= 1);
   const a = getAudio();
   assert.equal(a, getAudio(), 'one engine per document');
@@ -40,13 +40,13 @@ test('atmosphere: NFL home defense on 3rd down is louder; home TD roars, away TD
   const crowd = { v: 0, setIntensity(v) { this.v = v; } };
   const atm = createAtmosphere({ rules: NFL_ATMOSPHERE, audio, crowd });
   atm.onEvent({ type: 'SACK', by: 'x', qb: 'y' }, ctx); for (let i = 0; i < 20; i++) atm.tick(1 / 30);
-  assert.deepEqual(played.map(p => p[0]), ['thud', 'cheer']); assert.equal(played[0][1], 'GAME_EFFECT'); assert.equal(played[1][1], 'CROWD');
+  assert.deepEqual(played.map(p => p[0]), ['padsCrunch', 'cheer']); assert.equal(played[0][1], 'GAME_EFFECT'); assert.equal(played[1][1], 'CROWD');
   assert.ok(crowd.v > 40, `crowd visual follows intensity: ${crowd.v}`);
 });
 
 test('atmosphere: NHL horn only for home goals, power play raises baseline; MLB full count / bases loaded / HR', () => {
-  assert.equal(NHL_ATMOSPHERE.react({ type: 'GOAL', team: 'home' }, {}).sounds[0][0], 'horn');
-  assert.ok(!NHL_ATMOSPHERE.react({ type: 'GOAL', team: 'away' }, {}).sounds.some(s => s[0] === 'horn'));
+  assert.equal(NHL_ATMOSPHERE.react({ type: 'GOAL', team: 'home' }, {}).sounds[0][0], 'goalHorn');
+  assert.ok(!NHL_ATMOSPHERE.react({ type: 'GOAL', team: 'away' }, {}).sounds.some(s => s[0] === 'goalHorn'));
   const nc = { score: { home: 1, away: 1 }, period: 1, clock: 900 };
   assert.ok(NHL_ATMOSPHERE.baseline({ ...nc, powerPlay: 'home' }) > NHL_ATMOSPHERE.baseline(nc));
   const mc = { score: { home: 2, away: 2 }, inning: 3, balls: 0, strikes: 0, outs: 0, runners: [] };
@@ -67,4 +67,19 @@ test('crowd stands: seeded, team-colored, drawn through any camera without throw
   const seats = seatsAroundRect({ x0: 0, y0: 0, x1: 10, y1: 10, rows: 1, spacing: 1, skip: [{ side: 'top', from: 2, to: 8 }] });
   assert.ok(!seats.some(s => s.side === 'top' && s.x > 2 && s.x < 8));
   assert.equal(createCrowd({ seats: [], home: '#fff' }).count, 0);
+});
+
+test('atmosphere: every sound named by the rules exists as a recipe; recipes cover all categories (no typos)', async () => {
+  const { RECIPE_NAMES, CATEGORIES: cats } = await import('../core/audio/audioEngine.js');
+  const evs = { NFL: ['SNAP', 'HANDOFF', 'TOUCHDOWN', 'SAFETY', 'INTERCEPTION', 'FUMBLE', 'SACK', 'TACKLE', 'BROKEN_TACKLE', 'PASS_ATTEMPT', 'PASS_COMPLETE', 'INCOMPLETE', 'FIRST_DOWN', 'TURNOVER_ON_DOWNS', 'FIELD_GOAL', 'PUNT', 'KICKOFF', 'OUT_OF_BOUNDS', 'WHISTLE', 'QUARTER_START', 'FINAL'],
+    NHL: ['GOAL', 'SHOT', 'SAVE', 'REBOUND', 'BLOCK', 'MISS', 'PASS', 'RECEPTION', 'FACEOFF', 'HIT', 'BREAKAWAY', 'PENALTY', 'POWER_PLAY', 'ICING', 'PERIOD_START', 'PERIOD_END', 'FINAL'],
+    MLB: ['PITCH', 'BALL', 'STRIKE', 'FOUL', 'CONTACT', 'HOME_RUN', 'HIT', 'RUN_SCORES', 'STOLEN_BASE', 'STRIKEOUT', 'WALK', 'OUT', 'ERROR', 'PITCHING_CHANGE', 'INNING_START', 'FINAL'] };
+  const rules = { NFL: NFL_ATMOSPHERE, NHL: NHL_ATMOSPHERE, MLB: MLB_ATMOSPHERE };
+  const ctx = { home: 'SEA', away: 'NE', off: 'SEA', def: 'NE', down: 3, homeScore: 7, awayScore: 3, quarter: 4, clock: 100, score: { home: 2, away: 1 }, batSide: 'home', fieldSide: 'home', strikes: 2, inning: 7, runners: [1] };
+  let n = 0;
+  for (const [sp, list] of Object.entries(evs)) for (const type of list) for (const team of ['home', 'away']) {
+    const r = rules[sp].react({ type, team, side: 'off', half: 'bottom', inning: 7, big: true, kind: 'doublePlay', shotType: 'slap', save: 'GLOVE', bases: 2, ev: 105, mph: 96, spray: -20, airYards: 30, yards: 6, good: true }, ctx) || {};
+    for (const [name, o] of r.sounds || []) { n++; assert.ok(RECIPE_NAMES.includes(name), `${sp}.${type} uses unknown recipe ${name}`); assert.ok(cats.includes(o.category), `${sp}.${type}/${name} bad category ${o.category}`); }
+  }
+  assert.ok(n > 120, `sounds exercised: ${n}`);
 });

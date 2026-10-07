@@ -34,6 +34,7 @@
   .su-pop input[type=range]{width:100%;accent-color:#5cc8ff}
   .su-pop .su-mute{display:flex;gap:8px;align-items:center;margin-top:8px;grid-template-columns:none}
   .su-pop small{color:var(--muted);display:block;margin-top:8px;font-size:10.5px;line-height:1.35}
+  .su-test{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;align-items:center}.su-test b{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}.su-test button{background:#142130;border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:3px 8px;font:inherit;font-size:11px;cursor:pointer}.su-test button:hover{background:#1c2f45}
   @media (max-width:560px){.su-brand span,.su-hint{display:none}.su-seg a{padding:6px 12px}}
 </style>
 </head>
@@ -81,13 +82,13 @@
 </script>
 <script type="module">
   // Audio settings (shared by the three sports through localStorage + storage events). No sound plays here.
-  import { CATEGORIES, CATEGORY_LABELS, loadAudioSettings, saveAudioSettings } from './core/audio/audioEngine.js';
+  import { CATEGORIES, CATEGORY_LABELS, loadAudioSettings, saveAudioSettings, getAudio } from './core/audio/audioEngine.js';
   const btn = document.getElementById('suAudioBtn'), pop = document.getElementById('suAudioPop');
   const draw = () => {
     const st = loadAudioSettings();
     btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
     pop.innerHTML = '<h4>Áudio</h4>' + ['master', ...CATEGORIES].map(k => `<label>${CATEGORY_LABELS[k]}<input type="range" min="0" max="100" data-k="${k}" value="${Math.round(st[k] * 100)}"><span>${Math.round(st[k] * 100)}</span></label>`).join('')
-      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
+      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
   };
   pop.addEventListener('input', e => {
     const k = e.target.dataset.k; const st = loadAudioSettings();
@@ -95,6 +96,7 @@
     if (e.target.id === 'suMute') st.muted = e.target.checked;
     saveAudioSettings(st); btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
   });
+  pop.addEventListener('click', e => { const b = e.target.closest('[data-snd]'); if (!b) return; const a = getAudio(); a.unlock(); setTimeout(() => a.play(b.dataset.snd, { category: b.dataset.cat, power: 0.9 }), 60); });
   btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); });
   document.addEventListener('click', e => { if (!e.target.closest('.su-audio')) pop.classList.remove('show'); });
   draw();

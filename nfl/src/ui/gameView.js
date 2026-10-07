@@ -103,7 +103,7 @@ export function mountGame(root, deps) {
   const atmosphere = createAtmosphere({ rules: NFL_ATMOSPHERE, audio, crowd });
   const presentation = createPresentation({ sport: 'nfl', listeners: [commentary, atmosphere] });
   try { atmosphere.refreshBaseline(commCtx(null)); } catch { /* roster not loaded yet */ }
-  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('uiTick', { category: 'UI' }); });
   const unmountComm = mountCommentaryPanel($('#liveComm'), commentary, { sport: 'nfl', voiceVolume: () => audio.volume('COMMENTARY') });
   const lastOf = full => { const parts = String(full || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').split(' '); return parts[parts.length - 1] || full; };
   function commCtx(s) {

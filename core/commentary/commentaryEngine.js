@@ -76,8 +76,11 @@ export function createWebSpeech({ lang = 'pt-BR', rate = 1.08, minPriority = 2, 
       if (line && line.priority >= 3) synth.cancel(); // big moments interrupt
       if (synth.pending && synth.speaking) return; // never queue a backlog of commentary
       const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate; u.volume = Math.max(0, Math.min(1, volume()));
+      // duck crowd / ambience / music while the voice speaks (AudioEngine singleton, if the sport created one)
+      const audio = typeof window !== 'undefined' ? window.__asuAudio : null;
+      u.onstart = () => audio?.duck?.(0.45, 12000); u.onend = u.onerror = () => audio?.unduck?.();
       synth.speak(u);
     },
-    cancel() { synth.cancel(); },
+    cancel() { synth.cancel(); window.__asuAudio?.unduck?.(); },
   };
 }
