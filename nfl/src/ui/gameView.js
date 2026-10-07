@@ -73,8 +73,7 @@ export function mountGame(root, deps) {
   const $ = s => root.querySelector(s);
   const canvas = $('#fieldCanvas');
   const renderer = createRenderer(canvas);
-  const onResize = () => { renderer.resize(); if (view.sim) renderer.render(view.sim, 1, renderOpts()); };
-  window.addEventListener('resize', onResize);
+  // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
   const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g) } });
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
@@ -338,7 +337,7 @@ export function mountGame(root, deps) {
   function drawAll() { drawBug(); drawCallPanel(); drawLog(); drawBox(); syncControls(); drawDebug(); }
 
   // ---------- frame loop ----------
-  function cleanup() { cancelAnimationFrame(view.raf); window.removeEventListener('resize', onResize); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
+  function cleanup() { cancelAnimationFrame(view.raf); renderer.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;
   let hudTick = 0;
   function frame(ts) {

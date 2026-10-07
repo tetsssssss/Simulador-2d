@@ -76,3 +76,21 @@ SportsUniverse  index.html (raiz)      barra NFL|NHL + iframe; hash #nfl / #nhl;
 - NHL usa `../nfl/styles.css`: abrir `nhl/` fora do repositório completo perde o visual.
 - `nhl/js/app.js` e `nhl/styles.css` (Alpha) ficaram sem uso, mantidos como referência; remover após o Prompt B.
 - Partida 2D NHL ainda é o protótipo decorativo (Prompts C–F).
+
+---
+# MEGA UPDATE — fila autônoma A→G (base: v18)
+
+Camada compartilhada nova na raiz: `core/` (infraestrutura, **nunca** lógica esportiva). Os apps a importam por
+caminho relativo (`../../../core/...`), por isso o universo deve ser servido pela raiz (`START_APP.bat` da raiz; o
+`nfl/START_APP.bat` agora serve a pasta pai e abre `/nfl/index.html`).
+
+## CHECKPOINT A — Visual HQ + resolução
+- Feito: `core/render/hidpi.js` (tamanho CSS ≠ backing store; ResizeObserver + watch de DPR; `begin()` aplica o DPR por
+  frame; `dispose()`), `core/render/images.js` (cache único de imagens, URL falha memorizada, `drawImageCover` /
+  `drawCirclePhoto` sem esticar). Renderer NFL usa os dois (fotos com crop "cover"); listener de `resize` da janela
+  removido (ResizeObserver cobre). Canvas da partida até 980 px de altura; ≥1800 px: coluna lateral 380 px, campo ≈75 %.
+  Fonte com antialiasing/optimizeLegibility.
+- Arquivos: `core/render/{hidpi,images}.js`, `nfl/src/ui/{fieldRenderer,gameView}.js`, `nfl/styles.css`, `nfl/START_APP.bat`.
+- Testes: NFL 32/32; Playwright 1980×1080 DPR 2 → canvas 2652×1560 para 1326×780 CSS; 0 erros.
+- Problemas: NHL/MLB ainda com canvas protótipo (substituídos na fase B).
+- Próxima: B — visual 2D dos três esportes.

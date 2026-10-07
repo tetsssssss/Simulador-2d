@@ -1,14 +1,14 @@
 @echo off
-cd /d "%~dp0"
+cd /d "%~dp0\.."
 where py >nul 2>nul
 if %errorlevel%==0 (
-  start "" http://localhost:8765
+  start "" http://localhost:8765/nfl/index.html
   py -m http.server 8765
   goto :eof
 )
 where python >nul 2>nul
 if %errorlevel%==0 (
-  start "" http://localhost:8765
+  start "" http://localhost:8765/nfl/index.html
   python -m http.server 8765
   goto :eof
 )

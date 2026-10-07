@@ -4,6 +4,8 @@
 // (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
 import { playerPhoto, fallbackDataUri } from '../dataService.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
+import { attachHiDPI } from '../../../core/render/hidpi.js';
+import { drawCirclePhoto } from '../../../core/render/images.js';
 
 // ---- PlayerPhotoResolver cache: one Image per URL, loaded once, safe fallback on error ----
 const photoCache = new Map();
@@ -26,17 +28,14 @@ export function photoFor(p) {
 export const ZOOMS = { close: 34, medium: 56, full: 120 }; // visible yards across
 
 export function createRenderer(canvas) {
-  const ctx = canvas.getContext('2d');
+  // HiDPI: CSS size for layout/drawing math, backing store = CSS × devicePixelRatio (crisp on 1980px / 4K / Retina).
+  const hd = attachHiDPI(canvas, { minW: 300, minH: 180 });
+  const ctx = hd.ctx;
   const cam = { x: 35, y: FIELD_W / 2, zoom: 'medium', init: false };
-  let W = 0, H = 0, dpr = 1;
+  let W = hd.w, H = hd.h;
   let screen = new Map(), prefs = { photos: true, follow: true, selected: null };
 
-  function resize() {
-    const r = canvas.getBoundingClientRect();
-    dpr = window.devicePixelRatio || 1;
-    W = Math.max(300, r.width); H = Math.max(180, r.height);
-    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-  }
+  function resize() { hd.measure(); W = hd.w; H = hd.h; }
 
   function ppy() { return W / ZOOMS[cam.zoom]; }
   function sx(x) { return (x - cam.x) * ppy() + W / 2; }
@@ -110,7 +109,7 @@ export function createRenderer(canvas) {
     ctx.fillStyle = off ? '#1d4ed8' : '#b91c1c'; ctx.fill();
     if (level === 'close' && prefs.photos) {
       const img = photoFor(e.p);
-      if (img) { ctx.save(); ctx.beginPath(); ctx.arc(X, Y, r - 1.5, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(img, X - r, Y - r * 1.05, r * 2, r * 2 * (img.naturalHeight / img.naturalWidth || 1)); ctx.restore(); }
+      if (img) drawCirclePhoto(ctx, img, X, Y, r - 1.5);
     }
     ctx.lineWidth = isCarrier ? 3 : 2; ctx.strokeStyle = isCarrier ? '#f6c453' : off ? '#e8eef5' : '#ff9a9a';
     ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2); ctx.stroke();
@@ -260,8 +259,8 @@ export function createRenderer(canvas) {
   }
 
   function render(sim, alpha, opts = {}) {
-    if (!W) resize();
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    W = hd.w; H = hd.h;
+    hd.begin();
     if (opts.zoom) cam.zoom = opts.zoom;
     prefs = { photos: opts.photos !== false, follow: opts.follow !== false, selected: opts.selected || null };
     updateCamera(sim, alpha);
@@ -280,5 +279,5 @@ export function createRenderer(canvas) {
     return best;
   }
 
-  return { render, resize, pick, camera: cam };
+  return { render, resize, pick, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
