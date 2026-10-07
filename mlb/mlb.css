@@ -20,7 +20,7 @@
 .mlb-team-grid>.panel+.panel{margin-top:0}
 .mlb-team-card{display:flex;gap:12px;align-items:center;color:var(--text);text-decoration:none!important}
 .mlb-team-card:hover{border-color:var(--accent)}
-.mlb-player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.mlb-player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
 .mlb-player-grid>.panel+.panel{margin-top:0}
 .mlb-pcard{display:flex;gap:10px;align-items:center;cursor:pointer}
 .mlb-pcard:hover{border-color:var(--accent)}
@@ -68,3 +68,7 @@
 .mlb-pitchinfo{position:absolute;left:12px;bottom:12px;display:none;background:rgba(7,11,17,.88);border:1px solid var(--line2);border-left:4px solid var(--accent);border-radius:8px;padding:8px 12px;font-weight:800;letter-spacing:.04em}
 .mlb-pitchinfo.show{display:block}
 @media (max-width:1100px){.mlb-match-grid{grid-template-columns:1fr}.mlb-side{max-height:none}}
+
+.mlb-photo.xl{width:92px;height:92px}
+.mlb-pc-tags{display:flex;gap:6px;align-items:center;margin:3px 0;flex-wrap:wrap}
+.mlb-num{font-weight:900;font-size:15px}

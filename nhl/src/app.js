@@ -1,6 +1,6 @@
 // NHL Universe 2D — shell (same visual identity as NFL Universe 2D, separate app/engine).
 // Hash routes: #home #teams #team/<ABBR> #roster/<ABBR> #prospects/<ABBR> #arenas #history #rivalries #rink
-import { D, teamBy, logo, placeholder, playerName, nameOf, age, makeAttrs, overall, getRoster, getProspects, hash, POS_LABEL, cachedRosterCount } from './nhlData.js';
+import { D, teamBy, logo, placeholder, playerName, nameOf, age, makeAttrs, overall, getRoster, getProspects, hash, POS_LABEL, cachedRosterCount, rosterSource } from './nhlData.js';
 import { mountMatch } from './game/matchView.js';
 import { photoUrl } from './photos.js';
 
@@ -74,9 +74,13 @@ async function team(abbr) {
 function apiError(e) { return `<div class="nhl-notice bad">${esc(e.message)} — a NHL Web API não respondeu (sem internet ou bloqueio do navegador). Abra via servidor local com internet.</div>`; }
 function playerRow(p, o) { const nm = playerName(p); return `<div class="nhl-row clickable" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(photoUrl(p), nm, 'nhl-av')}<b>${esc(nm)}</b><span class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'}</span><span class="grow"></span>${ovrBadge(o)}</div>`; }
 function playerCard(p) {
-  const nm = playerName(p), o = overall(p, makeAttrs(p));
-  return `<div class="panel nhl-pcard" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(photoUrl(p), nm, 'nhl-photo')}<div class="nhl-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.sweaterNumber ?? '—'} · ${POS_LABEL[p.positionCode] || p.positionCode || '—'} · ${p.shootsCatches || '—'}</div><div class="muted small">${age(p.birthDate) ?? '—'} anos · ${esc(p.birthCountry || '—')}</div></div>${ovrBadge(o)}</div>`;
+  const nm = playerName(p), o = overall(p, makeAttrs(p)), a = age(p.birthDate);
+  const bio = [a != null ? `${a} anos` : '', p.heightInCentimeters ? `${p.heightInCentimeters} cm` : '', p.weightInKilograms ? `${p.weightInKilograms} kg` : ''].filter(Boolean).join(' · ');
+  return `<div class="panel nhl-pcard nhl-pcard-big" data-pid="${p.id}" data-team="${p.teamAbbr}">${img(photoUrl(p), nm, 'nhl-photo xl')}<div class="nhl-pcard-body"><b>${esc(nm)}</b>
+    <div class="nhl-pc-tags"><span class="nhl-num">#${p.sweaterNumber ?? '—'}</span><span class="chip">${POS_LABEL[p.positionCode] || p.positionCode || '—'}</span></div>
+    ${bio ? `<div class="muted small">${bio}</div>` : ''}<div class="muted small">${p.positionCode === 'G' ? 'Catches' : 'Shoots'} ${p.shootsCatches || '—'}${p.stats?.gp ? ` · ${p.stats.gp} jogos (23-24)` : ''}</div></div>${ovrBadge(o)}</div>`;
 }
+const ROSTER_GROUPS = [['Atacantes', p => ['C', 'L', 'R'].includes(p.positionCode)], ['Defensores', p => p.positionCode === 'D'], ['Goleiros', p => p.positionCode === 'G']];
 function bindPlayers(scope) {
   scope.querySelectorAll('[data-pid]').forEach(el => el.addEventListener('click', async () => {
     const r = await getRoster(el.dataset.team); const p = r.find(x => String(x.id) === el.dataset.pid); if (p) showPlayer(p);
@@ -100,8 +104,12 @@ async function roster(abbr) {
   let pos = 'ALL', data = [];
   const draw = () => {
     const q = $('#q').value.toLowerCase();
-    const list = data.filter(p => (pos === 'ALL' || p.positionCode === pos) && playerName(p).toLowerCase().includes(q));
-    $('#area').className = 'nhl-player-grid'; $('#area').innerHTML = list.map(playerCard).join('') || '<p class="muted">Nenhum atleta.</p>'; bindPlayers($('#area'));
+    const list = data.filter(p => (pos === 'ALL' || p.positionCode === pos) && playerName(p).toLowerCase().includes(q))
+      .sort((a, b) => overall(b, makeAttrs(b)) - overall(a, makeAttrs(a)));
+    const src = rosterSource(cur) === 'snapshot' ? '<p class="muted small">Elenco do snapshot local 2023-24 (NHL Web API indisponível).</p>' : '';
+    $('#area').className = '';
+    $('#area').innerHTML = src + (ROSTER_GROUPS.map(([label, f]) => { const g = list.filter(f); return g.length ? `<div class="sec-h">${label} · ${g.length}</div><div class="nhl-player-grid">${g.map(playerCard).join('')}</div>` : ''; }).join('') || '<p class="muted">Nenhum atleta.</p>');
+    bindPlayers($('#area'));
   };
   $('#teamSel').onchange = e => { location.hash = `#roster/${e.target.value}`; };
   $('#q').oninput = draw;

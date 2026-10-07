@@ -46,6 +46,10 @@ export function drawSprite(ctx, o) {
     else drawCirclePhoto(ctx, img, x, y, r - ringW * 0.5);
   }
   bodyPath(); ctx.lineWidth = ringW; ctx.strokeStyle = shape === 'goalie' ? color2 : color; ctx.stroke();
+  if (shape !== 'goalie' && level !== 'far') { // thin secondary-color rim: separates teams with similar primaries
+    ctx.lineWidth = Math.max(1, ringW * 0.38); ctx.strokeStyle = color2;
+    ctx.beginPath(); ctx.arc(x, y, r + ringW * 0.5, 0, Math.PI * 2); ctx.stroke();
+  }
   if (shape === 'goalie' || shape === 'pitcher' || shape === 'batter') { // role outline
     ctx.lineWidth = Math.max(1, ringW * 0.45); ctx.strokeStyle = color2;
     if (shape !== 'goalie') { ctx.beginPath(); ctx.arc(x, y, r + ringW * 0.9, 0, Math.PI * 2); ctx.stroke(); }
@@ -123,4 +127,12 @@ export function drawTrackedObject(ctx, o) {
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, by, r, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = rim; ctx.lineWidth = Math.max(1, r * 0.35); ctx.stroke();
   ctx.restore();
+}
+
+// Kit clash rule (presentation): if both primaries are too close, the away side wears a light kit.
+export function separateKits(home, away) {
+  const rgb = h => { const n = parseInt((h || '#000').replace('#', ''), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const [a, b] = [rgb(home[0]), rgb(away[0])];
+  if (Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) >= 90) return [home, away];
+  return [home, ['#f2f4f7', away[0]]];
 }

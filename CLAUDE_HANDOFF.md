@@ -122,3 +122,22 @@ caminho relativo (`../../../core/...`), por isso o universo deve ser servido pel
   esporte, montagem única, sem NaN, 0 erros).
 - Problemas: fotos externas não carregam neste sandbox (rede) → sprites mostram cor+número (fallback correto).
 - Próxima: C — sprites com fotos em todos os esportes.
+
+## CHECKPOINT C — Fotos + sprites
+- Feito:
+  - Resolvers centrais (prioridade cache → URL conhecida → fallback), todos sobre `core/render/images.js`:
+    `nfl/src/ui/photos.js` (**NFLPlayerPhotoResolver**: headshot_url → ESPN → silhueta),
+    `nhl/src/photos.js` (**NHLPlayerPhotoResolver**: headshot da API → mugs NHL por temporada/time do snapshot),
+    `mlb/src/photos.js` (**MLBPlayerPhotoResolver**: headshotLink → serviço MLB por MLBAM id; demo = sem foto falsa).
+  - Sprite comum (`core/render/sprites.js`): longe = cor + número; médio = foto + número + posição; perto = foto + nome.
+    Aro externo fino na cor secundária; `separateKits` (uniforme claro quando as cores principais conflitam).
+    NFL: QB com contorno de papel, portador com anel dourado, cores reais por time (defesa branca se colidir).
+    NHL: goleiro com silhueta própria (retângulo arredondado), alvo de passe com anel ciano. MLB: pitcher e batter
+    maiores e contornados; alvo de arremesso; fotos sem esticar (crop "cover").
+  - Elencos: NHL agrupado (Atacantes/Defensores/Goleiros) e MLB agrupado (Pitchers/Catchers/Infielders/Outfielders/
+    DH) com foto grande, nº, posição, idade/altura/peso quando existem, B/T (MLB) e OVR (posicional na MLB).
+- Testes: raiz 7/7, NFL 32/32, smoke 26/26; caminho de fotos validado servindo imagem de teste nas URLs reais
+  (Playwright route) — fotos aparecem no campo/rink sem distorção.
+- Problemas: ratings NHL ainda são os da Alpha (hash) — não refletem produção real (ex.: McDavid 69). Calibrar com
+  TOI/pontos do snapshot na fase F.
+- Próxima: D — narração (PresentationEngine / CommentaryEngine).

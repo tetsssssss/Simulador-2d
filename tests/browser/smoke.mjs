@@ -14,7 +14,18 @@ const results = [];
 const check = (name, ok, info = '') => { results.push({ name, ok, info }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${info ? ' — ' + info : ''}`); };
 const frame = () => page.frames().find(f => /\/(nfl|nhl|mlb)\/index\.html/.test(f.url()));
 const rafPerSec = f => f.evaluate(() => new Promise(res => { let n = 0; const o = window.requestAnimationFrame; window.requestAnimationFrame = cb => { n++; return o.call(window, cb); }; setTimeout(() => { window.requestAnimationFrame = o; res(n); }, 1000); }));
-const hasNaN = f => f.evaluate(() => { const st = window.__nhlMatch?.state || window.__mlbMatch?.state || window.__nflGame?.sim; if (!st) return null; let bad = 0; JSON.stringify(st, (k, v) => { if (typeof v === 'number' && !Number.isFinite(v)) bad++; return (k === 'p' || k === 'prof' || k === 'hist' || k === 'rng' || k === 'eng' || k === 'engagedWith') ? undefined : v; }); return bad; });
+const hasNaN = f => f.evaluate(() => {
+  const st = window.__nhlMatch?.state || window.__mlbMatch?.state || window.__nflGame?.sim; if (!st) return null;
+  const seen = new WeakSet(); let bad = 0;
+  const skip = new Set(['p', 'prof', 'hist', 'rng', 'img', 'lineup', 'raw']);
+  (function walk(v, depth) {
+    if (typeof v === 'number') { if (!Number.isFinite(v)) bad++; return; }
+    if (!v || typeof v !== 'object' || depth > 6 || seen.has(v)) return;
+    seen.add(v);
+    for (const k of Object.keys(v)) if (!skip.has(k)) walk(v[k], depth + 1);
+  })(st, 0);
+  return bad;
+});
 
 await page.goto(`http://localhost:${PORT}/#nfl`); await page.waitForTimeout(3000);
 for (let round = 0; round < 3; round++) {

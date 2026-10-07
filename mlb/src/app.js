@@ -2,6 +2,7 @@
 // Hash routes: #home #teams #team/<ABBR> #roster/<ABBR> #prospects #draft/<YEAR> #stadiums #rivalries #history #diamond
 import { D, teamBy, photo, fallback, pos, positionalOvr, fixedRatings, adaptiveRatings, roster, person, draft, prospects, hash, cachedRosterCount } from './mlbData.js';
 import { mountMatch } from './game/matchView.js';
+import { demoRoster } from './game/lineup.js';
 
 const $ = s => document.querySelector(s);
 const content = $('#content');
@@ -79,12 +80,16 @@ async function team(abbr, tok) {
 }
 
 function playerCard(p) {
-  const id = p.person?.id || p.id, nm = p.person?.fullName || p.fullName || 'Atleta';
-  return `<div class="panel mlb-pcard" data-player="${id}">${img(photo(id), nm, 'mlb-photo')}<div class="mlb-pcard-body"><b>${esc(nm)}</b><div class="muted small">#${p.jerseyNumber || '—'} · ${pos(p)}</div><div class="muted small">${esc(p.status?.description || '')}</div></div>${ovrBadge(positionalOvr(p))}</div>`;
+  const per = p.person || p, id = per.id || p.id, nm = per.fullName || p.fullName || 'Atleta';
+  const bt = `${per.batSide?.code || '—'}/${per.pitchHand?.code || '—'}`;
+  return `<div class="panel mlb-pcard mlb-pcard-big" data-player="${p.demo ? '' : id}">${img(p.demo ? '' : photo(id), nm, 'mlb-photo xl')}<div class="mlb-pcard-body"><b>${esc(nm)}</b>
+    <div class="mlb-pc-tags"><span class="mlb-num">#${esc(p.jerseyNumber || per.primaryNumber || '—')}</span><span class="chip">${esc(pos(p))}</span><span class="chip">B/T ${bt}</span></div>
+    <div class="muted small">${per.currentAge ?? '—'} anos${per.height ? ` · ${esc(per.height)} · ${per.weight || '—'} lb` : ''}</div><div class="muted small">${esc(p.status?.description || (p.demo ? 'DEMO (offline)' : ''))}</div></div>${ovrBadge(positionalOvr(p))}</div>`;
 }
+const MLB_GROUPS = [['Pitchers', po => ['P', 'SP', 'RP', 'TWP'].includes(po)], ['Catchers', po => po === 'C'], ['Infielders', po => ['1B', '2B', '3B', 'SS', 'IF'].includes(po)], ['Outfielders', po => ['LF', 'CF', 'RF', 'OF'].includes(po)], ['DH / Utility', po => !['P', 'SP', 'RP', 'TWP', 'C', '1B', '2B', '3B', 'SS', 'IF', 'LF', 'CF', 'RF', 'OF'].includes(po)]];
 function bindPlayers(scope) {
   scope.querySelectorAll('[data-player]').forEach(el => el.addEventListener('click', async () => {
-    const id = el.dataset.player; let p = { id, fullName: 'Atleta', primaryPosition: { abbreviation: '—' } };
+    const id = el.dataset.player; if (!id) return; let p = { id, fullName: 'Atleta', primaryPosition: { abbreviation: '—' } };
     try { p = await person(id); } catch { /* keep minimal record */ }
     showPlayer(p);
   }));
@@ -108,10 +113,17 @@ async function rosterView(abbr, tok) {
   setTitle('Elencos', 'Active roster 2026 · fotos · 40 + 30 atributos');
   content.innerHTML = `<div class="toolbar"><select id="teamSel">${teamOpts(cur)}</select><input id="q" placeholder="Buscar jogador"></div><div id="area" class="muted">Carregando elenco…</div>`;
   let data = [];
-  const draw = () => { const q = $('#q').value.toLowerCase(); const a = $('#area'); a.className = 'mlb-player-grid'; a.innerHTML = data.filter(p => (p.person?.fullName || '').toLowerCase().includes(q)).map(playerCard).join('') || '<p class="muted">Nenhum jogador.</p>'; bindPlayers(a); };
+  const draw = () => {
+    const q = $('#q').value.toLowerCase(); const a = $('#area'); a.className = '';
+    const list = data.filter(p => (p.person?.fullName || '').toLowerCase().includes(q)).sort((x, y) => positionalOvr(y) - positionalOvr(x));
+    const note = data.some(p => p.demo) ? '<p class="bad small">Elenco DEMO: a MLB StatsAPI não respondeu (sem internet ou bloqueio). Nenhum nome ou foto é inventado.</p>' : '';
+    a.innerHTML = note + (MLB_GROUPS.map(([label, f]) => { const g = list.filter(p => f(pos(p))); return g.length ? `<div class="sec-h">${label} · ${g.length}</div><div class="mlb-player-grid">${g.map(playerCard).join('')}</div>` : ''; }).join('') || '<p class="muted">Nenhum jogador.</p>');
+    bindPlayers(a);
+  };
   $('#teamSel').onchange = e => { location.hash = `#roster/${e.target.value}`; };
   $('#q').oninput = () => { if (data.length) draw(); };
-  try { data = await roster(t); if (alive(tok)) draw(); } catch (e) { if (alive(tok)) { $('#area').className = ''; $('#area').innerHTML = apiError(e); } }
+  try { data = await roster(t); } catch { data = demoRoster(t); }
+  if (alive(tok)) draw();
 }
 
 async function prospectsView(_, tok) {

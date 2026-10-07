@@ -102,8 +102,8 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     }
     // home team mark at center ice
     if (state.home && s > 2.5) {
-      ctx.fillStyle = hexA(state.home.color || '#333', 0.12); ctx.beginPath(); ctx.arc(X(RINK.center), Y(MIDY), 9 * s, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = hexA(state.home.color || '#333', 0.45); ctx.font = `900 ${Math.max(10, 5 * s)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = hexA(state.home.color || '#333', 0.08); ctx.beginPath(); ctx.arc(X(RINK.center), Y(MIDY), 9 * s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = hexA(state.home.color || '#333', 0.22); ctx.font = `900 ${Math.max(10, 5 * s)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(state.home.abbr || '', X(RINK.center), Y(MIDY));
     }
     // goal creases + nets

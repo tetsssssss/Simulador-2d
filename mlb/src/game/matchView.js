@@ -7,6 +7,7 @@ import { buildLineup, demoRoster } from './lineup.js';
 import { createFieldRenderer, CAMERAS } from '../field/fieldRenderer.js';
 import { DEF_SPOTS, BATTER_SPOT } from '../field/geometry.js';
 import { photoUrl } from '../photos.js';
+import { separateKits } from '../../../core/render/sprites.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
@@ -58,7 +59,8 @@ export function mountMatch(root, deps = {}) {
     $('#bug').innerHTML = '<div class="muted" style="padding:10px">Carregando elencos…</div>';
     const [h, a] = await Promise.all([loadTeam(pref.home), loadTeam(pref.away)]);
     if (view.disposed) return;
-    const home = withSide(h, 'home'), away = withSide(a, 'away');
+    const [hk, ak] = separateKits([h.color, h.color2], [a.color, a.color2]);
+    const home = withSide({ ...h, color: hk[0], color2: hk[1] }, 'home'), away = withSide({ ...a, color: ak[0], color2: ak[1] }, 'away');
     $('#srcNote').innerHTML = [h, a].some(t => t.source === 'demo') ? '<span class="bad">Elenco DEMO (MLB StatsAPI indisponível) — sem nomes/fotos reais</span>' : 'Elencos: MLB StatsAPI (2026)';
     if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}` }); view.state = view.engine.state; }
     else view.state = staticState(home, away);

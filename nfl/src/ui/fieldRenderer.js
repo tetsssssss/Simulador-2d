@@ -2,29 +2,14 @@
 // Zoom levels: close = photo + number, medium = jersey + number, far = dot + number.
 // Debug overlay: assignments, routes, QB reads, blocks (leverage), coverage, ball trajectory, run game
 // (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
-import { playerPhoto, fallbackDataUri } from '../dataService.js';
+import { photoImage } from './photos.js';
+import { drawSprite } from '../../../core/render/sprites.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
-import { drawCirclePhoto } from '../../../core/render/images.js';
 import { TEAM_COLORS } from './teamColors.js';
 
-// ---- PlayerPhotoResolver cache: one Image per URL, loaded once, safe fallback on error ----
-const photoCache = new Map();
-export function photoFor(p) {
-  const url = playerPhoto(p) || fallbackDataUri(p.full_name);
-  let rec = photoCache.get(url);
-  if (!rec) {
-    const img = new Image();
-    rec = { img, ok: false, failed: false };
-    img.onload = () => { rec.ok = true; };
-    img.onerror = () => {
-      if (!rec.failed) { rec.failed = true; img.src = fallbackDataUri(p.full_name); }
-    };
-    img.src = url;
-    photoCache.set(url, rec);
-  }
-  return rec.ok ? rec.img : null;
-}
+// Photos come from the central NFLPlayerPhotoResolver (./photos.js) — kept exported here for compatibility.
+export { photoImage as photoFor } from './photos.js';
 
 export const ZOOMS = { close: 34, medium: 56, full: 120 }; // visible yards across
 
@@ -35,6 +20,7 @@ export function createRenderer(canvas) {
   const cam = { x: 35, y: FIELD_W / 2, zoom: 'medium', init: false };
   let W = hd.w, H = hd.h;
   let screen = new Map(), prefs = { photos: true, follow: true, selected: null };
+  let teamCols = { off: ['#1d4ed8', '#ffffff'], def: ['#b91c1c', '#ffffff'] }, lastSim = null;
 
   function resize() { hd.measure(); W = hd.w; H = hd.h; }
 
@@ -137,38 +123,22 @@ export function createRenderer(canvas) {
 
   function lerpPos(e, a) { return { x: e.prev.x + (e.pos.x - e.prev.x) * a, y: e.prev.y + (e.pos.y - e.prev.y) * a }; }
 
+  // Shared sprite grammar: far = team color + number · mid = photo + number (+ position) · close = photo + name.
+  // QB gets a role outline, the ball carrier a gold ring; offense/defense use their real team colors.
   function drawPlayer(e, a, isCarrier) {
     const s = ppy();
     const p = lerpPos(e, a);
     const X = sx(p.x), Y = sy(p.y);
-    const level = s >= 17 ? 'close' : s >= 9 ? 'medium' : 'far';
-    const r = level === 'close' ? Math.min(22, s * 0.75) : level === 'medium' ? Math.max(7, s * 0.62) : Math.max(4, s * 0.55);
+    const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
+    const r = level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55);
     const off = e.side === 'off';
-    ctx.save();
-    if (e.down) ctx.globalAlpha = 0.55;
-    // facing tick
-    ctx.strokeStyle = off ? '#cfe3ff' : '#ffb3b3'; ctx.lineWidth = Math.max(1.5, r * 0.18);
-    ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + Math.cos(e.facing) * r * 1.45, Y + Math.sin(e.facing) * r * 1.45); ctx.stroke();
-    ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2);
-    ctx.fillStyle = off ? '#1d4ed8' : '#b91c1c'; ctx.fill();
-    if (level === 'close' && prefs.photos) {
-      const img = photoFor(e.p);
-      if (img) drawCirclePhoto(ctx, img, X, Y, r - 1.5);
-    }
-    ctx.lineWidth = isCarrier ? 3 : 2; ctx.strokeStyle = isCarrier ? '#f6c453' : off ? '#e8eef5' : '#ff9a9a';
-    ctx.beginPath(); ctx.arc(X, Y, r, 0, Math.PI * 2); ctx.stroke();
-    if (prefs.selected === e.id) { ctx.strokeStyle = '#f6c453'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(X, Y, r + 4, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
-    // jersey number
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (level === 'close') {
-      ctx.font = `800 ${Math.max(9, r * 0.55)}px system-ui, sans-serif`;
-      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(X - r * 0.6, Y + r * 0.45, r * 1.2, r * 0.6);
-      ctx.fillStyle = '#fff'; ctx.fillText(e.jersey || e.slot, X, Y + r * 0.76);
-    } else {
-      ctx.font = `800 ${Math.max(7, r * 0.95)}px system-ui, sans-serif`;
-      ctx.fillText(e.jersey || '', X, Y + 0.5);
-    }
-    ctx.restore();
+    const c = off ? teamCols.off : teamCols.def;
+    const qb = e === lastSim?.qb;
+    drawSprite(ctx, {
+      x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
+      img: prefs.photos && level !== 'far' ? photoImage(e.p) : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing,
+      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000,
+    });
     return { X, Y, r };
   }
 
@@ -307,6 +277,8 @@ export function createRenderer(canvas) {
     hd.begin();
     if (opts.zoom) cam.zoom = opts.zoom;
     prefs = { photos: opts.photos !== false, follow: opts.follow !== false, selected: opts.selected || null };
+    lastSim = sim;
+    teamCols = sideColors(opts.teams?.off, opts.teams?.def);
     updateCamera(sim, alpha);
     drawField(sim, opts.teams || {});
     screen = new Map();
@@ -327,3 +299,14 @@ export function createRenderer(canvas) {
 }
 
 function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
+
+const SUFFIX = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;
+const lastName = n => { const w = String(n || '').trim().split(/\s+/); while (w.length > 1 && SUFFIX.test(w[w.length - 1])) w.pop(); return w[w.length - 1] || ''; };
+// Offense/defense colors; when both teams' primaries are too close, the defense switches to white jerseys.
+function sideColors(off, def) {
+  const o = TEAM_COLORS[off] || '#1d4ed8', d = TEAM_COLORS[def] || '#b91c1c';
+  const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const [a, b] = [rgb(o), rgb(d)];
+  const close = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 90;
+  return { off: [o, '#ffffff'], def: close ? ['#f2f4f7', d] : [d, '#ffffff'] };
+}
