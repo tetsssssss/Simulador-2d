@@ -7,6 +7,7 @@ import { dailyTick, OFF_DAYS, autoResolveEvents } from './hooks.js';
 import { dayOfSlate, dateOfDay, fmtDate } from './kit.js';
 import { deadlineDay } from './tradeAI.js';
 import { acceptOffer, refreshOffers } from './coach.js';
+import { enforceLegality } from './x.js';
 
 export const CalMode = { NEXT_DAY: 'NEXT_DAY', NEXT_WEEK: 'NEXT_WEEK', NEXT_GAME: 'NEXT_GAME' };
 const hasUserGame = (spec, c) => !!nextUserGame(c);
@@ -41,6 +42,10 @@ export async function advance(spec, c, mode = CalMode.NEXT_DAY, opts = {}) {
       if (pendingGameDay(spec, c)) {
         const ug = hasUserGame(spec, c) && myTeam(c);
         if (ug && !includeUser && c.settings.controlUserGames !== false) { res.stopped = 'USER_GAME'; break; }
+        if (ug && c.role !== 'PLAYER' && c.phase === 'REGULAR') { // roster / cap must be legal on game day
+          const lg = spec.v3.legality(spec, c, c.userTeam);
+          if (!lg.ok) { if (auto || opts.autoFix) { enforceLegality(spec, c, { includeUser: true }); } else { res.stopped = 'ILLEGAL_ROSTER'; res.issues = lg.issues; break; } }
+        }
         await playPending(spec, c, !!ug, res.played);
         if (mode === CalMode.NEXT_GAME && ug) { res.stopped = 'PLAYED'; break; }
         continue;

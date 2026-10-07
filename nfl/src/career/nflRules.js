@@ -165,6 +165,7 @@ export const NFL_V3 = {
     const pay = payroll(Object.values(c.players), abbr), issues = [];
     if (pay > spec.cap.limit + 0.01) issues.push({ code: 'CAP', text: `Folha ${round1(pay)}M acima do teto ${spec.cap.limit}M` });
     if (act.length > spec.roster.max) issues.push({ code: 'ROSTER_MAX', text: `Elenco ativo ${act.length} > ${spec.roster.max}` });
+    if (act.length < spec.roster.min) issues.push({ code: 'ROSTER_MIN', text: `Elenco ativo ${act.length} < ${spec.roster.min}` });
     if (ps.length > 16) issues.push({ code: 'PS_MAX', text: `Practice squad ${ps.length} > 16` });
     return { ok: !issues.length, issues, stats: { payroll: round1(pay), cap: spec.cap.limit, capSpace: round1(spec.cap.limit - pay), active: act.length, practiceSquad: ps.length, ir: list.filter(p => p.st === 'IR').length } };
   },
@@ -190,7 +191,10 @@ export const NFL_V3 = {
     for (const p of act.slice(spec.roster.max)) p.st = 'MIN';
     const ps = lst().filter(p => p.st === 'MIN').sort((a, b) => b.ovr - a.ovr);
     for (const p of ps.slice(16)) cutToFA(p);
-    // minimum depth: sign the best free agent at each empty key slot is handled by the AI free-agency pass
+    // minimum active roster: promote the practice squad, then sign the best free agents at the minimum salary
+    let n = lst().filter(p => p.st === 'ACT').length;
+    for (const p of lst().filter(q => q.st === 'MIN').sort((a, b) => b.ovr - a.ovr)) { if (n >= spec.roster.min) break; p.st = 'ACT'; n++; }
+    if (n < spec.roster.min) for (const p of all.filter(q => q.t === 'FA' && q.st === 'FA').sort((a, b) => b.ovr - a.ovr)) { if (n >= spec.roster.min) break; if (payroll(all, abbr) + spec.salary.min > spec.cap.limit) break; p.t = abbr; p.st = 'ACT'; p.c = { sal: spec.salary.min, yrs: 1, kind: 'VET' }; n++; }
   },
   validateTrade(spec, c, { aiTeam, userTeam, give, get }) {
     // cap: each side must end under the cap (or reduce its payroll)

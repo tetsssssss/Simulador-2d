@@ -130,7 +130,7 @@ test('stunts: TE / ET twists are planned, tracked in state + events, the looper 
       assert.notEqual(sim.stunt.pen, sim.stunt.loop);
       assert.equal(sim.stunt.pen.slot.slice(0, 1), sim.stunt.loop.slot.slice(0, 1), 'same side');
       assert.equal(type === 'TE' ? sim.stunt.pen.slot.endsWith('DT') : sim.stunt.pen.slot.endsWith('DE'), true, 'penetrator');
-      assert.ok(sim.debugEvents.some(e => e.type === 'STUNT' && e.type !== undefined));
+      assert.ok(sim.debugEvents.some(e => e.type === 'STUNT' && e.kind === type));
       runToEnd(sim); checkFinite(sim);
       n++;
       if (sim.debugEvents.some(e => e.type === 'STUNT_LOOP')) loops++;

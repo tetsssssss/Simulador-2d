@@ -24,7 +24,7 @@ const other = s => (s === 'home' ? 'away' : 'home');
 const INF = ['P', 'C', '1B', '2B', '3B', 'SS'];
 export function basePos(s) { s = clamp(s, 0, 4); const i = Math.min(3, Math.floor(s)), f = s - i, a = BP[i], b = BP[i + 1]; return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }; }
 // Calibration of the contact model (timing / squared-up / exit velocity / launch / spray) and steal appetite.
-export const CT = { tsd0: 34, tsd1: 14, v0: 0.2, v1: 0.3, v2: 0.15, tau: 26, vtau: 0.5, bs0: 59.6, bs1: 20, e0: 0.565, ep: 0.8, esd: 4, aa0: 10, aa1: 14, lav: 55, lasd: 17, sprT: 22, sp0: 20, sp1: 95 };
+export const CT = { tsd0: 34, tsd1: 14, v0: 0.2, v1: 0.3, v2: 0.15, tau: 26, vtau: 0.5, bs0: 60, bs1: 20, e0: 0.565, ep: 0.8, esd: 4, aa0: 10, aa1: 14, lav: 55, lasd: 17, sprT: 22, sp0: 20, sp1: 95 };
 export const TUNE = { stealK: 0.05, b3in: 0.8, b3out: 0.45, stealBias: 0.26, stealSd: 0.24, cOff: -0.05, oBase: 0.4, oBy: 0.28, oTwo: 0.12 };
 
 // Ball flight from contact: a physical entity integrated every DT — gravity, quadratic drag against the AIR (wind

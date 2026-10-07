@@ -151,8 +151,20 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
 
   function lerp(e, a) { return { x: (e.px ?? e.x) + (e.x - (e.px ?? e.x)) * a, y: (e.py ?? e.y) + (e.y - (e.py ?? e.y)) * a }; }
 
+  // one-shot avatar actions driven by engine events (SHOT → shoot, HIT → check, GOAL → celebrate); keyed by player id
+  const acts = new Map(); let evIdx = 0;
+  function pumpActions(state) {
+    const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
+    for (; evIdx < ev.length; evIdx++) {
+      const e = ev[evIdx], t0 = state.t ?? 0;
+      if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6 });
+      else if (e.type === 'HIT') acts.set(e.by, { type: 'check', t0, dur: 0.45 });
+      else if (e.type === 'GOAL') { acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); for (const id of e.assists || []) acts.set(id?.id ?? id, { type: 'celebrate', t0, dur: 2.2 }); }
+    }
+  }
+  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
   function drawPlayers(state, a, opts) {
-    screen = new Map();
+    screen = new Map(); pumpActions(state);
     const s = S();
     const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (opts.visual === 'avatar' ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
@@ -165,7 +177,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
       const low = !p.goalie && (p.cross || p.wind || p.skate === 'brake');
       const avatar = mode === 'avatar' ? { opts: getAvatar('nhl', p.p?.id ?? p.pid ?? p.id), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
         moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: Math.cos(p.facing || 0) >= 0 ? 1 : -1,
-        crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null } : null;
+        crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null, action: actionOf(state, p.id), speed: Math.min(1, Math.hypot(p.vx || 0, p.vy || 0) / 26) } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
       drawSprite(ctx, {
         x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',

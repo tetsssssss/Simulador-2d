@@ -66,7 +66,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     }
     if (preset === 'QB') {
       const s = W / 24, along = H / s;
-      const qb = sim.qb, f = sim.ball && !sim.carrier ? sim.ball.pos : sim.carrier || qb;
+      const f = sim.ball && !sim.carrier ? sim.ball.pos : (sim.carrier || sim.qb).pos;
       return { s, rot: ROT_UP, x: f.x + along * 0.22, y: f.y };
     }
     if (preset === 'ENDZONE') {
@@ -88,7 +88,8 @@ export function createRenderer(canvas, { crowd = null } = {}) {
   }
 
   function updateCamera(sim, alpha) {
-    const t = cameraTarget(sim);
+    let t = cameraTarget(sim);
+    if (![t.x, t.y, t.s, t.rot].every(Number.isFinite)) t = { x: sim.losX, y: FIELD_W / 2, s: W / ZOOMS.medium, rot: 0 }; // never poison the camera
     if (!cam.init) { cam.x = t.x; cam.y = t.y; cam.s = t.s; cam.rot = t.rot; cam.init = true; }
     const k = Math.min(1, 0.12 * alpha + 0.04);
     cam.x += (t.x - cam.x) * k; cam.y += (t.y - cam.y) * k;

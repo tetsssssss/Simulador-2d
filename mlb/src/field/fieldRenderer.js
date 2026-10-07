@@ -41,7 +41,7 @@ export function parkOutline() {
 export function createFieldRenderer(canvas, { crowd = null } = {}) {
   const hd = attachHiDPI(canvas, { minW: 320, minH: 220 });
   const ctx = hd.ctx;
-  const cam = createCamera({ worldMinX: -300, worldMinY: -90, worldMaxX: 300, worldMaxY: 470, margin: 0 });
+  const cam = createCamera({ worldMinX: -340, worldMinY: -200, worldMaxX: 340, worldMaxY: 470, margin: 0 });
   cam.flipY = true; // world +y (toward center field) points up on screen; home plate at the bottom
   let mode = 'BROADCAST', lastT = null, screen = new Map();
   const trail = [];
@@ -262,7 +262,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     if (opts.camera && CAMERAS[opts.camera]) mode = opts.camera;
     hd.begin(); cam.setViewport(hd.w, hd.h);
     const [tx, ty, vw, vh] = opts.cameraTarget || cameraTarget(state);
-    cam.target(tx, ty, vw, vh); cam.update(dt, 2.6);
+    cam.target(tx, ty, vw, vh); cam.update(dt, state.phase === 'PLAY' ? 7 : 2.6); // snappier while the ball is in play so it never leaves the frame
     drawPark(state);
     if (opts.debug && opts.drawDebug) opts.drawDebug(ctx, cam, state, screen);
     drawPitch(state);

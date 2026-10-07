@@ -392,7 +392,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       emit('SAVE', { goalie: g.id, shooter: null, team: att, big: false, rebound: false, cover: true, save: 'BUTTERFLY' });
       stoppage(dotNear(goalX(side), P.y), 1.6); return;
     }
-    const scorer = [...touches].reverse().find(t => t.team === att)?.id || P.lastTouch?.id;
+    const scorer = [...touches].reverse().find(t => t.team === att)?.id || (P.lastTouch?.team === att ? P.lastTouch.id : skaters(att).reduce((m, q) => (!m || Math.hypot(q.x - P.x, q.y - P.y) < Math.hypot(m.x - P.x, m.y - P.y) ? q : m), null)?.id); // own-goal style deflections are credited to the nearest attacker
     if (lastShot && !lastShot.resolved) { lastShot.resolved = true; S.shots[att]++; if (lastShot.by) box(lastShot.by).sog++; box(T[other(att)].goalie.id).sa++; }
     scoreGoal(att, scorer);
   }

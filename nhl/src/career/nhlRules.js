@@ -2,6 +2,8 @@
 // created-player attributes, cap / roster legality, waivers, ELC / RFA / UFA and the prospect pipeline (junior / AHL / Europe).
 import { teamPlayers, payroll } from '../../../core/career/careerCore.js';
 import { clamp, round1 } from '../../../core/career/kit.js';
+import { createRng, hashSeed } from '../../../core/rng/rng.js';
+import { fictionalName, persona } from '../../../core/career/people.js';
 import { staffFx } from '../../../core/career/staff.js';
 import { ranked, mean, cleanIds, pickOption, pickRange, isHealthy } from '../../../core/career/rulesKit.js';
 
@@ -202,15 +204,21 @@ export const NHL_V3 = {
     },
   },
 };
-// Brings the active roster to the legal range: extras to the AHL (best 23 stay), shortages filled from the AHL, goalies ≥ 2.
+// Brings the active roster to the legal range: extras to the AHL (best 23 stay), shortages filled from the AHL (then from free
+// agents at the minimum salary), goalies >= 2.
 function fixActive(spec, c, abbr) {
-  const org = () => Object.values(c.players).filter(p => p.t === abbr);
+  const all = Object.values(c.players), org = () => all.filter(p => p.t === abbr);
   let act = org().filter(p => p.st === 'ACT').sort((a, b) => b.ovr - a.ovr);
-  const need = ['G'];
   for (const p of act.slice(spec.roster.max)) { p.st = 'MIN'; p.lvl = p.lvl || 'AHL'; }
+  // emergency call-up (fictional, labelled) when the market has nobody: keeps every club playable
+  const emergency = pos => { const rng = createRng(hashSeed(`${c.seed}-emg-${abbr}-${c.season}-${c.x?.cal?.day}-${pos}`)), id = `nhl-emg-${abbr}-${c.season}-${rng.int(0, 99999)}`; const ovr = rng.int(46, 54); const p = { id, n: fictionalName(rng), pos, num: '', t: abbr, st: 'ACT', age: rng.int(21, 30), ovr, pot: ovr, syn: true, fict: true, pers: persona(rng), svc: 3, c: { sal: spec.salary.min, yrs: 1, kind: 'VET' }, cv: 'NORMAL' }; c.players[id] = p; all.push(p); return p; };
+  const signFA = pos => { const fa = all.filter(p => p.t === 'FA' && p.st === 'FA' && (pos ? p.pos === pos : p.pos !== 'G')).sort((a, b) => b.ovr - a.ovr)[0]; if (!fa || payroll(all, abbr) + spec.salary.min > spec.cap.limit) return null; fa.t = abbr; fa.st = 'ACT'; fa.lvl = null; fa.c = { sal: spec.salary.min, yrs: 1, kind: 'VET' }; return fa; };
   act = org().filter(p => p.st === 'ACT');
-  if (act.filter(p => p.pos === 'G').length < 2) { const g = org().filter(p => p.st === 'MIN' && p.pos === 'G').sort((a, b) => b.ovr - a.ovr)[0]; if (g) { if (act.length >= spec.roster.max) { const out = act.filter(p => p.pos !== 'G').sort((a, b) => a.ovr - b.ovr)[0]; if (out) { out.st = 'MIN'; out.lvl = out.lvl || 'AHL'; } } g.st = 'ACT'; g.lvl = null; } }
-  act = org().filter(p => p.st === 'ACT');
-  const pool = org().filter(p => p.st === 'MIN' && (p.lvl || 'AHL') === 'AHL').sort((a, b) => b.ovr - a.ovr);
-  while (act.length < spec.roster.min && pool.length) { const p = pool.shift(); p.st = 'ACT'; p.lvl = null; act.push(p); }
+  while (act.filter(p => p.pos === 'G').length < 2) {
+    const g = org().filter(p => p.st === 'MIN' && p.pos === 'G').sort((a, b) => b.ovr - a.ovr)[0] || signFA('G') || emergency('G'); if (!g) break;
+    if (act.length >= spec.roster.max) { const out = act.filter(p => p.pos !== 'G').sort((a, b) => a.ovr - b.ovr)[0]; if (out) { out.st = 'MIN'; out.lvl = out.lvl || 'AHL'; } }
+    g.st = 'ACT'; g.lvl = null; act = org().filter(p => p.st === 'ACT');
+  }
+  const pool = org().filter(p => p.st === 'MIN' && (p.lvl || 'AHL') === 'AHL' && p.pos !== 'G').sort((a, b) => b.ovr - a.ovr);
+  while (act.length < spec.roster.min) { const p = pool.shift() || signFA(null) || emergency(['C', 'LW', 'RW', 'D'][act.length % 4]); if (!p) break; p.st = 'ACT'; p.lvl = null; act.push(p); }
 }

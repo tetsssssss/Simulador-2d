@@ -72,7 +72,9 @@ function bigLabel(line) {
 }
 export function onAfterGames(spec, c, results) {
   if (!ready(c)) return;
-  const x = c.x, mine = myTeam(c); if (!mine) return;
+  const x = c.x, mine = myTeam(c);
+  if (c.phase !== 'PLAYOFFS') enforceLegality(spec, c, { includeUser: false }); // IR returns, expirations: AI clubs stay compliant
+  if (!mine) return;
   const my = results.find(r => r.mine); x.pendingCtx ||= { bigGames: [] };
   if (!my) return;
   const g = my.g, home = g.h === mine, ms = home ? g.r[0] : g.r[1], os = home ? g.r[1] : g.r[0], won = ms > os;

@@ -34,7 +34,7 @@ export function planStunt(sim, opts = {}) {
     if (o.assignment?.type === 'PASS_PRO' && o.assignment.target === loop) o.stuntRead = r.chance(0.3 + 0.62 * o.prof.r.awareness);
   }
   sim.stunt = st;
-  sim.emit('STUNT', { type, side, pen: pen.id, loop: loop.id, readByLine: sim.offense.filter(o => o.stuntRead).map(o => o.id) }, true);
+  sim.emit('STUNT', { kind: type, side, pen: pen.id, loop: loop.id, readByLine: sim.offense.filter(o => o.stuntRead).map(o => o.id) }, true);
   return st;
 }
 
