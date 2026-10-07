@@ -8,6 +8,10 @@ import {
   newGameState, offAbbr, defAbbr, clockStr, ballSpot, downText, makeLineupCache, cpuOffenseCall, cpuDefenseCall,
   snap, applyPlay, summarize, logText, runFamilies, passConcepts, defCalls, conceptLabel, simulateRest, PLAY_TYPES,
 } from '../game/match.js';
+import { createPresentation } from '../../../core/presentation/presentationEngine.js';
+import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
+import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { NFL_COMMENTARY } from '../presentation/commentary.js';
 import { esc, avatar, teamLogo, ovrBadge, ratingsOf, keyAttrs, keyForAttribute, pid } from './components.js';
 
 export { newGameState };
@@ -65,6 +69,7 @@ export function mountGame(root, deps) {
       </div>
       <aside class="side-col">
         <div class="panel call-panel" id="callPanel"></div>
+        <div id="liveComm"></div>
         <div class="panel log-panel"><div class="panel-h"><b>Game Log</b><small class="muted" id="logCount"></small></div><div class="log" id="log"></div></div>
       </aside>
     </div>
@@ -77,6 +82,35 @@ export function mountGame(root, deps) {
   const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
+
+  // ---------- presentation: live commentary (CommentaryEvent → text → optional voice) ----------
+  const commentary = createCommentary({ pack: NFL_COMMENTARY, seed: `${g.away}@${g.home}` });
+  const presentation = createPresentation({ sport: 'nfl', listeners: [commentary] });
+  const unmountComm = mountCommentaryPanel($('#liveComm'), commentary, { sport: 'nfl', voiceVolume: () => deps.audio?.volume?.('COMMENTARY') ?? 1 });
+  const lastOf = full => { const parts = String(full || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').split(' '); return parts[parts.length - 1] || full; };
+  function commCtx(s) {
+    const ls = lineups(), off = offAbbr(g), def = defAbbr(g);
+    const sc = t => (t === g.home ? g.homeScore : g.awayScore);
+    return {
+      name: id => ls.who[id]?.name, last: id => lastOf(ls.who[id]?.name), off, def, home: g.home, away: g.away,
+      homeScore: g.homeScore, awayScore: g.awayScore, score: { off: sc(off), def: sc(def) },
+      quarter: g.quarter, clock: g.clock, down: g.down, distance: g.distance, spot: ballSpot(g), redZone: g.ballOn >= 80,
+      losX: s?.losX ?? (g.ballOn + 10), qbId: s?.qb?.id, clockLabel: g.over ? 'FINAL' : `Q${g.quarter} ${clockStr(g.clock)}`,
+    };
+  }
+  view.commIdx = 0;
+  function emitLive(s) {
+    if (!s?.events || view.commIdx >= s.events.length) return;
+    const ctx = commCtx(s);
+    while (view.commIdx < s.events.length) presentation.emit(s.events[view.commIdx++], ctx);
+  }
+  function emitAfterPlay(before, notes = []) {
+    const ctx = { ...commCtx(null), off: before.off, def: before.def, prevDown: before.down };
+    if (notes.includes('1ª descida!')) presentation.emit({ type: 'FIRST_DOWN' }, ctx);
+    if (notes.some(n => n.startsWith('Turnover on downs'))) presentation.emit({ type: 'TURNOVER_ON_DOWNS' }, ctx);
+    if (g.over) presentation.emit({ type: 'FINAL' }, commCtx(null));
+    else if (g.quarter !== before.quarter) presentation.emit({ type: 'QUARTER_START', quarter: g.quarter }, commCtx(null));
+  }
 
   // ---------- scorebug (broadcast HUD) ----------
   function drawBug() {
@@ -183,7 +217,7 @@ export function mountGame(root, deps) {
         sb.last = { call, seedN: n };
       } else s = snap(g, ls, call, tuning());
     } catch (e) { toast(e.message); return; }
-    view.sim = s; view.acc = 0; view.phase = 'RUN'; view.deadAt = null; view.paused = false; view.sel = { off: null, def: null };
+    view.sim = s; view.commIdx = 0; view.acc = 0; view.phase = 'RUN'; view.deadAt = null; view.paused = false; view.sel = { off: null, def: null };
     $('#resultPop').classList.remove('show');
     $('#callTag').innerHTML = `<span class="chip">${esc(PLAY_TYPES[s.call.playType])}</span> ${esc(conceptLabel(s.call.concept))} <span class="muted">vs ${esc(s.call.defLabel)}</span>`;
     syncControls(); drawCallPanel(); drawBug();
@@ -191,12 +225,14 @@ export function mountGame(root, deps) {
 
   function finishPlay() {
     const s = view.sim, ls = lineups();
+    emitLive(s);
+    const before = { off: offAbbr(g), def: defAbbr(g), down: g.down, quarter: g.quarter };
     let sum;
     if (sandbox) {
       applyPlayEvents(g.box, s.result.events, ls.who, offAbbr(g));
       sum = summarize(s, ls.who);
       g.log.unshift({ q: '', clock: `seed #${sb.last.seedN}`, off: offAbbr(g), situation: `${downText(g)} · ${ballSpot(g)}`, text: `${logText(sum)} (vs ${s.call.defLabel})`, tone: sum.tone, kind: 'play' });
-    } else sum = applyPlay(g, s, ls.who).sum;
+    } else { const res = applyPlay(g, s, ls.who); sum = res.sum; emitAfterPlay(before, res.notes); }
     view.lastSum = sum;
     $('#resultPop').innerHTML = resultCard(sum) + (sandbox ? '' : `<div class="rp-next">${g.over ? 'FINAL' : `${esc(downText(g))} · ${esc(ballSpot(g))}`}</div>`);
     $('#resultPop').classList.add('show');
@@ -337,7 +373,7 @@ export function mountGame(root, deps) {
   function drawAll() { drawBug(); drawCallPanel(); drawLog(); drawBox(); syncControls(); drawDebug(); }
 
   // ---------- frame loop ----------
-  function cleanup() { cancelAnimationFrame(view.raf); renderer.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
+  function cleanup() { cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;
   let hudTick = 0;
   function frame(ts) {
@@ -348,6 +384,7 @@ export function mountGame(root, deps) {
     if (s && view.phase === 'RUN' && !view.paused) {
       view.acc += dtReal * view.speed;
       while (view.acc >= s.dt && s.phase !== 'DEAD') { step(s); view.acc -= s.dt; }
+      emitLive(s);
       if (s.phase === 'DEAD') {
         if (view.deadAt === null) view.deadAt = ts;
         if (ts - view.deadAt > 600 / Math.max(1, view.speed)) { view.deadAt = null; finishPlay(); }

@@ -141,3 +141,15 @@ caminho relativo (`../../../core/...`), por isso o universo deve ser servido pel
 - Problemas: ratings NHL ainda são os da Alpha (hash) — não refletem produção real (ex.: McDavid 69). Calibrar com
   TOI/pontos do snapshot na fase F.
 - Próxima: D — narração (PresentationEngine / CommentaryEngine).
+
+### CHECKPOINT D — Narração (PresentationEngine + CommentaryEngine)
+**Feito**
+- `core/presentation/presentationEngine.js`: barramento por partida (`emit/emitAll/tick/dispose`), listeners com `onEvent/tick/dispose`. Sem regra de esporte.
+- `core/commentary/commentaryEngine.js`: CommentaryEvent → texto (→ SpeechAdapter opcional). Variantes por evento escolhidas com RNG seedado (`core/rng/rng.js`), evitando repetir as últimas 3; memória de sequência (`h.streak/bump/reset/last`); `$priority` (1–3) e `$tone` por pack. `NullSpeech` e `createWebSpeech` (Web Speech API local, pt-BR, só prioridade ≥2; nenhum serviço externo).
+- `core/commentary/commentaryPanel.js`: painel LIVE COMMENTARY recolhível (estado por esporte em localStorage), toggle "Voz", linha mais nova no topo, máx. 60 linhas; CSS em `nfl/styles.css` (compartilhado).
+- NFL `nfl/src/presentation/commentary.js`: SNAP, HANDOFF, SCRAMBLE, PASS_ATTEMPT (curto/longo/pressionado/throwaway), PASS_COMPLETE (disputada, alvo favorito em sequência), INCOMPLETE (DROP/BREAKUP/DEFLECTED/OVERTHROWN), INTERCEPTION, SACK (sequência de sacks), BROKEN_TACKLE, TACKLE (jardas reais via losX), OUT_OF_BOUNDS, FUMBLE, FUMBLE_RECOVERY, TOUCHDOWN (empata/vira/fim de jogo/defensivo), SAFETY, FIRST_DOWN (conversão de 3ª/4ª), TURNOVER_ON_DOWNS, QUARTER_START, FINAL; FIELD_GOAL/PUNT/KICKOFF prontos (special teams ainda NÃO implementado no motor).
+- `nfl/src/ui/gameView.js`: eventos do motor drenados ao vivo a cada frame (`emitLive`), eventos de jogo derivados das `notes` de `applyPlay` (`emitAfterPlay`); commentary/presentation criados por montagem e liberados no `cleanup()`.
+- NHL `nhl/src/presentation/commentary.js` e MLB `mlb/src/presentation/commentary.js`: vocabulário completo (faceoff, passe, entrada de zona, hit, chute, defesa, rebote, penalidade, power play, gol… / arremesso, ball, strike, swing, contato, rasteira, bola alta, hit, double, HR, strikeout, walk, out…). `matchView` dos dois já drena `state.events` (índice `pres.idx`) para o painel; `deps.commentaryCtx(state)` monta o contexto; `deps.onEvent(e, state, view)` para áudio/torcida (Fase E). Os motores da Fase F emitem esses eventos.
+**Testes**: `tests/commentary.test.mjs` (6: reprodutível por seed, variedade, contexto real NFL, streak, cobertura NHL/MLB sem undefined, dispose, fala só prioridade ≥2). `npm test`: 13 raiz + 32 NFL ok. Smoke 27/27 (novo: narração NFL ao vivo no Spectator).
+**Problemas**: voz depende das vozes instaladas no navegador (off por padrão).
+**Próxima fase**: E — AudioEngine + arquibancada + CrowdIntensity.

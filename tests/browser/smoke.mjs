@@ -48,6 +48,15 @@ for (let round = 0; round < 3; round++) {
     if (OUT && round === 0) await page.screenshot({ path: `${OUT}/smoke_${sport}.png` });
   }
 }
+// NFL live commentary: spectator auto-play must produce narration lines from engine events
+{
+  const f = frame();
+  await f.evaluate(() => { const b = document.querySelector('#autoBtn'); if (b && !b.classList.contains('on')) b.click(); });
+  await page.waitForTimeout(9000);
+  const lines = await f.evaluate(() => [...document.querySelectorAll('#liveComm .lc-line .lc-x')].map(e => e.textContent));
+  check('nfl live commentary lines', lines.length >= 2 && !lines.some(l => /undefined|NaN|null/.test(l)), `${lines.length} · ${lines.slice(0, 3).join(' / ')}`);
+  if (OUT) await page.screenshot({ path: `${OUT}/smoke_nfl_commentary.png` });
+}
 check('only one sport document loaded', page.frames().filter(f => /\/(nfl|nhl|mlb)\/index\.html/.test(f.url())).length === 1);
 check('no JS errors', errs.length === 0, errs.slice(0, 4).join(' | '));
 await browser.close();

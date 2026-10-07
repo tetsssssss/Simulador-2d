@@ -7,6 +7,10 @@ import { createRinkRenderer, CAMERAS } from '../rink/rinkRenderer.js';
 import { RINK, MIDY } from '../rink/geometry.js';
 import { photoUrl } from '../photos.js';
 import { separateKits } from '../../../core/render/sprites.js';
+import { createPresentation } from '../../../core/presentation/presentationEngine.js';
+import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
+import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { NHL_COMMENTARY } from '../presentation/commentary.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
@@ -29,7 +33,7 @@ export function mountMatch(root, deps = {}) {
           <label class="chk"><input type="checkbox" id="optDebug"> Rotas/Debug</label>
         </div>
       </div>
-      <aside class="nhl-side" id="side"></aside>
+      <aside class="nhl-side"><div id="liveComm"></div><div id="side"></div></aside>
     </div></div>`;
   const $ = s => root.querySelector(s);
   const canvas = $('#rinkCanvas');
@@ -49,6 +53,7 @@ export function mountMatch(root, deps = {}) {
       view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}` });
       view.state = view.engine.state;
     } else view.state = faceoffState(home, away);
+    startPresentation(`${pref.away}@${pref.home}`);
     drawBug(); drawSide();
   }
 
@@ -89,6 +94,7 @@ export function mountMatch(root, deps = {}) {
     let alpha = 1;
     if (view.engine) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    drainEvents();
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
   }
@@ -108,11 +114,28 @@ export function mountMatch(root, deps = {}) {
     el.innerHTML = `<img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'"><div><b>${esc(p.name)}</b><div class="muted small">#${esc(p.num)} · ${p.pos} · ${esc(view.state[p.team].abbr)}</div>${p.energy != null ? `<div class="muted small">Energia ${Math.round(p.energy * 100)}%</div>` : ''}</div>`;
     el.classList.add('show');
   });
+  // ---------- presentation (commentary) — one per engine run; events drained from state.events ----------
+  const pres = { comm: null, engine: null, unmount: null, idx: 0 };
+  function startPresentation(seed) {
+    pres.unmount?.(); pres.engine?.dispose();
+    pres.comm = createCommentary({ pack: NHL_COMMENTARY, seed });
+    pres.engine = createPresentation({ sport: 'nhl', listeners: [pres.comm] });
+    pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => deps.audio?.volume?.('COMMENTARY') ?? 1 });
+    pres.idx = 0;
+  }
+  function drainEvents() {
+    const s = view.state, ev = s?.events; if (!ev || !pres.engine) return;
+    if (pres.idx > ev.length) pres.idx = 0;
+    if (pres.idx === ev.length) return;
+    const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
+    while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
+  }
+  view.presentation = pres;
   function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="nhl-notice bad">${esc(err.message)}</div>`; }); }
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.();
+    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;
