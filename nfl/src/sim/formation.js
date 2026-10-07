@@ -82,6 +82,29 @@ export const DEF_CALLS = {
     zones: { CBL: 'DEEP_THIRD_L', CBR: 'DEEP_THIRD_R', FS: 'DEEP_MIDDLE', SS: 'CURL_FLAT_L', WILL: 'HOOK_L', MIKE: 'HOOK_R', SAM: 'CURL_FLAT_R' },
     rush: ['LDE', 'LDT', 'RDT', 'RDE'], press: false,
   },
+  // Cover 0: pure man, no deep help, six rushers (safety + backer blitz) -- sacks and big plays both live here.
+  COVER_0: {
+    label: 'Cover 0 (man, blitz sem ajuda)', man: { CBL: 'X', CBR: 'Z', SS: 'SLOT', SAM: 'TE', MIKE: 'RB' },
+    zones: {}, rush: ['LDE', 'LDT', 'RDT', 'RDE', 'WILL', 'FS'], press: true,
+  },
+  // Cover 4 (quarters): four deep quarters with pattern-match on the vertical, three underneath.
+  COVER_4: {
+    label: 'Cover 4 (quarters)', man: {},
+    zones: { CBL: 'DEEP_QTR_L', CBR: 'DEEP_QTR_R', FS: 'DEEP_QTR_ML', SS: 'DEEP_QTR_MR', WILL: 'CURL_FLAT_L', MIKE: 'MIDDLE_HOOK', SAM: 'CURL_FLAT_R' },
+    rush: ['LDE', 'LDT', 'RDT', 'RDE'], press: false, match: true,
+  },
+  // Cover 6 (quarter-quarter-half): Cover 4 to the right (field) side, Cover 2 to the left.
+  COVER_6: {
+    label: 'Cover 6 (quarter-quarter-half)', man: {},
+    zones: { CBR: 'DEEP_QTR_R', SS: 'DEEP_QTR_MR', SAM: 'CURL_FLAT_R', CBL: 'FLAT_L', FS: 'DEEP_HALF_L', WILL: 'HOOK_L', MIKE: 'MIDDLE_HOOK' },
+    rush: ['LDE', 'LDT', 'RDT', 'RDE'], press: false, match: true,
+  },
+  // Tampa 2: two deep halves, the MIKE runs the deep middle (fills the hole between the safeties).
+  TAMPA_2: {
+    label: 'Tampa 2 (MIKE no meio)', man: {},
+    zones: { CBL: 'FLAT_L', CBR: 'FLAT_R', FS: 'DEEP_HALF_L', SS: 'DEEP_HALF_R', MIKE: 'DEEP_MIDDLE_MIKE', WILL: 'HOOK_L', SAM: 'HOOK_R' },
+    rush: ['LDE', 'LDT', 'RDT', 'RDE'], press: false,
+  },
 };
 
 // Zone landmarks: depth beyond LOS and lateral center; region = lateral extent + max depth.
@@ -90,6 +113,11 @@ export function zoneDef(name, los) {
     DEEP_MIDDLE: { x: 15, y: MID_Y, y0: MID_Y - 11, y1: MID_Y + 11, deep: true },
     DEEP_THIRD_L: { x: 14, y: 9, y0: 0, y1: 18.5, deep: true },
     DEEP_THIRD_R: { x: 14, y: FIELD_W - 9, y0: FIELD_W - 18.5, y1: FIELD_W, deep: true },
+    DEEP_QTR_L: { x: 13, y: 6.7, y0: 0, y1: 14.5, deep: true, match: true },
+    DEEP_QTR_ML: { x: 14, y: 20, y0: 12.5, y1: 27.5, deep: true, match: true },
+    DEEP_QTR_MR: { x: 14, y: FIELD_W - 20, y0: FIELD_W - 27.5, y1: FIELD_W - 12.5, deep: true, match: true },
+    DEEP_QTR_R: { x: 13, y: FIELD_W - 6.7, y0: FIELD_W - 14.5, y1: FIELD_W, deep: true, match: true },
+    DEEP_MIDDLE_MIKE: { x: 15, y: MID_Y, y0: MID_Y - 8, y1: MID_Y + 8, deep: true },
     DEEP_HALF_L: { x: 14, y: 13.3, y0: 0, y1: MID_Y + 1, deep: true },
     DEEP_HALF_R: { x: 14, y: FIELD_W - 13.3, y0: MID_Y - 1, y1: FIELD_W, deep: true },
     FLAT_L: { x: 4.5, y: 6, y0: 0, y1: 15 },
@@ -101,7 +129,7 @@ export function zoneDef(name, los) {
     MIDDLE_HOOK: { x: 9, y: MID_Y, y0: MID_Y - 6, y1: MID_Y + 6 },
     ROBBER: { x: 8, y: MID_Y, y0: MID_Y - 8, y1: MID_Y + 8 },
   }[name];
-  return { name, ...Z, x: los + Z.x, maxDepth: los + (Z.deep ? 60 : 14), deep: !!Z.deep };
+  return { name, ...Z, x: los + Z.x, maxDepth: los + (Z.deep ? 60 : 14), deep: !!Z.deep, match: !!Z.match };
 }
 
 // Sort the 11 starters of each side into named slots using detailed positions.
@@ -141,7 +169,7 @@ export function alignment(losX, by, defCall) {
     LT: [losX - 1.0, by - 3.1], LG: [losX - 0.8, by - 1.55], C: [losX - 0.6, by], RG: [losX - 0.8, by + 1.55], RT: [losX - 1.0, by + 3.1],
   };
   const press = DEF_CALLS[defCall]?.press;
-  const cover3 = defCall === 'COVER_3', cover2 = defCall === 'COVER_2';
+  const cover3 = defCall === 'COVER_3', cover2 = defCall === 'COVER_2' || defCall === 'TAMPA_2';
   const d = {
     LDE: [losX + 1, by - 4.3], LDT: [losX + 0.9, by - 1.0], RDT: [losX + 0.9, by + 1.3], RDE: [losX + 1, by + 6.0],
     WILL: [losX + 4.5, by - 4.5], MIKE: [losX + 4.8, by + 0.5], SAM: [losX + 4.5, by + 5.0],
@@ -150,5 +178,15 @@ export function alignment(losX, by, defCall) {
     FS: cover2 ? [losX + 12, by - 9] : [losX + 13, by],
     SS: cover2 ? [losX + 12, by + 9] : [losX + 6, o.SLOT[1] + 1.5],
   };
+  // Shells of the extended coverages (the original four keep their exact alignment).
+  if (defCall === 'COVER_0') {
+    d.FS = [losX + 5.5, by + 2.2];
+  } else if (defCall === 'COVER_4') {
+    d.CBL = [losX + 6, o.X[1] + 0.5]; d.CBR = [losX + 6, o.Z[1] - 0.5];
+    d.FS = [losX + 9.5, by - 6.5]; d.SS = [losX + 9.5, by + 6.5];
+  } else if (defCall === 'COVER_6') {
+    d.CBL = [losX + 4, o.X[1] + 0.5]; d.CBR = [losX + 6.5, o.Z[1] - 0.5];
+    d.FS = [losX + 11.5, by - 8]; d.SS = [losX + 9.5, by + 6.5];
+  }
   return { o, d };
 }

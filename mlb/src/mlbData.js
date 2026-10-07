@@ -2,6 +2,7 @@
 // rivalries, World Series history, 40 fixed + 30 adaptive attribute names) and the MLB StatsAPI adapters /
 // ratings from the Alpha 0.1 js/app.js — logic ported unchanged, so ratings are identical.
 // (OVR positional split and context-driven adaptive attributes are scheduled for later sessions.)
+import { computeAdaptive } from './sim/adaptive.js';
 export const D = globalThis.MLB_DATA || { teams: [], fixedAttrs: [], adaptiveAttrs: [] };
 const API = 'https://statsapi.mlb.com/api/v1';
 const cache = { rosters: {}, people: {}, drafts: {}, prospects: null };
@@ -51,11 +52,14 @@ export function fixedRatings(p) {
     return { name: n, value: Math.max(0, Math.min(99, v)) };
   });
 }
-// Alpha behavior preserved: seeded by (player, day) — not yet driven by game context (PLACEHOLDER, see handoff).
-export function adaptiveRatings(p, seed = 'day0') {
-  const id = p.person?.id || p.id || p.personId || hash(p.fullName || 'player');
-  return D.adaptiveAttrs.map(n => ({ name: n, value: rnd(`${id}|${seed}|${n}`, 25, 98) }));
+// Adaptive attributes: no longer a re-roll. Computed by the pure function in sim/adaptive.js from the player's fixed
+// ratings plus a real context (form, fatigue, matchup, stadium, pressure ...). `seed` only feeds the seeded per-day
+// jitter; old call sites (adaptiveRatings(p, 'day3')) keep working and still get 30 {name,value} rows (+ drivers/tip).
+export function adaptiveContext(p) { const per = p.person || p; return { id: per.id ?? p.id ?? hash(p.fullName || 'player'), pos: pos(p), bats: per.batSide?.code || 'R', throws: per.pitchHand?.code || 'R', age: per.currentAge, fixed: Object.fromEntries(fixedRatings(p).map(a => [a.name, a.value])) }; }
+export function adaptiveRatings(p, seed = 'day0', ctx = {}) {
+  return computeAdaptive(adaptiveContext(p), { ...ctx, day: seed }).list;
 }
+export { computeAdaptive };
 
 async function fetchJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }
 // Local snapshot (data/roster_snapshot.json: 2026 active rosters + 2025 season line, built by tools/build_snapshot.py) is the

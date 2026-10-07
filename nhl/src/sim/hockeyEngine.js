@@ -13,6 +13,13 @@ import { simRatings } from './ratings.js';
 
 export const DT = 1 / 30;
 const POSTS = 3, CENTER = RINK.center, BLUE_U = RINK.center - RINK.blueLine, GOAL_U = RINK.center - RINK.goalLine;
+// Stable event vocabulary (state.events[].type). PASS carries `kind`, SHOT `shotType`, SAVE `save` (goalie state).
+export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
+export const PASS_KINDS = ['short', 'cross', 'saucer', 'stretch', 'drop', 'bank'];
+export const SHOT_TYPES = ['wrist', 'snap', 'slap', 'backhand', 'one-timer'];
+export const GOALIE_STATES = ['READY', 'BUTTERFLY', 'SLIDE', 'GLOVE', 'BLOCKER', 'PAD_SAVE', 'RECOVER'];
+const WIND = { wrist: 0.32, snap: 0.18, slap: 0.55, backhand: 0.38, 'one-timer': 0.1 }; // release time (s)
+const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 const INFRACTIONS = ['tripping', 'hooking', 'slashing', 'holding', 'interference', 'roughing', 'high-sticking'];
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -36,7 +43,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   const T = {};
   for (const side of ['home', 'away']) {
     const L = teams[side].lineup;
-    const mk = (p, slot) => { const r = skaterRecord(p, slot, side); Object.assign(r, { vx: 0, vy: 0, px: 0, py: 0, energy: 1, R: rate(p), stun: 0, cd: 0, role: '', tx: 0, ty: 0, want: 0 }); roster[r.id] = r; return r; };
+    const mk = (p, slot) => { const r = skaterRecord(p, slot, side); Object.assign(r, { vx: 0, vy: 0, ax: 0, ay: 0, px: 0, py: 0, energy: 1, R: rate(p), stun: 0, cd: 0, role: '', tx: 0, ty: 0, want: 0, dirv: 0, turnRate: 4, skate: 'idle', back: false, cross: false, crossT: 0, crossDir: 0, wind: null, state: p.positionCode === 'G' ? 'READY' : '', stateUntil: 0, saveSide: 0 }); roster[r.id] = r; return r; };
     T[side] = {
       side, dir: side === 'home' ? 1 : -1,
       lines: L.lines.map(l => ({ C: mk(l.C, 'C'), LW: mk(l.LW, 'LW'), RW: mk(l.RW, 'RW') })),
@@ -46,7 +53,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     };
   }
   const state = {
-    t: 0, players: [], puck: { x: CENTER, y: MIDY, z: 0, vx: 0, vy: 0, px: CENTER, py: MIDY, owner: null, lastTouch: null },
+    t: 0, players: [], puck: { x: CENTER, y: MIDY, z: 0, vz: 0, vx: 0, vy: 0, px: CENTER, py: MIDY, dir: 0, spin: 0, bounces: 0, owner: null, lastTouch: null },
     home, away, attack: { home: 1, away: -1 }, possession: null, pass: null,
     period: 1, clock: periodLength, score: { home: 0, away: 0 }, shots: { home: 0, away: 0 }, strength: '', powerPlay: null,
     phase: 'FACEOFF', events: [], roster, box: {}, over: false, elapsed: 0, speed,
@@ -115,7 +122,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       sk.forEach((p, i) => { const sp = spots[p.slot] && !sk.slice(0, i).some(q => q.slot === p.slot) ? spots[p.slot] : spots[order[i]]; Object.assign(p, { x: sp.x, y: sp.y, px: sp.x, py: sp.y, vx: 0, vy: 0, facing: T[side].dir > 0 ? 0 : Math.PI }); });
       const g = T[side].goalie, gs = spots.G; Object.assign(g, { x: gs.x, y: gs.y, px: gs.x, py: gs.y, vx: 0, vy: 0, facing: T[side].dir > 0 ? 0 : Math.PI });
     }
-    Object.assign(P, { x: dot.x, y: dot.y, px: dot.x, py: dot.y, vx: 0, vy: 0, z: 0, owner: null, release: null, tried: new Set(), noPick: null });
+    Object.assign(P, { x: dot.x, y: dot.y, px: dot.x, py: dot.y, vx: 0, vy: 0, z: 0, vz: 0, spin: 0, owner: null, release: null, tried: new Set(), noPick: null });
     S.pass = null; lastShot = null; touches = [];
   }
   function dotNear(x, y) {
@@ -155,10 +162,15 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     P.owner = null; P.vx = vx; P.vy = vy; P.tried = new Set(); P.noPick = { id: p.id, until: S.t + 0.35 };
     P.release = { team: p.team, u: uOf(p.team, P.x), kind, id: p.id };
   }
+  // interception / reception model per pass kind
+  const ICEPT = { short: 1, cross: 1.25, stretch: 0.9, saucer: 0.5, drop: 0.55, bank: 1.1 };
+  const RECV = { short: 0, cross: -0.04, stretch: -0.1, saucer: -0.1, drop: 0.12, bank: -0.06 };
+  let lastTakeawayT = -9;
   function tryPickups() {
-    if (P.owner || P.z > 1.6) return;
+    if (P.owner || P.z > 1.2) return;
     const ps = Math.hypot(P.vx, P.vy);
     let best = null;
+    const kind = S.pass?.kind || 'short';
     for (const p of S.players) {
       if (p.goalie || p.stun > 0 || (P.noPick && P.noPick.id === p.id && S.t < P.noPick.until)) continue;
       const d = Math.hypot(p.x - P.x, p.y - P.y);
@@ -167,18 +179,24 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       const rel = Math.hypot(P.vx - p.vx, P.vy - p.vy);
       const intended = S.pass && S.pass.targetId === p.id;
       const own = P.lastTouch && P.lastTouch.team === p.team;
-      let pc = clamp(1.25 - rel / 110 + 0.35 * (p.R.handling - 0.6), 0.1, 0.98);
-      if (!intended && ps > 25) pc *= own ? 0.7 : 0.08 + 0.22 * p.R.stick * (0.6 + 0.6 * p.R.defIQ);
+      let pc = clamp(1.25 - rel / 110 + 0.35 * (p.R.handling - 0.6) + (intended ? RECV[kind] : 0), 0.1, 0.98);
+      if (!intended && ps > 25) pc *= own ? 0.7 : (0.08 + 0.22 * p.R.stick * (0.6 + 0.6 * p.R.defIQ)) * (ICEPT[kind] || 1);
       if (rng.next() < pc && (!best || d < best.d)) best = { p, d };
       else if (intended) { P.vx *= 0.3; P.vy *= 0.3; S.pass = null; }
     }
     if (!best) return;
-    const p = best.p, wasPass = S.pass, lt = P.lastTouch;
+    const p = best.p, wasPass = S.pass, lt = P.lastTouch, prevPoss = S.possession;
     const afterSave = lastShot && lastShot.saved && S.t - lastShot.t < 2.5 && p.team === lastShot.team;
     touch(p, true);
-    if (wasPass && wasPass.team !== p.team) { emit('INTERCEPTION', { by: p.id, team: p.team, from: wasPass.from }); box(p.id).tk++; }
-    else if (afterSave) emit('REBOUND', { by: p.id, team: p.team });
-    else if (lt && lt.team !== p.team && Math.hypot(P.vx, P.vy) < 30 && !wasPass) { /* loose puck recovery */ }
+    if (wasPass && wasPass.team !== p.team) {
+      emit('INTERCEPTION', { by: p.id, team: p.team, from: wasPass.from, kind: wasPass.kind }); box(p.id).tk++;
+      emit('TURNOVER', { by: p.id, team: p.team, from: wasPass.from, cause: 'interception' });
+    } else if (wasPass && wasPass.team === p.team) {
+      emit('RECEPTION', { by: p.id, from: wasPass.from, team: p.team, kind: wasPass.kind, intended: wasPass.targetId === p.id });
+    } else if (afterSave) emit('REBOUND', { by: p.id, team: p.team });
+    else if (lt && lt.team !== p.team && prevPoss === lt.team && S.t - lastTakeawayT > 1.5) {
+      emit('TURNOVER', { by: p.id, team: p.team, from: lt.id, cause: 'loose' }); // loose puck recovered after the other team lost it
+    }
   }
 
   // ---------- puck physics ----------
@@ -187,9 +205,11 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const o = P.owner ? roster[P.owner] : null;
     if (o) {
       P.x = o.x + Math.cos(o.facing) * 2.2; P.y = o.y + Math.sin(o.facing) * 2.2; P.vx = o.vx; P.vy = o.vy; P.z = 0;
-      const c = clampInside(P.x, P.y, 0.6); P.x = c.x; P.y = c.y;
+      const c = clampInside(P.x, P.y, 0.6); P.x = c.x; P.y = c.y; P.spin = 0;
+      if (Math.hypot(P.vx, P.vy) > 0.5) P.dir = Math.atan2(P.vy, P.vx);
       return;
     }
+    P.spin *= Math.exp(-1.1 * DT);
     const sp = Math.hypot(P.vx, P.vy);
     if (sp > 0) { const ns = Math.max(0, sp * Math.exp(-0.22 * DT) - 2.5 * DT); P.vx *= ns / sp; P.vy *= ns / sp; }
     if (P.z > 0 || P.vz) { P.vz = (P.vz || 0) - 32 * DT; P.z = Math.max(0, P.z + P.vz * DT); if (P.z === 0) P.vz = 0; }
@@ -215,9 +235,12 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       const c = clampInside(P.x, P.y, 0.6);
       let nx = P.x - c.x, ny = P.y - c.y; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
       const vn = P.vx * nx + P.vy * ny;
-      if (vn > 0) { P.vx -= 1.55 * vn * nx; P.vy -= 1.55 * vn * ny; }
+      if (vn > 0) { P.vx -= 1.55 * vn * nx; P.vy -= 1.55 * vn * ny; P.spin *= -0.5; P.bounces++; P.z = Math.max(P.z, 0.2); }
       P.x = c.x; P.y = c.y;
     }
+    // the puck can never leave the rink or turn into NaN: recover to the last known good position
+    if (!Number.isFinite(P.x + P.y + P.vx + P.vy + P.z)) { P.x = P.px; P.y = P.py; P.vx = 0; P.vy = 0; P.z = 0; P.vz = 0; }
+    if (Math.hypot(P.vx, P.vy) > 0.5) P.dir = Math.atan2(P.vy, P.vx);
   }
   function checkIcingOrMiss(side) {
     // side = which net's goal line (-1 left, +1 right). Attacking team for that net:
@@ -498,7 +521,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
         d.cd = S.t + 1.1;
         const pr = clamp(0.03 + 0.12 * (d.R.stick - c.R.handling * 0.8 - c.R.deke * 0.2 + 0.2), 0.015, 0.12);
         if (rng.next() < pr) {
-          box(d.id).tk++; emit('TAKEAWAY', { by: d.id, from: c.id, team: d.team });
+          box(d.id).tk++; emit('TAKEAWAY', { by: d.id, from: c.id, team: d.team }); emit('TURNOVER', { by: d.id, team: d.team, from: c.id, cause: 'takeaway' }); lastTakeawayT = S.t;
           release(c, (d.x - c.x) * 2, (d.y - c.y) * 2, 'loose'); P.noPick = { id: c.id, until: S.t + 0.4 };
           return;
         }
@@ -508,27 +531,74 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   }
 
   // ---------- movement ----------
+  // Skating model: the body has a heading (`facing`) that turns at a limited rate (slower when fast). Thrust acts along the
+  // heading (accelerate / coast / brake, slower backwards); sideways velocity is only killed by edge grip. Skate states:
+  // idle · accel · coast · brake · turn · backward · crossover · stunned (read by the renderer).
   function move(p) {
     p.px = p.x; p.py = p.y;
     if (p.stun > 0) p.stun -= DT;
-    const top = (p.goalie ? 12 + 10 * p.R.lateral : 22 + 11 * p.R.speed) * (0.78 + 0.22 * p.energy) * (p.stun > 0 ? 0.4 : 1) * (P.owner === p.id ? 0.93 : 1);
-    const acc = p.goalie ? 30 : 13 + 13 * p.R.accel;
+    if (p.goalie) return moveGoalie(p);
+    const R = p.R, carrier = P.owner === p.id;
+    const top = (22 + 11 * R.speed) * (0.78 + 0.22 * p.energy) * (p.stun > 0 ? 0.4 : 1) * (carrier ? 0.93 : 1) * (p.wind ? 0.55 : 1);
+    const acc = 13 + 13 * R.accel;
+    const sp0 = Math.hypot(p.vx, p.vy);
     const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
-    const want = Math.min(top * (p.want || 0.8), d * 2.6);
-    const dvx = (d > 0.01 ? dx / d * want : 0) - p.vx, dvy = (d > 0.01 ? dy / d * want : 0) - p.vy;
-    const dv = Math.hypot(dvx, dvy), lim = acc * DT;
-    const k = dv > lim ? lim / dv : 1;
-    p.vx += dvx * k; p.vy += dvy * k;
+    // backward skating: defenders retreating / holding the gap keep their eyes on the play
+    const toPuck = Math.atan2(P.y - p.y, P.x - p.x);
+    const defending = S.possession !== p.team || !P.owner;
+    let back = false, desired = p.facing;
+    if (d > 1.2) {
+      const wang = Math.atan2(dy, dx);
+      back = defending && (p.role === 'gap' || p.role === 'mark' || p.role === 'slot' || p.role === 'low-slot' || p.role === 'retreat') && Math.abs(angDiff(wang, toPuck)) > 1.9 && Math.hypot(P.x - p.x, P.y - p.y) < 70;
+      desired = back ? toPuck : wang;
+    } else desired = sp0 > 4 ? Math.atan2(p.vy, p.vx) : toPuck;
+    // turn (rate limited by agility and speed)
+    p.turnRate = (4.5 + 7 * R.agility) / (1 + sp0 / 22);
+    const dTurn = angDiff(desired, p.facing), maxT = p.turnRate * DT, turned = clamp(dTurn, -maxT, maxT);
+    p.facing += turned;
+    if (p.facing > Math.PI) p.facing -= 2 * Math.PI; else if (p.facing < -Math.PI) p.facing += 2 * Math.PI;
+    // desired velocity (speed cap lower when skating backward)
+    const cap = (back ? 0.62 : 1) * top;
+    const want = Math.min(cap * (p.want || 0.8), d * 2.6);
+    const wx = d > 0.01 ? dx / d * want : 0, wy = d > 0.01 ? dy / d * want : 0;
+    // body-frame decomposition
+    const fx = Math.cos(p.facing), fy = Math.sin(p.facing);
+    const vf = p.vx * fx + p.vy * fy, vl = -p.vx * fy + p.vy * fx;
+    const wf = wx * fx + wy * fy, wl = -wx * fy + wy * fx;
+    const ef = wf - vf, el = wl - vl;
+    const accF = ef > 0 ? (vf < 0 || back ? acc * 0.6 : acc) : acc * (wf < vf - 6 ? 1.7 : 1.0), grip = acc * (1.0 + 0.8 * R.agility);
+    const kf = Math.abs(ef) > accF * DT ? accF * DT / Math.abs(ef) : 1, kl = Math.abs(el) > grip * DT ? grip * DT / Math.abs(el) : 1;
+    const nvf = vf + ef * kf, nvl = vl + el * kl;
+    const ovx = p.vx, ovy = p.vy;
+    p.vx = nvf * fx - nvl * fy; p.vy = nvf * fy + nvl * fx;
+    p.ax = (p.vx - ovx) / DT; p.ay = (p.vy - ovy) / DT;
     p.x += p.vx * DT; p.y += p.vy * DT;
     const c = clampInside(p.x, p.y, 1.6); if (c.x !== p.x || c.y !== p.y) { p.x = c.x; p.y = c.y; p.vx *= 0.5; p.vy *= 0.5; }
     const sp = Math.hypot(p.vx, p.vy);
-    if (P.owner === p.id && sp > 1) p.facing = Math.atan2(p.vy, p.vx);
-    else if (sp > 4) p.facing = Math.atan2(p.vy, p.vx);
-    else p.facing = Math.atan2(P.y - p.y, P.x - p.x);
-    if (!p.goalie) {
-      const f = sp / Math.max(1, top);
-      p.energy = clamp(p.energy - (0.004 + 0.014 * f * f) * DT * (1.4 - 0.6 * p.R.stamina), 0.2, 1);
-    }
+    p.dirv = sp > 0.5 ? Math.atan2(p.vy, p.vx) : p.dirv;
+    p.back = back && sp > 1.5;
+    // crossovers: a short stride animation while carving a turn at speed
+    if (Math.abs(dTurn) > 0.3 && sp > 9 && !back) { p.crossT = 0.4; p.crossDir = Math.sign(dTurn); } else if (p.crossT > 0) p.crossT -= DT;
+    p.cross = p.crossT > 0;
+    const accelerating = ef > 1.5 && accF > 0, braking = ef < -4 && wf < vf - 6;
+    p.skate = p.stun > 0 ? 'stunned' : p.back ? 'backward' : sp < 1.2 && want < 2 ? 'idle' : p.cross ? 'crossover' : braking ? 'brake' : Math.abs(dTurn) > 0.2 && sp > 5 ? 'turn' : accelerating ? 'accel' : 'coast';
+    const f = sp / Math.max(1, top);
+    const rest = p.skate === 'coast' || p.skate === 'idle';
+    p.energy = clamp(p.energy - (0.004 + 0.014 * f * f - (rest ? 0.006 : 0)) * DT * (1.4 - 0.6 * R.stamina), 0.2, 1);
+  }
+  // Goalies: lateral shuffle / butterfly slide inside the crease area; always face the puck.
+  function moveGoalie(p) {
+    const R = p.R, st = p.state;
+    const boost = st === 'SLIDE' ? 1.9 : st === 'RECOVER' ? 1.25 : 1;
+    const top = (12 + 10 * R.lateral) * boost * (st === 'BUTTERFLY' || st === 'PAD_SAVE' ? 0.35 : 1), acc = 30 * boost;
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+    const want = Math.min(top * (p.want || 0.8), d * 2.6);
+    const dvx = (d > 0.01 ? dx / d * want : 0) - p.vx, dvy = (d > 0.01 ? dy / d * want : 0) - p.vy;
+    const dv = Math.hypot(dvx, dvy), lim = acc * DT, k = dv > lim ? lim / dv : 1;
+    p.vx += dvx * k; p.vy += dvy * k; p.x += p.vx * DT; p.y += p.vy * DT;
+    const c = clampInside(p.x, p.y, 1.6); if (c.x !== p.x || c.y !== p.y) { p.x = c.x; p.y = c.y; p.vx *= 0.5; p.vy *= 0.5; }
+    const tgt = Math.atan2(P.y - p.y, P.x - p.x); p.facing += clamp(angDiff(tgt, p.facing), -9 * DT, 9 * DT);
+    p.skate = Math.hypot(p.vx, p.vy) > 2 ? 'shuffle' : 'idle';
   }
   function separate() {
     const L = S.players;

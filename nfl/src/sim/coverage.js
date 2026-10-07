@@ -49,10 +49,28 @@ function threatsIn(sim, zone, ahead = 0.6) {
   return out;
 }
 
+// Quarters / Cover 6 pattern-match: a receiver who stems vertical inside my quarter is picked up man-to-man
+// (trail him with a cushion); once he breaks off underneath I release him and sit back in the quarter.
+function quarterMatch(sim, e, z, threats) {
+  let lock = e.matchLock;
+  if (lock && (lock.down || !threats.includes(lock) || (lock.pos.x - sim.losX > 7 && lock.vel.x < 1.5))) { e.matchLock = lock = null; }
+  if (!lock) {
+    for (const t of threats) {
+      if (t.pos.x - sim.losX > 4.5 && t.vel.x > 4.5 && t.vel.x > Math.abs(t.vel.y)) { lock = e.matchLock = t; sim.emit('MATCH', { by: e.id, on: t.id, zone: z.name }, true); break; }
+    }
+  }
+  return lock;
+}
+
 function zoneVelocity(sim, e) {
   const z = e.assignment.zone;
   const threats = threatsIn(sim, z);
   let target;
+  const locked = z.deep && z.match ? quarterMatch(sim, e, z, threats) : null;
+  if (locked) {
+    const p = perceive(sim, locked, e.readDelay, 0.6);
+    return seekVelocity(e, { x: p.x + 2.4 + Math.max(0, p.vx) * 0.4, y: clamp(p.y + (Math.sign(sim.by - p.y) || 1) * 0.5, z.y0 - 2, z.y1 + 2) }, 1, 0.3);
+  }
   if (z.deep) {
     // Stay deeper than the deepest threat in the area ("nobody behind me").
     let deepest = null;
