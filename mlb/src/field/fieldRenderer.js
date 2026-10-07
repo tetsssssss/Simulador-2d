@@ -17,6 +17,21 @@ export const CAMERAS = {
   FULL: { label: 'Full field', cx: 0, cy: 190, view: 640, viewH: 470 },
 };
 const R2 = Math.SQRT1_2;
+export function fenceArc(inset = 0, n = 48) { const out = []; for (let i = 0; i <= n; i++) { const a = -Math.PI / 4 + (Math.PI / 2) * (i / n); out.push(fencePoint(a, inset)); } return out; }
+// Ballpark outline in world feet (foul territory + fair territory up to the wall). Also used for the crowd stands.
+export function parkOutline() {
+  const off = 46, u = { x: -R2, y: R2 }, nL = { x: -R2, y: -R2 }, v = { x: R2, y: R2 }, nR = { x: R2, y: -R2 };
+  const pts = [];
+  pts.push({ x: u.x * FENCE.line, y: u.y * FENCE.line });
+  pts.push({ x: u.x * FENCE.line + nL.x * off, y: u.y * FENCE.line + nL.y * off });
+  pts.push({ x: nL.x * off, y: nL.y * off });
+  for (let i = 0; i <= 16; i++) { const a = Math.PI * 1.25 + (Math.PI * 0.5) * (i / 16); pts.push({ x: Math.cos(a) * 62, y: Math.sin(a) * 62 }); }
+  pts.push({ x: nR.x * off, y: nR.y * off });
+  pts.push({ x: v.x * FENCE.line + nR.x * off, y: v.y * FENCE.line + nR.y * off });
+  for (const p of fenceArc(0).reverse()) pts.push(p);
+  return pts;
+}
+
 
 export function createFieldRenderer(canvas, { crowd = null } = {}) {
   const hd = attachHiDPI(canvas, { minW: 320, minH: 220 });
@@ -28,25 +43,11 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
   const S = () => cam.scale, X = x => cam.sx(x), Y = y => cam.sy(y);
 
   function poly(pts) { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y)))); ctx.closePath(); }
-  function fenceArc(inset = 0, n = 48) { const out = []; for (let i = 0; i <= n; i++) { const a = -Math.PI / 4 + (Math.PI / 2) * (i / n); out.push(fencePoint(a, inset)); } return out; }
-  function parkOutline() {
-    const off = 46, u = { x: -R2, y: R2 }, nL = { x: -R2, y: -R2 }, v = { x: R2, y: R2 }, nR = { x: R2, y: -R2 };
-    const pts = [];
-    pts.push({ x: u.x * FENCE.line, y: u.y * FENCE.line });
-    pts.push({ x: u.x * FENCE.line + nL.x * off, y: u.y * FENCE.line + nL.y * off });
-    pts.push({ x: nL.x * off, y: nL.y * off });
-    for (let i = 0; i <= 16; i++) { const a = Math.PI * 1.25 + (Math.PI * 0.5) * (i / 16); pts.push({ x: Math.cos(a) * 62, y: Math.sin(a) * 62 }); }
-    pts.push({ x: nR.x * off, y: nR.y * off });
-    pts.push({ x: v.x * FENCE.line + nR.x * off, y: v.y * FENCE.line + nR.y * off });
-    for (const p of fenceArc(0).reverse()) pts.push(p);
-    return pts;
-  }
-
   function drawPark(state) {
     const s = S(), W = hd.w, H = hd.h;
     const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0a1018'); g.addColorStop(1, '#06090e');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    if (crowd) crowd.draw(ctx, { cam, outline: parkOutline().map(p => ({ x: X(p.x), y: Y(p.y) })), t: state.t || 0, sport: 'mlb' });
+    if (crowd) crowd.draw(ctx, { cam, t: state.t ?? performance.now() / 1000, view: { w: W, h: H } });
     // grass (whole park incl. foul territory) with mowing stripes
     const park = parkOutline();
     poly(park); ctx.fillStyle = '#2e7d3c'; ctx.fill();

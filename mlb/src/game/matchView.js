@@ -11,6 +11,9 @@ import { separateKits } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
+import { getAudio } from '../../../core/audio/audioEngine.js';
+import { MLB_ATMOSPHERE, mlbStands } from '../presentation/atmosphere.js';
 import { MLB_COMMENTARY } from '../presentation/commentary.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
@@ -49,7 +52,10 @@ export function mountMatch(root, deps = {}) {
     </div></div>`;
   const $ = s => root.querySelector(s);
   const canvas = $('#fieldCanvas');
-  const renderer = createFieldRenderer(canvas, deps);
+  const audio = getAudio();
+  // crowd stands: a stable proxy for the renderer, the real stands are rebuilt when the teams change
+  const stands = { cur: null, draw: (c, a) => stands.cur?.draw(c, a), setIntensity: v => stands.cur?.setIntensity(v) };
+  const renderer = createFieldRenderer(canvas, { ...deps, crowd: deps.crowd || stands });
   renderer.setCamera(pref.camera);
 
   function staticState(home, away) {
@@ -64,7 +70,7 @@ export function mountMatch(root, deps = {}) {
     const [h, a] = await Promise.all([loadTeam(pref.home), loadTeam(pref.away)]);
     if (view.disposed) return;
     const [hk, ak] = separateKits([h.color, h.color2], [a.color, a.color2]);
-    const home = withSide({ ...h, color: hk[0], color2: hk[1] }, 'home'), away = withSide({ ...a, color: ak[0], color2: ak[1] }, 'away');
+    const home = withSide({ ...h, brand: h.color, color: hk[0], color2: hk[1] }, 'home'), away = withSide({ ...a, brand: a.color, color: ak[0], color2: ak[1] }, 'away');
     $('#srcNote').innerHTML = [h, a].some(t => t.source === 'demo') ? '<span class="bad">Elenco DEMO (MLB StatsAPI indisponível) — sem nomes/fotos reais</span>' : 'Elencos: MLB StatsAPI (2026)';
     if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}` }); view.state = view.engine.state; }
     else view.state = staticState(home, away);
@@ -75,7 +81,7 @@ export function mountMatch(root, deps = {}) {
   function drawBug() {
     const s = view.state; if (!s) return;
     const bat = s.half === 'top' ? 'away' : 'home';
-    const row = k => `<div class="mb-row ${bat === k ? 'batting' : ''}" style="--tc:${s[k].color}"><b>${esc(s[k].abbr)}</b><span class="mb-r">${s.score[k]}</span><span class="mb-h">${s.hits[k]}</span><span class="mb-e">${s.errors[k]}</span></div>`;
+    const row = k => `<div class="mb-row ${bat === k ? 'batting' : ''}" style="--tc:${s[k].brand || s[k].color}"><b>${esc(s[k].abbr)}</b><span class="mb-r">${s.score[k]}</span><span class="mb-h">${s.hits[k]}</span><span class="mb-e">${s.errors[k]}</span></div>`;
     const occ = n => (s.runners || []).some(r => r.base === n) ? 'on' : '';
     $('#bug').innerHTML = `<div class="mb-teams"><div class="mb-head"><span></span><span>R</span><span>H</span><span>E</span></div>${row('away')}${row('home')}</div>
       <div class="mb-inning"><b>${s.half === 'top' ? '▲' : '▼'} ${s.inning}</b><small>${s.half === 'top' ? 'TOP' : 'BOTTOM'}</small></div>
@@ -101,10 +107,12 @@ export function mountMatch(root, deps = {}) {
     if (view.engine) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
+    pres.engine?.tick(dt);
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
   }
 
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_mlb_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_mlb_names', pref.names ? '1' : '0'); };
   $('#optPhotos').onchange = e => { pref.photos = e.target.checked; store.set('asu_mlb_photos', pref.photos ? '1' : '0'); };
@@ -123,9 +131,13 @@ export function mountMatch(root, deps = {}) {
   const pres = { comm: null, engine: null, unmount: null, idx: 0 };
   function startPresentation(seed) {
     pres.unmount?.(); pres.engine?.dispose();
+    const s0 = view.state;
+    stands.cur = s0 ? mlbStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
+    pres.atmosphere = createAtmosphere({ rules: MLB_ATMOSPHERE, audio, crowd: stands });
     pres.comm = createCommentary({ pack: MLB_COMMENTARY, seed });
-    pres.engine = createPresentation({ sport: 'mlb', listeners: [pres.comm] });
-    pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'mlb', voiceVolume: () => deps.audio?.volume?.('COMMENTARY') ?? 1 });
+    pres.engine = createPresentation({ sport: 'mlb', listeners: [pres.comm, pres.atmosphere] });
+    if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
+    pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'mlb', voiceVolume: () => audio.volume('COMMENTARY') });
     pres.idx = 0;
   }
   function drainEvents() {

@@ -12,6 +12,10 @@ import { createPresentation } from '../../../core/presentation/presentationEngin
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
 import { NFL_COMMENTARY } from '../presentation/commentary.js';
+import { NFL_ATMOSPHERE, nflStands } from '../presentation/atmosphere.js';
+import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
+import { getAudio } from '../../../core/audio/audioEngine.js';
+import { TEAM_COLORS } from './teamColors.js';
 import { esc, avatar, teamLogo, ovrBadge, ratingsOf, keyAttrs, keyForAttribute, pid } from './components.js';
 
 export { newGameState };
@@ -77,7 +81,9 @@ export function mountGame(root, deps) {
   </div>`;
   const $ = s => root.querySelector(s);
   const canvas = $('#fieldCanvas');
-  const renderer = createRenderer(canvas);
+  const audio = getAudio();
+  const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
+  const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
   const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   const tuning = () => deps.tuning();
@@ -85,8 +91,11 @@ export function mountGame(root, deps) {
 
   // ---------- presentation: live commentary (CommentaryEvent → text → optional voice) ----------
   const commentary = createCommentary({ pack: NFL_COMMENTARY, seed: `${g.away}@${g.home}` });
-  const presentation = createPresentation({ sport: 'nfl', listeners: [commentary] });
-  const unmountComm = mountCommentaryPanel($('#liveComm'), commentary, { sport: 'nfl', voiceVolume: () => deps.audio?.volume?.('COMMENTARY') ?? 1 });
+  const atmosphere = createAtmosphere({ rules: NFL_ATMOSPHERE, audio, crowd });
+  const presentation = createPresentation({ sport: 'nfl', listeners: [commentary, atmosphere] });
+  try { atmosphere.refreshBaseline(commCtx(null)); } catch { /* roster not loaded yet */ }
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
+  const unmountComm = mountCommentaryPanel($('#liveComm'), commentary, { sport: 'nfl', voiceVolume: () => audio.volume('COMMENTARY') });
   const lastOf = full => { const parts = String(full || '').replace(/\s+(Jr\.?|Sr\.?|II|III|IV|V)$/i, '').split(' '); return parts[parts.length - 1] || full; };
   function commCtx(s) {
     const ls = lineups(), off = offAbbr(g), def = defAbbr(g);
@@ -390,6 +399,7 @@ export function mountGame(root, deps) {
         if (ts - view.deadAt > 600 / Math.max(1, view.speed)) { view.deadAt = null; finishPlay(); }
       }
     }
+    presentation.tick(dtReal);
     if (view.phase === 'AWAIT' && !g.over && !view.paused && !view.simming) {
       const before = Math.ceil(view.playClock);
       view.playClock = Math.max(0, view.playClock - dtReal);

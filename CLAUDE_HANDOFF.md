@@ -153,3 +153,18 @@ caminho relativo (`../../../core/...`), por isso o universo deve ser servido pel
 **Testes**: `tests/commentary.test.mjs` (6: reprodutível por seed, variedade, contexto real NFL, streak, cobertura NHL/MLB sem undefined, dispose, fala só prioridade ≥2). `npm test`: 13 raiz + 32 NFL ok. Smoke 27/27 (novo: narração NFL ao vivo no Spectator).
 **Problemas**: voz depende das vozes instaladas no navegador (off por padrão).
 **Próxima fase**: E — AudioEngine + arquibancada + CrowdIntensity.
+
+### CHECKPOINT E — AudioEngine + arquibancada + CrowdIntensity
+**Feito**
+- `core/audio/audioEngine.js`: `getAudio()` = 1 engine por documento (`window.__asuAudio`). Categorias AMBIENCE, CROWD, GAME_EFFECT, UI, COMMENTARY + master/mute, cada uma com seu GainNode. Tudo sintetizado em WebAudio (sem arquivos/serviços): whistle, horn, organ, crack (taco/slapshot), pop (luva/defesa), thud (pads), boards, stick, cheer, groan, oohs, buzzer, ui. Camadas contínuas: murmúrio da torcida (volume/brilho seguem a intensidade) + ambiência do esporte (`stadium` / `ice` / `ballpark`). AudioContext só inicia após gesto do usuário (autoplay). Config em localStorage `asu_audio`, sincronizada via evento `storage`.
+- `core/audio/crowdIntensity.js`: 0–100 = baseline situacional + bursts com decaimento; `tick(dt)` suavizado.
+- `core/presentation/atmosphere.js`: listener do PresentationEngine que aplica REGRAS do esporte (`baseline(ctx)`, `react(ev,ctx)` → bump + sons) → intensidade → áudio + visual. Regras ficam nos esportes:
+  - NFL `nfl/src/presentation/atmosphere.js`: 3ª/4ª descida (mais alto com mandante defendendo), red zone, fim de jogo apertado; TD/INT/fumble/sack/bomba/first down/turnover on downs; apito, pads, luva.
+  - NHL `nhl/src/presentation/atmosphere.js`: power play, fim de jogo apertado; buzina só em gol do mandante, breakaway, defesaça, hits nas placas, penalidade, icing/offside, buzzer.
+  - MLB `mlb/src/presentation/atmosphere.js`: full count, bases lotadas, RISP com 2 outs, innings finais; crack ∝ exit velocity, HR com órgão, walk-off = 100, strikeout do mandante, double play.
+- `core/render/crowd.js`: arquibancada em camadas (degraus, torcedores com corpo/cabeça em zoom próximo, ponto em zoom distante), seedada, blocos com cor do mandante + bolsão visitante; intensidade controla quantos levantam, pulo, braços e flashes. Assentos em coordenadas de MUNDO (`seatsAroundRect`, `seatsAlongOutline`) → acompanha câmera/zoom. NFL (`nflStands`, renderer aceita `{crowd}`), NHL (`nhlStands`), MLB (`mlbStands` a partir de `parkOutline()` agora exportado).
+- Shell `index.html`: botão 🔊 com sliders por categoria + silenciar.
+- NHL bug/painel: cor da marca no placar e número com contraste (kit claro do TOR estava branco no branco). MLB bug idem.
+**Testes**: `tests/atmosphere.test.mjs` (5). `npm test`: 18 raiz + 32 NFL ok. Smoke 31/31 (novos: AudioContext rodando após gesto, sons disparados por eventos reais, intensidade reage, popover de áudio sincroniza com o documento do esporte).
+**Problemas**: em NFL zoom Full a câmera mostra só as primeiras fileiras (campo ocupa a altura); NHL/MLB só terão eventos (sons/torcida dinâmicos) quando os motores da Fase F rodarem.
+**Próxima fase**: F — HockeySimulationEngine + BaseballSimulationEngine.

@@ -22,6 +22,16 @@
   .su-seg a.on[data-sport=mlb]{background:rgba(255,122,89,.16);color:#ffe1d8;box-shadow:inset 0 -2px 0 var(--mlb)}
   .su-grow{flex:1}.su-hint{color:var(--muted);font-size:11px}
   #sportFrame{flex:1;width:100%;border:0;display:block;background:var(--bg)}
+  .su-audio{position:relative}
+  .su-audio>button{background:#0f1824;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
+  .su-audio>button:hover{background:#162233}
+  .su-pop{position:absolute;right:0;top:36px;width:270px;background:#0c131d;border:1px solid var(--line2);border-radius:10px;padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:none}
+  .su-pop.show{display:block}
+  .su-pop h4{margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .su-pop label{display:grid;grid-template-columns:110px 1fr 34px;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+  .su-pop input[type=range]{width:100%;accent-color:#5cc8ff}
+  .su-pop .su-mute{display:flex;gap:8px;align-items:center;margin-top:8px;grid-template-columns:none}
+  .su-pop small{color:var(--muted);display:block;margin-top:8px;font-size:10.5px;line-height:1.35}
   @media (max-width:560px){.su-brand span,.su-hint{display:none}.su-seg a{padding:6px 12px}}
 </style>
 </head>
@@ -30,6 +40,7 @@
   <div class="su-brand">American Sports Universe <span>2D</span></div>
   <nav class="su-seg" aria-label="Esporte"><a href="#nfl" data-sport="nfl">NFL</a><a href="#nhl" data-sport="nhl">NHL</a><a href="#mlb" data-sport="mlb">MLB</a></nav>
   <span class="su-grow"></span><span class="su-hint" id="suHint"></span>
+  <div class="su-audio"><button id="suAudioBtn" title="Áudio: volumes por categoria">🔊</button><div class="su-pop" id="suAudioPop"></div></div>
 </header>
 <iframe id="sportFrame" title="Universo do esporte"></iframe>
 <script>
@@ -62,6 +73,26 @@
   show(initial);
   window.__asu = { get sport() { return current; }, frame };
 })();
+</script>
+<script type="module">
+  // Audio settings (shared by the three sports through localStorage + storage events). No sound plays here.
+  import { CATEGORIES, CATEGORY_LABELS, loadAudioSettings, saveAudioSettings } from './core/audio/audioEngine.js';
+  const btn = document.getElementById('suAudioBtn'), pop = document.getElementById('suAudioPop');
+  const draw = () => {
+    const st = loadAudioSettings();
+    btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
+    pop.innerHTML = '<h4>Áudio</h4>' + ['master', ...CATEGORIES].map(k => `<label>${CATEGORY_LABELS[k]}<input type="range" min="0" max="100" data-k="${k}" value="${Math.round(st[k] * 100)}"><span>${Math.round(st[k] * 100)}</span></label>`).join('')
+      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
+  };
+  pop.addEventListener('input', e => {
+    const k = e.target.dataset.k; const st = loadAudioSettings();
+    if (k) { st[k] = +e.target.value / 100; e.target.nextElementSibling.textContent = e.target.value; }
+    if (e.target.id === 'suMute') st.muted = e.target.checked;
+    saveAudioSettings(st); btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
+  });
+  btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); });
+  document.addEventListener('click', e => { if (!e.target.closest('.su-audio')) pop.classList.remove('show'); });
+  draw();
 </script>
 </body>
 </html>

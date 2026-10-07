@@ -13,7 +13,7 @@ export { photoImage as photoFor } from './photos.js';
 
 export const ZOOMS = { close: 34, medium: 56, full: 120 }; // visible yards across
 
-export function createRenderer(canvas) {
+export function createRenderer(canvas, { crowd = null } = {}) {
   // HiDPI: CSS size for layout/drawing math, backing store = CSS × devicePixelRatio (crisp on 1980px / 4K / Retina).
   const hd = attachHiDPI(canvas, { minW: 300, minH: 180 });
   const ctx = hd.ctx;
@@ -36,7 +36,8 @@ export function createRenderer(canvas) {
     if (focus) { fx = focus.x; fy = 0.6 * focus.y + 0.4 * (FIELD_W / 2); }
     if (cam.zoom === 'full') { fx = FIELD_LEN / 2; fy = FIELD_W / 2; }
     const clampX = v => viewW >= FIELD_LEN + 6 ? FIELD_LEN / 2 : Math.min(FIELD_LEN + 3 - viewW / 2, Math.max(viewW / 2 - 3, v));
-    const clampY = v => viewH >= FIELD_W + 16 ? FIELD_W / 2 : Math.min(FIELD_W + 8 - viewH / 2, Math.max(viewH / 2 - 8, v));
+    const my = crowd ? 13 : 8; // with stands, the camera may show a few rows beyond the team areas
+    const clampY = v => viewH >= FIELD_W + 2 * my ? FIELD_W / 2 : Math.min(FIELD_W + my - viewH / 2, Math.max(viewH / 2 - my, v));
     const tx = clampX(fx), ty = clampY(fy);
     if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; }
     const k = Math.min(1, 0.12 * alpha + 0.04);
@@ -48,6 +49,7 @@ export function createRenderer(canvas) {
     const col = abbr => TEAM_COLORS[abbr] || '#24364d';
     // surroundings: team areas (between the 32-yard lines), white 2-yd border
     ctx.fillStyle = '#123f24'; ctx.fillRect(0, 0, W, H);
+    if (crowd) { ctx.fillStyle = '#0b1219'; ctx.fillRect(0, 0, W, sy(-8.2)); ctx.fillRect(0, sy(FIELD_W + 8.2), W, H); crowd.draw(ctx, { cam: { sx, sy, scale: s }, t: performance.now() / 1000, view: { w: W, h: H } }); }
     ctx.fillStyle = '#f2f5f8'; ctx.fillRect(sx(-2), sy(-2), (FIELD_LEN + 4) * s, (FIELD_W + 4) * s);
     const bench = (yTop, abbr) => {
       ctx.fillStyle = hexA(col(abbr), 0.55); ctx.fillRect(sx(42), sy(yTop), 36 * s, 4.5 * s);

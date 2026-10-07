@@ -6,10 +6,13 @@ import { buildLineup, faceoffSpots, skaterRecord } from './lineup.js';
 import { createRinkRenderer, CAMERAS } from '../rink/rinkRenderer.js';
 import { RINK, MIDY } from '../rink/geometry.js';
 import { photoUrl } from '../photos.js';
-import { separateKits } from '../../../core/render/sprites.js';
+import { separateKits, textColorOn } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
+import { getAudio } from '../../../core/audio/audioEngine.js';
+import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
 import { NHL_COMMENTARY } from '../presentation/commentary.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
@@ -37,7 +40,10 @@ export function mountMatch(root, deps = {}) {
     </div></div>`;
   const $ = s => root.querySelector(s);
   const canvas = $('#rinkCanvas');
-  const renderer = view.renderer = createRinkRenderer(canvas, deps);
+  const audio = getAudio();
+  // crowd stands: a stable proxy for the renderer, the real stands are rebuilt when the teams change
+  const stands = { cur: null, draw: (c, a) => stands.cur?.draw(c, a), setIntensity: v => stands.cur?.setIntensity(v) };
+  const renderer = view.renderer = createRinkRenderer(canvas, { ...deps, crowd: deps.crowd || stands });
   renderer.setCamera(pref.camera);
 
   async function setup() {
@@ -45,8 +51,8 @@ export function mountMatch(root, deps = {}) {
     const [hr, ar] = await Promise.all([getRoster(pref.home), getRoster(pref.away)]);
     if (view.disposed) return;
     const [hk, ak] = separateKits([nhlColor(pref.home), nhlColor(pref.home, 1)], [nhlColor(pref.away), nhlColor(pref.away, 1)]);
-    const home = { abbr: pref.home, name: teamBy(pref.home).name, color: hk[0], color2: hk[1], lineup: buildLineup(hr) };
-    const away = { abbr: pref.away, name: teamBy(pref.away).name, color: ak[0], color2: ak[1], lineup: buildLineup(ar) };
+    const home = { abbr: pref.home, name: teamBy(pref.home).name, brand: nhlColor(pref.home), color: hk[0], color2: hk[1], lineup: buildLineup(hr) };
+    const away = { abbr: pref.away, name: teamBy(pref.away).name, brand: nhlColor(pref.away), color: ak[0], color2: ak[1], lineup: buildLineup(ar) };
     const src = [rosterSource(pref.home), rosterSource(pref.away)];
     $('#srcNote').textContent = src.includes('snapshot') ? 'Elencos: snapshot local 2023-24 (NHL API indisponível)' : 'Elencos: NHL Web API';
     if (deps.createEngine) {
@@ -75,7 +81,7 @@ export function mountMatch(root, deps = {}) {
 
   function drawBug() {
     const s = view.state; if (!s) return;
-    const side = (k, right) => { const T = s[k]; return `<div class="nb-team ${right ? 'right' : ''} ${s.possession === k ? 'has-puck' : ''}" style="--tc:${T.color}"><b>${esc(T.abbr)}</b><small>${esc(T.name.split(' ').slice(-1)[0])}</small><span class="nb-score">${s.score[k]}</span><span class="nb-sog">SOG ${s.shots[k]}</span></div>`; };
+    const side = (k, right) => { const T = s[k]; return `<div class="nb-team ${right ? 'right' : ''} ${s.possession === k ? 'has-puck' : ''}" style="--tc:${T.brand || T.color}"><b>${esc(T.abbr)}</b><small>${esc(T.name.split(' ').slice(-1)[0])}</small><span class="nb-score">${s.score[k]}</span><span class="nb-sog">SOG ${s.shots[k]}</span></div>`; };
     const mm = Math.floor(s.clock / 60), ss = String(Math.floor(s.clock % 60)).padStart(2, '0');
     $('#bug').innerHTML = `${side('away', false)}<div class="nb-mid"><b>${['1st', '2nd', '3rd', 'OT'][Math.min(3, s.period - 1)]}</b><span>${mm}:${ss}</span>${s.strength ? `<em>${esc(s.strength)}</em>` : ''}</div>${side('home', true)}`;
   }
@@ -83,7 +89,7 @@ export function mountMatch(root, deps = {}) {
   function drawSide() {
     const s = view.state; if (!s) return;
     const onIce = k => s.players.filter(p => p.team === k);
-    const row = p => `<div class="nhl-onice" data-pid="${esc(p.id)}"><img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'"><span class="no-num" style="background:${s[p.team].color}">${esc(p.num)}</span><b>${esc(p.last)}</b><small>${p.pos}</small>${p.energy != null ? `<i class="nhl-energy"><i style="width:${Math.round(p.energy * 100)}%"></i></i>` : ''}</div>`;
+    const row = p => `<div class="nhl-onice" data-pid="${esc(p.id)}"><img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'"><span class="no-num" style="background:${s[p.team].color};color:${textColorOn(s[p.team].color)};box-shadow:inset 0 0 0 1px ${s[p.team].color2 || 'transparent'}">${esc(p.num)}</span><b>${esc(p.last)}</b><small>${p.pos}</small>${p.energy != null ? `<i class="nhl-energy"><i style="width:${Math.round(p.energy * 100)}%"></i></i>` : ''}</div>`;
     $('#side').innerHTML = ['away', 'home'].map(k => `<div class="panel"><div class="panel-h"><b style="color:${s[k].color === '#111111' ? '#e9f0f7' : 'inherit'}">${esc(s[k].abbr)} · no gelo</b></div>${onIce(k).map(row).join('')}</div>`).join('') + (deps.sidePanels ? deps.sidePanels(s) : '');
   }
 
@@ -95,11 +101,13 @@ export function mountMatch(root, deps = {}) {
     if (view.engine) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
+    pres.engine?.tick(dt);
     if (deps.onFrame) deps.onFrame(view, dt);
     view.raf = requestAnimationFrame(frame);
   }
 
   // ---------- controls ----------
+  $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('ui', { category: 'UI', freq: 760 }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_nhl_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_nhl_names', pref.names ? '1' : '0'); };
   $('#optPhotos').onchange = e => { pref.photos = e.target.checked; store.set('asu_nhl_photos', pref.photos ? '1' : '0'); };
@@ -118,9 +126,13 @@ export function mountMatch(root, deps = {}) {
   const pres = { comm: null, engine: null, unmount: null, idx: 0 };
   function startPresentation(seed) {
     pres.unmount?.(); pres.engine?.dispose();
+    const s0 = view.state;
+    stands.cur = s0 ? nhlStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
+    pres.atmosphere = createAtmosphere({ rules: NHL_ATMOSPHERE, audio, crowd: stands });
     pres.comm = createCommentary({ pack: NHL_COMMENTARY, seed });
-    pres.engine = createPresentation({ sport: 'nhl', listeners: [pres.comm] });
-    pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => deps.audio?.volume?.('COMMENTARY') ?? 1 });
+    pres.engine = createPresentation({ sport: 'nhl', listeners: [pres.comm, pres.atmosphere] });
+    if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
+    pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => audio.volume('COMMENTARY') });
     pres.idx = 0;
   }
   function drainEvents() {

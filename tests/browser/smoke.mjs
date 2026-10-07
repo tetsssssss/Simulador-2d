@@ -51,12 +51,24 @@ for (let round = 0; round < 3; round++) {
 // NFL live commentary: spectator auto-play must produce narration lines from engine events
 {
   const f = frame();
+  await f.click('#fieldCanvas'); // user gesture → AudioContext may start
+  await f.evaluate(() => { const a = window.__asuAudio; window.__played = []; const orig = a.play; a.play = (n, o) => { const r = orig(n, o); window.__played.push(n + ':' + r); return r; }; window.__crowdMax = 0; const tick = () => { window.__crowdMax = Math.max(window.__crowdMax, a.crowdLevel); if (!window.__stopCrowd) requestAnimationFrame(tick); }; tick(); });
   await f.evaluate(() => { const b = document.querySelector('#autoBtn'); if (b && !b.classList.contains('on')) b.click(); });
   await page.waitForTimeout(9000);
+  const au = await f.evaluate(() => { window.__stopCrowd = true; return { running: window.__asuAudio.running, played: window.__played, crowd: window.__crowdMax }; });
+  check('audio engine running after a user gesture', au.running, `running=${au.running}`);
+  check('game sounds triggered by engine events', au.played.some(p => p.endsWith(':true')), au.played.slice(0, 6).join(' '));
+  check('crowd intensity reacts (0–100)', au.crowd > 20 && au.crowd <= 100, `max=${au.crowd.toFixed(1)}`);
   const lines = await f.evaluate(() => [...document.querySelectorAll('#liveComm .lc-line .lc-x')].map(e => e.textContent));
   check('nfl live commentary lines', lines.length >= 2 && !lines.some(l => /undefined|NaN|null/.test(l)), `${lines.length} · ${lines.slice(0, 3).join(' / ')}`);
   if (OUT) await page.screenshot({ path: `${OUT}/smoke_nfl_commentary.png` });
 }
+// shell audio settings → shared localStorage
+await page.click('#suAudioBtn');
+await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '35'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+const crowdVol = await frame().evaluate(() => window.__asuAudio.settings.CROWD);
+check('audio settings popover syncs to the sport document', Math.abs(crowdVol - 0.35) < 1e-6, `CROWD=${crowdVol}`);
+await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '70'; el.dispatchEvent(new Event('input', { bubbles: true })); });
 check('only one sport document loaded', page.frames().filter(f => /\/(nfl|nhl|mlb)\/index\.html/.test(f.url())).length === 1);
 check('no JS errors', errs.length === 0, errs.slice(0, 4).join(' | '));
 await browser.close();

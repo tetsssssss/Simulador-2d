@@ -37,7 +37,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#0a1018'); g.addColorStop(1, '#05080d');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    if (crowd) crowd.draw(ctx, { cam, x0: X(-14), y0: Y(-18), x1: X(RINK.L + 14), y1: Y(RINK.W + 22), rink: { x0: X(-1), y0: Y(-1), x1: X(RINK.L + 1), y1: Y(RINK.W + 1) }, t: state.t || 0 });
+    if (crowd) crowd.draw(ctx, { cam, t: state.t ?? performance.now() / 1000, view: { w: W, h: H } });
     // Benches (bottom side) and penalty boxes (top side), outside the boards.
     const benches = [
       { x0: 58, x1: 92, team: state.home }, { x0: 108, x1: 142, team: state.away },
