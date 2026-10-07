@@ -10,26 +10,26 @@
   "NFL_TEST_PASS_002": {
     "concept": "STICK",
     "defCall": "COVER_1",
-    "outcome": "COMPLETE",
-    "yards": 6,
-    "duration": 5.5,
-    "events": "SNAP SHED SHED SCRAMBLE SHED PASS_ATTEMPT PASS_COMPLETE BROKEN_TACKLE BROKEN_TACKLE TACKLE WHISTLE"
+    "outcome": "INCOMPLETE",
+    "yards": 0,
+    "duration": 3.1,
+    "events": "SNAP SHED PASS_ATTEMPT INCOMPLETE WHISTLE"
   },
   "NFL_TEST_DEEP_001": {
     "concept": "SMASH",
     "defCall": "COVER_2",
-    "outcome": "SACK",
-    "yards": -9,
-    "duration": 3.03,
-    "events": "SNAP SHED SACK WHISTLE"
+    "outcome": "COMPLETE",
+    "yards": 4,
+    "duration": 4.37,
+    "events": "SNAP SHED PASS_ATTEMPT PASS_COMPLETE TACKLE WHISTLE"
   },
   "NFL_TEST_PRESSURE_001": {
     "concept": "DRIVE",
     "defCall": "COVER_1_BLITZ",
-    "outcome": "INCOMPLETE",
-    "yards": 0,
-    "duration": 3.1,
-    "events": "SNAP PASS_ATTEMPT INCOMPLETE PASS_BREAKUP WHISTLE"
+    "outcome": "COMPLETE",
+    "yards": 15,
+    "duration": 3,
+    "events": "SNAP PASS_ATTEMPT PASS_COMPLETE TACKLE WHISTLE"
   },
   "NFL_TEST_RUN_001": {
     "concept": "INSIDE_ZONE_R",

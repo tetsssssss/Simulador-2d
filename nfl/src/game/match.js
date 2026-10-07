@@ -3,6 +3,7 @@
 // Every play is simulated by NFLPlay (src/sim/playSim.js); this module only reads its result/events.
 import { buildLineups } from '../nflEngine.js';
 import { createPlay, step, chooseConcept, chooseDefCall } from '../sim/playSim.js';
+import { explainPlay } from '../sim/explain.js';
 import { PLAYBOOK, DEF_CALLS } from '../sim/formation.js';
 import { emptyBox, applyPlayEvents } from '../sim/stats.js';
 import { createRng, hashSeed } from '../core/rng.js';
@@ -81,14 +82,14 @@ export function cpuOffenseCall(g) {
 }
 export function cpuDefenseCall(g) {
   const rng = createRng(hashSeed(`${g.seed}-${g.playNo + 1}-dcall`));
-  return chooseDefCall(rng, g.down, g.distance);
+  return chooseDefCall(rng, g.down, g.distance, true); // CPU uses the full menu (Cover 0/1/2/3/4/6, Tampa 2)
 }
 
 // Build the NFLPlay for the next snap. call = { playType, concept?, defCall? }.
 export function snap(g, ls, call, tuning) {
   return createPlay({
     offense: ls.offense, defense: ls.defense, ballOn: g.ballOn, down: g.down, distance: g.distance,
-    playType: call.playType, concept: call.concept, defCall: call.defCall,
+    playType: call.playType, concept: call.concept, defCall: call.defCall, stunt: call.stunt,
     seed: `${g.seed}-${g.playNo + 1}-${call.playType}`, energy: g.energy, tuning,
   });
 }
@@ -130,6 +131,7 @@ export function summarize(sim, who) {
     case 'FUMBLE_LOST': out.badge = 'FUMBLE'; out.tone = 'bad'; out.lines.push(`Recuperado por ${nm(f('FUMBLE_RECOVERY')?.by)}`); break;
     default: out.badge = r.outcome;
   }
+  try { out.why = explainPlay(sim); } catch { out.why = null; } // "Por que terminou" (evidence from the sim's own record)
   if (r.touchdown === 'off' || r.touchdown === 'def') { out.badge = 'TOUCHDOWN'; out.tone = r.touchdown === 'off' ? 'good' : 'bad'; }
   if (r.safety) out.badge = 'SAFETY';
   return out;
@@ -150,7 +152,7 @@ export function applyPlay(g, sim, who) {
   for (const e of sim.ents) g.energy[e.id] = Math.min(1, e.energy + 0.06); // partial recovery between plays
   g.playNo++;
   const sum = summarize(sim, who);
-  const entry = { q: Math.min(4, g.quarter), clock: clockStr(g.clock), off, situation: `${downText(g)} · ${ballSpot(g)}`, text: logText(sum), tone: sum.tone, kind: 'play' };
+  const entry = { q: Math.min(4, g.quarter), clock: clockStr(g.clock), off, situation: `${downText(g)} · ${ballSpot(g)}`, text: logText(sum), why: sum.why?.why || '', tone: sum.tone, kind: 'play' };
   g.log.unshift(entry);
   const notes = [];
   const note = (text, kind = 'note') => { notes.push(text); g.log.unshift({ q: Math.min(4, g.quarter), clock: clockStr(g.clock), off, text, kind }); };

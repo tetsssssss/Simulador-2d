@@ -101,11 +101,16 @@ export function mountMatch(root, deps = {}) {
   }
 
   // last pitch: type, velocity and location in the zone (readability: what was thrown and where)
+  const DEC_PT = { TAKE: 'Deixou passar', CONTACT: 'Contato', NORMAL_SWING: 'Swing normal', POWER_SWING: 'Swing de poder', PROTECT: 'Protege a zona', BUNT: 'Bunt' };
+  const STAGE_PT = { PITCH: 'Arremesso', BATTER_READ: 'Leitura', DECISION: 'Decisão', CONTACT: 'Contato', BALL_FLIGHT: 'Bola no ar', FIELDING: 'Defesa', THROW: 'Arremesso', BASERUNNING: 'Corrida', RESULT: 'Resultado', PRE: '—' };
   function drawPitchInfo() {
-    const el = $('#pitchInfo'), lp = view.state?.lastPitch; if (!el) return;
+    const el = $('#pitchInfo'), s = view.state, lp = s?.lastPitch; if (!el) return;
     if (!lp) { el.innerHTML = ''; return; }
     const px = 50 + lp.x / 1.6 * 50, pz = 100 - (lp.z - 0.5) / 4 * 100;
-    el.innerHTML = `<div class="pi-zone"><i class="pi-box"></i><b class="${lp.inZone ? 'in' : 'out'}" style="left:${Math.max(4, Math.min(96, px))}%;top:${Math.max(4, Math.min(96, pz))}%"></b></div><div><b>${esc(lp.type)}</b><span>${lp.mph} mph</span><small>${view.state.balls}-${view.state.strikes}</small></div>`;
+    const chips = (lp.pipeline || []).map(k => `<i class="${k === s.stage ? 'on' : ''}">${STAGE_PT[k] || k}</i>`).join('');
+    el.innerHTML = `<div class="pi-zone"><i class="pi-box"></i><b class="${lp.inZone ? 'in' : 'out'}" style="left:${Math.max(4, Math.min(96, px))}%;top:${Math.max(4, Math.min(96, pz))}%"></b></div>
+      <div><b title="${esc(lp.type)}">${esc(lp.name || lp.type)} · ${lp.mph} mph</b><span>${lp.rpm || '—'} rpm · eixo ${esc(lp.clock || '')}</span><span>quebra H ${lp.hb ?? '—'}\u2033 · V ${lp.vb ?? '—'}\u2033 · erro ${lp.miss ?? '—'}\u2033</span>
+      <small>${s.balls}-${s.strikes} · ${esc(DEC_PT[lp.decision] || '')}${lp.read != null ? ` · leitura ${Math.round(lp.read * 100)}%` : ''}</small><div class="pi-stages">${chips}</div></div>`;
   }
   function fillThumbs(scope) {
     scope.querySelectorAll('.th').forEach(th => {
@@ -148,13 +153,21 @@ export function mountMatch(root, deps = {}) {
   $('#optDebug').onchange = e => { pref.debug = e.target.checked; };
   $('#homeSel').onchange = e => { pref.home = e.target.value; store.set('asu_mlb_home', pref.home); restart(); };
   $('#awaySel').onchange = e => { pref.away = e.target.value; store.set('asu_mlb_away', pref.away); restart(); };
+  // today's form for the selected player (adaptive attributes computed from the live game state)
+  function adaptLine(e) {
+    try {
+      const rec = view.state?.roster?.[e.id], a = rec && view.engine?.adaptive?.(rec); if (!a) return '';
+      const pick = ['Form', 'Fatigue', 'Confidence', 'Pressure Response'].map(n => a.list.find(x => x.name === n));
+      return `<div class="small" style="margin:4px 0">${pick.map(x => `<span title="${esc(x.tip)}" style="margin-right:8px">${esc(x.name.replace('Fatigue', 'Frescor').replace('Confidence', 'Confiança').replace('Pressure Response', 'Pressão').replace('Form', 'Forma'))} <b>${x.value}</b></span>`).join('')}</div>`;
+    } catch { return ''; }
+  }
   canvas.addEventListener('click', ev => {
     const r = canvas.getBoundingClientRect(); const e = renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
     view.selected = e && view.selected !== e.id ? e.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
     const tm = view.state?.[e.team] || {}, rl = e.role || (e === view.state?.batter ? 'batter' : 'fielder');
-    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · B/T ${e.bats}/${e.throws}</div><button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
+    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(e.name)}</b><div class="muted small">#${esc(e.num)} · ${esc(e.pos)} · B/T ${e.bats}/${e.throws}</div>${adaptLine(e)}<button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
     const pid = e.pid ?? e.id, ctxA = { sport: 'mlb', id: pid, color: tm.color, color2: tm.color2, number: e.num, kit: 'baseball', prop: rl === 'batter' ? 'bat' : 'glove' };
     if (pref.visual === 'photo') el.querySelector('#pcThumb').innerHTML = `<img src="${esc(photoUrl(e.p))}" alt="" onerror="this.style.visibility='hidden'">`; else el.querySelector('#pcThumb').appendChild(avatarThumb(ctxA));
     el.querySelector('#pcEdit').onclick = () => openAvatarEditor({ ...ctxA, name: e.name, pos: e.pos, role: rl, onSave: () => { el.querySelector('#pcThumb').replaceChildren(avatarThumb(ctxA)); } });

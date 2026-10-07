@@ -2,7 +2,9 @@
 // Draws the ballpark (fair/foul grass, infield dirt, warning track, outfield wall with distances, foul lines, bases,
 // home plate, mound + rubber, batter's boxes, dugouts, bullpens), the athletes as photo sprites (pitcher and batter
 // highlighted) and the ball with halo, trail, ground shadow and an "in the air" indicator.
-// Cameras: BROADCAST · BATTER · PITCHER · TACTICAL · FULL.
+// Cameras: BROADCAST · PITCHER · BATTER · INFIELD · BALL (field follow: ball + fielder with it + lead runner) · TACTICAL · FULL.
+// Every camera keeps the ball in frame while it is in play (the view stretches to include it); an edge arrow points to it
+// if it is ever off-screen. Pitches draw a trail from release to the plate and the strike zone at the plate.
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
@@ -15,7 +17,7 @@ export const CAMERAS = {
   BATTER: { label: 'Batter', cx: 0, cy: 26, view: 92, viewH: 68 },
   PITCHER: { label: 'Pitcher', cx: 0, cy: 34, view: 120, viewH: 86 },
   INFIELD: { label: 'Infield', cx: 0, cy: 64, view: 170, viewH: 128 },
-  BALL: { label: 'Seguir bola', cx: 0, cy: 80, view: 150, viewH: 112 },
+  BALL: { label: 'Seguir bola', cx: 0, cy: 80, view: 150, viewH: 112 }, // field follow
   TACTICAL: { label: 'Tactical', cx: 0, cy: 175, view: 470, viewH: 380 },
   FULL: { label: 'Full field', cx: 0, cy: 190, view: 640, viewH: 470 },
 };
@@ -157,7 +159,8 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
       let avatar = null;
       if (mode === 'avatar') {
         const moving = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) > 0.02, isC = e.pos === 'C', rl = e.role || (role === 'batter' ? 'batter' : role === 'pitcher' ? 'pitcher' : e.base != null || e.runner ? 'runner' : isC ? 'catcher' : 'fielder');
-        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1 };
+        const hasBall = state.ball?.holder === e.id;
+        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1 };
       }
       drawSprite(ctx, {
         x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,
@@ -168,12 +171,57 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     }
   }
 
+  const PITCH_COL = { FF: '#ff7a59', FT: '#ff9a59', SI: '#e8b04a', FC: '#c9a0ff', SL: '#6bd0ff', CU: '#6b8cff', CH: '#7be39b', FS: '#4fe0c8' };
+  // Strike zone at the plate (x ±0.83 ft, z 1.5–3.5 ft, lifted like the ball) + the pitch trail from release to the plate + last location.
+  function drawPitch(state) {
+    const s = S(); if (s < 2.2) return;
+    const lift = z => z * s * 0.55, y0 = Y(0.5), x0 = X(0);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(1, 0.12 * s); ctx.setLineDash([3, 3]);
+    ctx.strokeRect(X(-0.83), y0 - lift(3.5), 1.66 * s, lift(2));
+    ctx.setLineDash([]); ctx.restore();
+    const tr = state.pitchTrail, lp = state.lastPitch; if (!tr?.pts?.length) return;
+    const col = PITCH_COL[tr.type] || '#fff', live = state.phase === 'PITCH';
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 1; i < tr.pts.length; i++) {
+      const a = tr.pts[i - 1], b = tr.pts[i], f = i / tr.pts.length;
+      ctx.strokeStyle = col; ctx.globalAlpha = (live ? 0.18 + 0.6 * f : 0.1 + 0.28 * f); ctx.lineWidth = Math.max(1.2, 0.34 * s * (0.4 + 0.6 * f));
+      ctx.beginPath(); ctx.moveTo(X(a.x), Y(a.y) - lift(a.z)); ctx.lineTo(X(b.x), Y(b.y) - lift(b.z)); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    if (lp && !live) { ctx.fillStyle = lp.inZone ? '#5be38f' : '#ff6b6b'; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(X(lp.x), y0 - lift(lp.z), Math.max(2.2, 0.32 * s), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.restore(); void x0;
+  }
+  // Discreet highlights: runners (dashed ring), the batter (bat arc while swinging) and the fielder holding the ball.
+  function drawHighlights(state) {
+    ctx.save(); ctx.lineWidth = 1.4;
+    for (const r of state.runners || []) { const sc = screen.get(r.id); if (!sc) continue; ctx.strokeStyle = 'rgba(255,224,130,.75)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(sc.X, sc.Y, sc.r * 1.45, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.setLineDash([]);
+    const b = state.batter && screen.get(state.batter.id);
+    if (b && state.batter.swing && (state.t - state.batter.swing.t) < 0.35) {
+      const k = (state.t - state.batter.swing.t) / 0.35, dir = state.batter.bats === 'L' ? 1 : -1;
+      ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = Math.max(2, b.r * 0.2); ctx.lineCap = 'round';
+      const a0 = dir > 0 ? -Math.PI * 0.95 : -Math.PI * 0.05; ctx.beginPath(); ctx.arc(b.X, b.Y, b.r * 1.9, a0, a0 + dir * Math.PI * 1.15 * k, dir < 0); ctx.stroke();
+    }
+    const h = state.ball?.holder && screen.get(state.ball.holder);
+    if (h) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(h.X, h.Y, h.r * 1.3, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+  // Edge arrow if the ball is ever off-screen.
+  function drawOffscreenArrow(sx, sy) {
+    const W = hd.w, H = hd.h, m = 14; if (sx > m && sx < W - m && sy > m && sy < H - m) return;
+    const cx = W / 2, cy = H / 2, ang = Math.atan2(sy - cy, sx - cx), ex = Math.max(m, Math.min(W - m, sx)), ey = Math.max(m, Math.min(H - m, sy));
+    ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang); ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.strokeStyle = '#d23a3a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-7, -7); ctx.lineTo(-3, 0); ctx.lineTo(-7, 7); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+
   function drawBall(state, a) {
     const b = state.ball;
     if (!b || b.hidden) { trail.length = 0; return; }
     const x = (b.px ?? b.x) + (b.x - (b.px ?? b.x)) * a, y = (b.py ?? b.y) + (b.y - (b.py ?? b.y)) * a, z = Math.max(0, (b.pz ?? b.z ?? 0) + ((b.z ?? 0) - (b.pz ?? b.z ?? 0)) * a);
     const sx = X(x), sy = Y(y), lift = z * S() * 0.55;
-    trail.push({ x: sx, y: sy - lift }); while (trail.length > 12) trail.shift();
+    trail.push({ x: sx, y: sy - lift }); while (trail.length > 18) trail.shift();
+    drawOffscreenArrow(sx, sy - lift);
     const r = Math.max(3.2, Math.min(7, 0.55 * S()));
     drawTrackedObject(ctx, { x: sx, y: sy, z: lift, r, color: '#ffffff', rim: '#d23a3a', halo: 'rgba(255,255,255,.85)', trail: b.holder ? [] : trail, airborne: z > 3 });
     if (b.landing && z > 3) { // landing spot ring for fly balls (readability)
@@ -182,12 +230,30 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     }
   }
 
+  // Frame that contains the camera's default view AND the points that must stay visible (ball, holder, lead runner).
+  function stretch(c, pts, pad = 26) {
+    let x0 = c.cx - c.view / 2, x1 = c.cx + c.view / 2, y0 = c.cy - c.viewH / 2, y1 = c.cy + c.viewH / 2;
+    for (const p of pts) { x0 = Math.min(x0, p.x - pad); x1 = Math.max(x1, p.x + pad); y0 = Math.min(y0, p.y - pad); y1 = Math.max(y1, p.y + pad); }
+    const w = x1 - x0, h = y1 - y0, k = Math.max(w / c.view, h / c.viewH);
+    return [(x0 + x1) / 2, (y0 + y1) / 2, c.view * k, c.viewH * k];
+  }
+  function keyPoints(state) {
+    const b = state.ball, pts = [];
+    if (b && !b.hidden) pts.push({ x: b.x, y: b.y });
+    const h = b?.holder && (state.fielders || []).find(f => f.id === b.holder); if (h) pts.push({ x: h.x, y: h.y });
+    return pts;
+  }
   function cameraTarget(state) {
-    const c = CAMERAS[mode];
-    if (mode === 'BALL') { const b = state.ball && !state.ball.hidden ? state.ball : null; return b ? [b.x * 0.8, Math.max(c.cy, b.y * 0.85), c.view, c.viewH] : [c.cx, c.cy, c.view, c.viewH]; }
+    const c = CAMERAS[mode], inPlay = state.phase === 'PLAY' && state.ball && !state.ball.hidden;
+    if (mode === 'BALL') { // field follow: ball + fielder holding it + the most advanced runner
+      const pts = keyPoints(state); if (inPlay) { const lead = [...(state.runners || [])].sort((a, d) => (d.prog ?? d.base) - (a.prog ?? a.base))[0]; if (lead) pts.push({ x: lead.x, y: lead.y }); }
+      if (!pts.length) return [c.cx, c.cy, c.view, c.viewH];
+      const [x, y, v, vh] = stretch({ cx: 0, cy: 70, view: 120, viewH: 90 }, pts, 22); return [x * 0.85, y, Math.max(c.view * 0.8, v), Math.max(c.viewH * 0.8, vh)];
+    }
     if (mode === 'BROADCAST' && state.ball && !state.ball.hidden && (state.ball.y > 120 || Math.abs(state.ball.x) > 90)) {
       const b = state.ball; return [b.x * 0.7, Math.max(c.cy, b.y * 0.75), c.view * 1.25, c.viewH * 1.25];
     }
+    if (inPlay && mode !== 'FULL' && mode !== 'TACTICAL') return stretch(c, keyPoints(state), 34); // close cameras never lose the ball
     return [c.cx, c.cy, c.view, c.viewH];
   }
 
@@ -199,7 +265,9 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     cam.target(tx, ty, vw, vh); cam.update(dt, 2.6);
     drawPark(state);
     if (opts.debug && opts.drawDebug) opts.drawDebug(ctx, cam, state, screen);
+    drawPitch(state);
     drawAthletes(state, alpha, opts);
+    drawHighlights(state);
     drawBall(state, alpha);
     const vg = ctx.createRadialGradient(hd.w / 2, hd.h / 2, Math.min(hd.w, hd.h) * 0.35, hd.w / 2, hd.h / 2, Math.max(hd.w, hd.h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, hd.w, hd.h);

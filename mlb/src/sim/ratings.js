@@ -16,5 +16,7 @@ export function simRatings(attrs) {
     velo: v(m, 'Pitch Velocity'), fb: v(m, 'Fastball Quality'), brk: v(m, 'Breaking Ball Quality'), off: v(m, 'Offspeed Quality'),
     command: v(m, 'Pitch Command'), control: v(m, 'Pitch Control'), movement: v(m, 'Pitch Movement'), stamina: v(m, 'Pitch Stamina'),
     pClutch: v(m, 'Pitching Clutch'), hold: v(m, 'Hold Runners'),
+    // extras: bunting, baseball IQ, pickoff
+    bunt: v(m, 'Bunt', 'Drag Bunt'), iq: v(m, 'Baseball IQ'), pickoff: v(m, 'Pickoff'),
   };
 }

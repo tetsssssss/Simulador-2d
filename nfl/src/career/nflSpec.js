@@ -6,6 +6,8 @@ import { makeRatings, overall } from '../ratings.js';
 import { simulateGame } from '../game/match.js';
 import { TEAM_COLORS } from '../ui/teamColors.js';
 import { clamp, poisson, avg, topBy, assignByQuota, expectedByQuota, needsByQuota, rankLabel } from '../../../core/career/specKit.js';
+import { NFL_V3 } from './nflRules.js';
+import { engineConfig } from '../../../core/career/tactics.js';
 
 const G = pos => ({ QB: 'QB', RB: 'RB', FB: 'RB', WR: 'WR', TE: 'TE', T: 'OL', G: 'OL', C: 'OL', OL: 'OL', OT: 'OL', OG: 'OL', DE: 'DL', DT: 'DL', NT: 'DL', DL: 'DL', EDGE: 'DL', OLB: 'LB', ILB: 'LB', MLB: 'LB', LB: 'LB', CB: 'DB', S: 'DB', FS: 'DB', SS: 'DB', DB: 'DB', K: 'K', P: 'P', LS: 'LS' }[pos] || 'DB');
 const QUOTA = { QB: [1, 1], RB: [1, 2], WR: [3, 2], TE: [1, 1], OL: [5, 3], DL: [4, 3], LB: [3, 2], DB: [4, 3], K: [1, 0], P: [1, 0], LS: [1, 0] };
@@ -19,6 +21,7 @@ async function loadRows() {
 }
 
 export const NFL_SPEC = {
+  v3: NFL_V3,
   sport: 'nfl', label: 'NFL', confLabel: 'Conferência', starOvr: 86, usePoints: false, homeAdvantage: 1.2, aiTradeRate: 0.06,
   calendar: { games: 17, crossesYear: false, startMonth: 9, startDay: 10, slateDays: 7, firstSeason: 2026 },
   scoring: { kind: 'normal', mean: 22, sd: 9.5, k: 0.55, ties: false, otLoss: false, otAdds: 3 },
@@ -70,7 +73,7 @@ export const NFL_SPEC = {
     await this.ensureRuntime();
     const list = Object.values(c.players).filter(p => (p.t === h || p.t === a) && p.st === 'ACT' && !p.inj);
     const roster = list.map(p => rowFor(p)), byId = new Map(list.map(p => [String(rowFor(p).gsis_id), p]));
-    const g = await simulateGame({ roster, home: h, away: a, seed, quarterMin: c.settings.nflQuarter || 15 });
+    const g = await simulateGame({ roster, home: h, away: a, seed, quarterMin: c.settings.nflQuarter || 15, coach: { home: engineConfig(this, c, h), away: engineConfig(this, c, a) } });
     const lines = [];
     for (const bp of Object.values(g.box?.players || {})) {
       const cp = byId.get(String(bp.id)); if (!cp) continue;

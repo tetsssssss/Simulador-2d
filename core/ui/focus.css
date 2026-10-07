@@ -28,3 +28,23 @@
 .asu-ave button:hover{background:#1c2f45}.asu-ave button.primary{background:#1d8f5a;border-color:#2fe08f}
 .asu-ave-act{display:flex;gap:6px;margin-top:14px;align-items:center}.asu-ave-act .grow{flex:1}
 @media (max-width:760px){.asu-ave-card{grid-template-columns:1fr}}
+/* ---- end-of-game "FINAL" card (core/ui/finalOverlay.js) ---- */
+.fin-overlay{position:absolute;inset:0;z-index:25;display:grid;place-items:center;background:radial-gradient(ellipse at center,rgba(3,6,10,.55),rgba(3,6,10,.88));opacity:0;transition:opacity .5s;pointer-events:none;padding:10px;overflow:auto}
+.fin-overlay.show{opacity:1;pointer-events:auto}
+.fin-card{width:min(760px,96%);background:linear-gradient(180deg,#0e1826,#08101a);border:1px solid #2b3d54;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.65);padding:16px 20px;color:#e9f0f7;transform:translateY(14px) scale(.98);transition:transform .5s cubic-bezier(.2,.9,.3,1.1)}
+.fin-overlay.show .fin-card{transform:none}
+.fin-head{text-align:center}.fin-tag{display:inline-block;font-weight:900;letter-spacing:.3em;font-size:12px;color:#f6c453;border:1px solid #f6c45366;border-radius:999px;padding:3px 14px}
+.fin-scoreboard{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:12px 0}
+.fin-team{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;background:linear-gradient(90deg,var(--tc),#0a121c 80%);border:1px solid #ffffff14}
+.fin-team:last-child{grid-template-columns:auto 1fr auto}
+.fin-team b{font-size:24px;font-weight:900;letter-spacing:.04em}.fin-team small{color:#ffffffb0;font-size:11px;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fin-score{font-size:44px;font-weight:900;line-height:1}.fin-team.lose{opacity:.62;filter:saturate(.7)}.fin-team.win{box-shadow:0 0 0 2px #f6c45399,0 0 28px #f6c45333}
+.fin-at{color:#8295aa;font-weight:800}
+.fin-line{width:100%;border-collapse:collapse;font-size:13px;text-align:center;margin-bottom:8px}.fin-line th{color:#8295aa;font-size:10.5px;letter-spacing:.08em;padding:3px 6px}.fin-line td{padding:3px 6px;border-top:1px solid #ffffff10}.fin-line td:first-child,.fin-line th:first-child{text-align:left;font-weight:800}
+.fin-note{text-align:center;color:#c9d5e2;font-size:13px;margin:4px 0 8px}
+.fin-cols{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:6px}
+.fin-stat{display:grid;grid-template-columns:44px 1fr 44px;gap:6px;align-items:center;margin:7px 0;font-weight:800;font-size:13px}.fin-stat span:last-of-type{text-align:right}.fin-stat em{grid-column:1/-1;text-align:center;font-style:normal;color:#8295aa;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-top:-4px}
+.fin-bar{display:flex;gap:2px;height:7px;border-radius:5px;overflow:hidden;background:#142130}.fin-bar i{display:block;height:100%}
+.fin-stars h4{margin:0 0 6px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8295aa}.fin-star{display:grid;grid-template-columns:44px 1fr;gap:6px;padding:5px 0;border-bottom:1px solid #ffffff10;font-size:12.5px}.fin-star b{color:#f6c453;font-size:11px}.fin-star small{color:#8295aa}.fin-star em{font-style:normal;color:#c9d5e2}
+.fin-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}.fin-actions button{border:1px solid #2b3d54;background:#142130;color:#e9f0f7;border-radius:8px;padding:8px 16px;font-weight:700;cursor:pointer}.fin-actions button:hover{background:#1c2f45}.fin-actions button.primary{background:#1d8f5a;border-color:#2fe08f}
+@media (max-width:640px){.fin-cols{grid-template-columns:1fr}.fin-scoreboard{grid-template-columns:1fr}.fin-at{display:none}}

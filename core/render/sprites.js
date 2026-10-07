@@ -149,7 +149,7 @@ function drawAvatarSprite(ctx, o, level) {
   if (carrier) ring(r * 1.45, `rgba(246,196,83,${0.6 + 0.35 * Math.sin(t * 6)})`, 2.4);
   if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
   if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
-  drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, seed: avatar.seed, dir: avatar.dir,
+  drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, seed: avatar.seed, dir: avatar.dir,
     color, color2, number, facing, t, showNumber: true });
   if (h / 10 < 3.3 && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
     const bw = Math.max(13, r * 0.95), bh = Math.max(10, r * 0.62), fg = textColorOn(color);

@@ -133,7 +133,7 @@ export function mountMatch(root, deps = {}) {
     view.selected = p && view.selected !== p.id ? p.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
-    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(p.name)}</b><div class="muted small">#${esc(p.num)} · ${p.pos} · ${esc(view.state[p.team].abbr)}</div>${p.energy != null ? `<div class="muted small">Energia ${Math.round(p.energy * 100)}%</div>` : ''}<button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
+    el.innerHTML = `<span id="pcThumb"></span><div><b>${esc(p.name)}</b><div class="muted small">#${esc(p.num)} · ${p.pos} · ${esc(view.state[p.team].abbr)}</div>${p.energy != null ? `<div class="muted small">Energia ${Math.round(p.energy * 100)}%</div>` : ''}${p.goalie ? `<div class="muted small">Goleiro: ${esc(p.state || 'READY')}</div>` : p.skate ? `<div class="muted small">Patinação: ${esc(p.skate)}${p.back ? ' (de costas)' : ''}</div>` : ''}<button id="pcEdit" class="small">✎ Editar boneco</button></div>`;
     const tm = view.state[p.team] || {}, pid = p.p?.id ?? p.pid ?? p.id, ctxA = { sport: 'nhl', id: pid, color: tm.color, color2: tm.color2, number: p.num, kit: 'hockey', prop: 'stick' };
     if (pref.visual === 'photo') el.querySelector('#pcThumb').innerHTML = `<img src="${esc(photoUrl(p.p))}" alt="" onerror="this.style.visibility='hidden'">`; else el.querySelector('#pcThumb').appendChild(avatarThumb(ctxA));
     el.querySelector('#pcEdit').onclick = () => openAvatarEditor({ ...ctxA, name: p.name, pos: p.pos, role: p.goalie ? 'goalie' : 'skater', onSave: () => el.querySelector('#pcThumb').replaceChildren(avatarThumb(ctxA)) });

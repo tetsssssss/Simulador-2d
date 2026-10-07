@@ -37,7 +37,7 @@ export function hockeyHook(deps) {
         if (p.tx == null) continue;
         ctx.strokeStyle = p.team === 'home' ? 'rgba(255,214,90,.6)' : 'rgba(120,200,255,.6)'; ctx.setLineDash([4, 4]);
         ctx.beginPath(); ctx.moveTo(cam.sx(p.x), cam.sy(p.y)); ctx.lineTo(cam.sx(p.tx), cam.sy(p.ty)); ctx.stroke(); ctx.setLineDash([]);
-        if (p.role) { ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillText(p.role, cam.sx(p.x), cam.sy(p.y) - 16); }
+        if (p.role || p.goalie) { ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillText(p.goalie ? `G ${p.state || ''}` : `${p.role}${p.skate ? ' · ' + p.skate : ''}`, cam.sx(p.x), cam.sy(p.y) - 16); }
       }
       ctx.restore();
     },

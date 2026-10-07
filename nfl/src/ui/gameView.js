@@ -3,7 +3,7 @@
 // Modes (QUICK / COACH / SPECTATOR / SANDBOX / CAREER) differ only in who calls the plays; all run NFLPlay.
 import { step } from '../sim/playSim.js';
 import { applyPlayEvents } from '../sim/stats.js';
-import { createRenderer } from './fieldRenderer.js';
+import { createRenderer, CAMERAS } from './fieldRenderer.js';
 import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
 import { openAvatarEditor } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
@@ -42,7 +42,7 @@ export function mountGame(root, deps) {
   const g = m.g;
   const disp = S().display;
   const view = {
-    sim: null, raf: 0, acc: 0, last: 0, speed: disp.animSpeed || 1, paused: false, debug: !!disp.debug, zoom: 'medium',
+    sim: null, raf: 0, acc: 0, last: 0, speed: disp.animSpeed || 1, paused: false, debug: !!disp.debug, zoom: 'medium', camera: null, highlights: true,
     follow: disp.cameraFollow !== false, phase: 'AWAIT', deadAt: null, resultAt: null, auto: m.mode === 'SPECTATOR' || !!m.auto,
     selected: null, visual: getVisualMode(), playClock: 40, pendingCall: null, lastSum: null, boxTab: 'TEAM', simming: false, sel: { off: null, def: null },
   };
@@ -69,6 +69,8 @@ export function mountGame(root, deps) {
           <span class="grow"></span>
           <div class="seg" id="zoomSeg"><button data-zoom="close">Close</button><button data-zoom="medium" class="on">Mid</button><button data-zoom="full">Full</button></div>
           <button id="camBtn" class="toggle ${view.follow ? 'on' : ''}" title="Câmera segue a bola">Cam</button>
+          <div class="seg" id="camSeg" title="Câmeras (C alterna)">${Object.entries(CAMERAS).map(([k, c]) => `<button data-camera="${k}" title="${c.label}">${c.label}</button>`).join('')}</div>
+          <button id="hlBtn" class="toggle on" title="Destaques discretos: QB, portador, alvo e defensor mais próximo">Destaques</button>
           <div class="seg" id="viewSeg"><button data-view="normal" class="${view.debug ? '' : 'on'}">Normal</button><button data-view="debug" class="${view.debug ? 'on' : ''}">Debug</button></div>
           <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === view.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <button id="focusBtn" class="primary" title="Só o campo 2D em tela cheia (F)">⛶ Modo 2D</button>
@@ -90,7 +92,7 @@ export function mountGame(root, deps) {
   const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
   const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, camera: view.camera, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
 
@@ -245,7 +247,7 @@ export function mountGame(root, deps) {
     if (sandbox) {
       applyPlayEvents(g.box, s.result.events, ls.who, offAbbr(g));
       sum = summarize(s, ls.who);
-      g.log.unshift({ q: '', clock: `seed #${sb.last.seedN}`, off: offAbbr(g), situation: `${downText(g)} · ${ballSpot(g)}`, text: `${logText(sum)} (vs ${s.call.defLabel})`, tone: sum.tone, kind: 'play' });
+      g.log.unshift({ q: '', clock: `seed #${sb.last.seedN}`, off: offAbbr(g), situation: `${downText(g)} · ${ballSpot(g)}`, text: `${logText(sum)} (vs ${s.call.defLabel})`, why: sum.why?.why || '', tone: sum.tone, kind: 'play' });
     } else { const res = applyPlay(g, s, ls.who); sum = res.sum; emitAfterPlay(before, res.notes); }
     view.lastSum = sum;
     $('#resultPop').innerHTML = resultCard(sum) + (sandbox ? '' : `<div class="rp-next">${g.over ? 'FINAL' : `${esc(downText(g))} · ${esc(ballSpot(g))}`}</div>`);
@@ -262,7 +264,14 @@ export function mountGame(root, deps) {
 
   // ---------- result card / final ----------
   function resultCard(sum, small = false) {
-    return `<div class="rcard tone-${sum.tone} ${small ? 'small' : ''}"><div class="rc-title">${esc(sum.title)}</div><div class="rc-main">${sum.lines.map((l, i) => `<div class="${i ? 'muted' : 'rc-who'}">${esc(l)}</div>`).join('')}</div><div class="rc-badge">${esc(sum.badge)}</div>${sum.tackle ? `<div class="rc-tk">Tackle: ${esc(sum.tackle)}</div>` : ''}<div class="rc-def muted">${esc(sum.concept)} vs ${esc(sum.defense)}</div></div>`;
+    return `<div class="rcard tone-${sum.tone} ${small ? 'small' : ''}"><div class="rc-title">${esc(sum.title)}</div><div class="rc-main">${sum.lines.map((l, i) => `<div class="${i ? 'muted' : 'rc-who'}">${esc(l)}</div>`).join('')}</div><div class="rc-badge">${esc(sum.badge)}</div>${sum.tackle ? `<div class="rc-tk">Tackle: ${esc(sum.tackle)}</div>` : ''}<div class="rc-def muted">${esc(sum.concept)} vs ${esc(sum.defense)}</div>${whyBlock(sum, small)}</div>`;
+  }
+  // "Por que terminou": derived from the play's own record (src/sim/explain.js). Compact; full list on the big card.
+  function whyBlock(sum, small) {
+    const w = sum.why;
+    if (!w || !w.lines?.length) return '';
+    const lines = w.lines;
+    return `<div class="rc-why"><b>Por que terminou</b>${lines.map(l => `<div><i>${esc(l.k)}</i> ${esc(l.t)}</div>`).join('')}</div>`;
   }
   function finalPanel() {
     const A = teamBy(g.away), H = teamBy(g.home);
@@ -281,7 +290,7 @@ export function mountGame(root, deps) {
   function drawLog() {
     $('#logCount').textContent = `${g.log.filter(l => l.kind === 'play').length} jogadas`;
     $('#log').innerHTML = g.log.length ? g.log.slice(0, 200).map(l => typeof l === 'string' ? `<div class="logline">${esc(l)}</div>` :
-      `<div class="logline k-${l.kind} tone-${l.tone || ''}"><span class="lt">${l.q ? `Q${l.q} ` : ''}${esc(l.clock)}</span><span class="lx">${['period', 'final'].includes(l.kind) ? '' : `<b>${esc(l.off)}</b> `}${esc(l.text)}${l.situation ? `<small>${esc(l.situation)}</small>` : ''}</span></div>`).join('') : '<p class="muted">Nenhuma jogada ainda.</p>';
+      `<div class="logline k-${l.kind} tone-${l.tone || ''}"><span class="lt">${l.q ? `Q${l.q} ` : ''}${esc(l.clock)}</span><span class="lx">${['period', 'final'].includes(l.kind) ? '' : `<b>${esc(l.off)}</b> `}${esc(l.text)}${l.situation ? `<small>${esc(l.situation)}</small>` : ''}${l.why ? `<small class="lwhy">↳ ${esc(l.why)}</small>` : ''}</span></div>`).join('') : '<p class="muted">Nenhuma jogada ainda.</p>';
     const last = g.log.filter(l => l.kind === 'play').slice(0, 8).reverse();
     $('#strip').innerHTML = last.map(l => `<span class="strip-chip tone-${l.tone}" title="${esc(l.situation || '')}">${esc(l.off)} · ${esc(l.text.split(' · ')[0])}</span>`).join('');
   }
@@ -351,7 +360,9 @@ export function mountGame(root, deps) {
     $('#pauseBtn').textContent = view.paused ? '▶' : '⏸';
     $('#pauseBtn').classList.toggle('on', view.paused);
     root.querySelectorAll('#speedSeg button').forEach(b => b.classList.toggle('on', +b.dataset.speed === view.speed));
-    root.querySelectorAll('#zoomSeg button').forEach(b => b.classList.toggle('on', b.dataset.zoom === view.zoom));
+    root.querySelectorAll('#zoomSeg button').forEach(b => b.classList.toggle('on', !view.camera && b.dataset.zoom === view.zoom));
+    root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.camera === view.camera));
+    $('#hlBtn').classList.toggle('on', view.highlights);
     root.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', (b.dataset.view === 'debug') === view.debug));
     $('#autoBtn').classList.toggle('on', view.auto);
     $('#camBtn').classList.toggle('on', view.follow);
@@ -361,7 +372,9 @@ export function mountGame(root, deps) {
   const togglePause = () => { view.paused = !view.paused; syncControls(); };
   $('#pauseBtn').onclick = togglePause;
   $('#speedSeg').onclick = e => { const v = e.target.dataset.speed; if (v) { view.speed = +v; syncControls(); } };
-  $('#zoomSeg').onclick = e => { const v = e.target.dataset.zoom; if (v) { view.zoom = v; syncControls(); } };
+  $('#zoomSeg').onclick = e => { const v = e.target.dataset.zoom; if (v) { view.zoom = v; view.camera = null; syncControls(); } }; // classic zoom leaves any preset
+  $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.camera = view.camera === v ? null : v; syncControls(); } };
+  $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
   $('#viewSeg').onclick = e => { const v = e.target.dataset.view; if (v) { view.debug = v === 'debug'; syncControls(); drawDebug(); drawPlayerCard(); } };
   $('#camBtn').onclick = () => { view.follow = !view.follow; syncControls(); };
   $('#autoBtn').onclick = () => { view.auto = !view.auto; m.auto = view.auto; syncControls(); };
@@ -381,6 +394,7 @@ export function mountGame(root, deps) {
     if (e.code === 'Space') { e.preventDefault(); togglePause(); }
     else if (e.key === 'n' || e.key === 'N') $('#nextBtn').click();
     else if (e.key === 'd' || e.key === 'D') { view.debug = !view.debug; syncControls(); drawDebug(); }
+    else if (e.key === 'c' || e.key === 'C') { const ks = [null, ...Object.keys(CAMERAS)]; view.camera = ks[(ks.indexOf(view.camera) + 1) % ks.length]; syncControls(); }
     else if (['1', '2', '3', '4'].includes(e.key)) { view.speed = SPEEDS[+e.key - 1]; syncControls(); }
   };
   window.addEventListener('keydown', onKey);
@@ -413,8 +427,8 @@ export function mountGame(root, deps) {
       view.playClock = Math.max(0, view.playClock - dtReal);
       if (Math.ceil(view.playClock) !== before) drawBug();
       const since = view.resultAt ? ts - view.resultAt : Infinity;
-      if (S().display.autoAdvance !== false && since > 2600 / Math.max(1, view.speed)) $('#resultPop').classList.remove('show');
-      if (view.auto && since > 1500 / Math.max(1, view.speed)) runCall(cpuCall());
+      if (S().display.autoAdvance !== false && since > 5200 / Math.max(1, view.speed)) $('#resultPop').classList.remove('show');
+      if (view.auto && since > 2200 / Math.max(1, view.speed)) runCall(cpuCall());
     }
     if (s) {
       renderer.render(s, s.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / s.dt), renderOpts());

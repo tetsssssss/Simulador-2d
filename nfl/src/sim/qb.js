@@ -5,16 +5,36 @@
 import { FIELD_W, clamp, dist, norm, sub, fromAngle } from './geometry.js';
 import { seekVelocity, speedCap } from './movement.js';
 import { planThrow, throwBall, laneDanger } from './ball.js';
+import { pocketInfo } from './pocket.js';
+
+export const QB_ACTIONS = ['STEP_UP', 'SLIDE', 'ROLL_OUT', 'SCRAMBLE', 'THROW_AWAY'];
+
+// Record a QB pocket action once per change (debug event + counters for the explanation / tests).
+function qbAction(sim, action, why = null) {
+  const s = sim.qbState;
+  if (s.action === action) return;
+  s.action = action;
+  (sim.qbActions ||= []).push({ t: +sim.t.toFixed(2), action, why });
+  sim.emit('QB_ACTION', { action, id: sim.qb.id, why, collapse: s.pocket?.collapse ?? null }, true);
+}
 
 export function initQB(sim, reads) {
   const q = sim.qb;
+  // Blitz recognition (pre-snap): more rushers than the line can block -> hot reads. The QB goes to the quickest
+  // route first, processes faster and accepts tighter windows (better QBs get more out of it).
+  const extra = sim.call.type === 'pass' ? Math.max(0, sim.defense.filter(d => d.assignment?.type === 'RUSH').length - 4) : 0;
+  let hot = 0;
+  if (extra >= 2 && reads.length) { // 6+ rushers (Cover 0); the 5-man Cover 1 Blitz keeps its original timing
+    hot = extra * (0.5 + 0.5 * (0.5 * q.prof.r.awareness + 0.5 * q.prof.r.decisionMaking));
+    reads = [...reads].sort((a, b) => (a.route?.breakTime ?? 9) - (b.route?.breakTime ?? 9));
+  }
   q.assignment = { type: 'QB', label: sim.call.type === 'run' ? 'HANDOFF' : 'DROPBACK+PROGRESSION' };
   sim.qbState = {
     state: sim.call.type === 'run' ? 'HANDOFF' : 'DROP',
-    reads, readIdx: 0, readClock: 0, evalTime: evalTime(sim, q), lookingAt: reads[0] || null,
+    reads, readIdx: 0, readClock: 0, hot, evalTime: evalTime(sim, q) * (hot ? 0.88 : 1), lookingAt: reads[0] || null,
     // Deep shots take a deeper (7-step) drop.
-    dropPoint: { x: sim.losX - (sim.call.playType === 'deep' ? 8.6 : 7.2), y: sim.by }, pressure: 0, pressureDir: { x: 0, y: 0 }, late: false,
-    lastDecision: 0, windup: 0, target: null, hurried: false, log: [],
+    dropPoint: { x: sim.losX - (hot ? 6.2 : sim.call.playType === 'deep' ? 8.6 : 7.2), y: sim.by }, pressure: 0, pressureDir: { x: 0, y: 0 }, late: false,
+    lastDecision: 0, windup: 0, target: null, hurried: false, log: [], pocket: null, action: null,
   };
 }
 
@@ -94,6 +114,7 @@ function threshold(sim, plan, isLast) {
   let th = -0.5 - 0.6 * s.pressure - (s.readIdx === 0 ? 0.1 : 0) + (isLast && !s.late ? 0.3 : 0) - (s.late ? 0.6 : 0);
   // Down & distance: on 3rd/4th down prefer throws that reach the sticks.
   if (sim.down >= 3 && plan && plan.aim.x < sim.losX + sim.distance) th += 0.7;
+  if (s.hot) th -= 0.04 * s.hot;
   // The longer he holds it, the tighter the window he accepts.
   if (sim.t > 3) th -= 0.5 * (sim.t - 3);
   return th;
@@ -131,7 +152,15 @@ export function updateQB(sim, dt) {
   }
   const pi = pressureInfo(sim);
   s.pressure = pi.P; s.pressureDir = pi.dir;
-  if (pi.P > 0.55 && !s.flaggedPressure) { s.flaggedPressure = true; sim.emit('PRESSURE', { t: +sim.t.toFixed(2), by: pi.imminent?.id || null }, true); }
+  const pk = s.pocket = pocketInfo(sim);
+  if (pk.collapse > 0.6 && !s.flaggedCollapse) { s.flaggedCollapse = true; sim.emit('POCKET_COLLAPSE', { t: +sim.t.toFixed(2), leak: pk.leak, sector: pk.sector, depth: pk.depth, by: pk.nearest?.id || null }, true); }
+  if (pi.P > 0.55 && !s.flaggedPressure) {
+    s.flaggedPressure = true;
+    const by = pi.imminent || pk.nearest;
+    const move = by ? (by.winMove || by.rushMove || null) : null;
+    (sim.pressureLog ||= []).push({ t: +sim.t.toFixed(2), by: by?.id || null, move, won: !!by?.winMove, unblocked: !!by && !by.engCount });
+    sim.emit('PRESSURE', { t: +sim.t.toFixed(2), by: by?.id || null, move, leak: pk.leak, collapse: pk.collapse }, true);
+  }
 
   if (s.state === 'WINDUP') {
     s.windup += dt;
@@ -176,16 +205,21 @@ export function updateQB(sim, dt) {
       if (!(cur.plan && cur.open >= threshold(sim, cur.plan, false))) {
         const lane = escapeLane(sim);
         const mobile = 0.15 + 0.6 * R.speed + 0.25 * R.elusiveness;
-        if (lane.score > 2.2 && sim.rng.chance(mobile * 0.45)) {
+        // The bigger the open lane, the more willing he is to tuck it (an open lane + a mobile QB = run).
+        if (lane.score > 2.2 && sim.rng.chance(mobile * 0.45 * (0.7 + 0.3 * clamp((lane.score - 2.2) / 4, 0, 1)))) {
           s.state = 'SCRAMBLE'; s.scrambleDir = lane.dir;
           sim.phase = 'SCRAMBLE';
+          qbAction(sim, 'SCRAMBLE', `lane ${lane.score.toFixed(1)}`);
           sim.emit('SCRAMBLE', { id: q.id }, false);
           return null;
-        } else if (sim.t > 3.2 && outsideTackleBox(sim) && sim.rng.chance(0.25 * R.awareness)) {
+        } else if (outsideTackleBox(sim) && ((sim.t > 3.2 && sim.rng.chance(0.25 * R.awareness)) || (pi.P > 0.6 && lane.score <= 2.2 && sim.rng.chance(0.35 + 0.45 * R.awareness)))) {
+          // No window, no lane, outside the box: live to play another down.
           throwAway(sim); return { x: 0, y: 0 };
         }
       }
     }
+    // Hot-read clock: against a blitz the QB gives himself ~2 s, then scans for the best available window.
+    if (s.hot && !s.late && sim.t > 2.3 - 0.35 * R.decisionMaking) { s.late = true; s.readIdx = s.reads.length - 1; s.readClock = 0.3; }
     if (!s.late) {
       if (s.readClock >= s.evalTime) {
         const isLast = s.readIdx >= reads.length - 1;
@@ -196,7 +230,7 @@ export function updateQB(sim, dt) {
           if (ev.plan && ev.open >= threshold(sim, ev.plan, isLast)) { startThrow(sim, r, ev.plan, pi.P > 0.6); return { x: 0, y: 0 }; }
           s.log.push({ t: +sim.t.toFixed(2), decision: 'NEXT', from: r?.slot, read: s.readIdx, open: +ev.open.toFixed(2) });
           sim.emit('QB_READ', { read: s.readIdx, target: r?.id || null, verdict: 'covered' }, true);
-          s.readIdx++; s.readClock = 0; s.evalTime = evalTime(sim, q);
+          s.readIdx++; s.readClock = 0; s.evalTime = evalTime(sim, q) * (s.hot ? 0.88 : 1);
           if (s.readIdx >= reads.length) { s.late = true; s.readIdx = reads.length - 1; }
         }
       }
@@ -208,13 +242,17 @@ export function updateQB(sim, dt) {
       if (best && best.open >= threshold(sim, best.plan, true)) { startThrow(sim, best.r, best.plan, pi.P > 0.6); return { x: 0, y: 0 }; }
       if (best) s.lookingAt = best.r;
     }
+    // Pressure + no window + outside the tackle box (legal to ground it) + nowhere to go: live for another down.
+    if (outsideTackleBox(sim) && behindLos && (pi.P > 0.5 || pk.collapse > 0.55) && (s.readIdx >= 1 || s.late) && sim.rng.chance(0.2 + 0.5 * R.awareness)) {
+      throwAway(sim); return { x: 0, y: 0 };
+    }
     if (!scrambling && (sim.t > 6.5 || (sim.t > 5 && outsideTackleBox(sim)))) { throwAway(sim); return { x: 0, y: 0 }; }
   }
 
   // Scrambling QB moves like a ball carrier (seeking space) while still able to throw.
   if (scrambling || s.state === 'SCRAMBLE') return null;
   // Pocket movement.
-  return pocketVelocity(sim, pi);
+  return pocketVelocity(sim, pi, pk);
 }
 
 function outsideTackleBox(sim) { return Math.abs(sim.qb.pos.y - sim.by) > 4.6 || sim.qb.pos.x > sim.losX - 0.5; }
@@ -228,17 +266,51 @@ function throwAway(sim) {
   s.target = null;
   s.throwAwayPlan = { aim, T: d / 22, type: 'BULLET', d };
   s.log.push({ t: +sim.t.toFixed(2), decision: 'THROW_AWAY' });
+  qbAction(sim, 'THROW_AWAY', s.pocket?.leak ? `pocket ${s.pocket.leak}` : 'sem janela');
   sim.emit('THROW_AWAY', { id: q.id }, true);
 }
 
-// Step up against edge pressure, slide away from interior pressure, otherwise hold the launch point.
-function pocketVelocity(sim, pi) {
+// Pocket movement driven by where the pocket is breaking (measured in pocket.js), not by dice:
+//   edge pressure + clear front   -> STEP_UP (climb the pocket, away from the edge)
+//   edge pressure + front closed  -> ROLL_OUT away from it when the lane outside is open
+//   interior pressure             -> SLIDE laterally to the side with more room
+//   otherwise                     -> hold the launch point
+function pocketVelocity(sim, pi, pk) {
   const q = sim.qb, s = sim.qbState;
-  let tgt = s.dropPoint;
-  if (pi.P > 0.2) {
-    const fromEdge = Math.abs(pi.dir.y) > 0.55 || pi.dir.x > 0.3;
-    if (fromEdge) tgt = { x: Math.min(sim.losX - 2.5, q.pos.x + 1.6), y: clamp(q.pos.y + pi.dir.y * 0.8, sim.by - 4, sim.by + 4) };
-    else tgt = { x: q.pos.x - 0.4, y: clamp(q.pos.y + (Math.sign(pi.dir.y) || 1) * 2.5, sim.by - 5, sim.by + 5) };
+  let tgt = s.dropPoint, spd = 0.5;
+  if (pi.P > 0.2 && pk.leak) {
+    const edgeSign = pk.sector === 'L' ? -1 : pk.sector === 'R' ? 1 : (Math.sign(pi.dir.y) || 1) * -1; // side the pressure comes from
+    if (pk.leak === 'EDGE') {
+      // Front clear? no defender within 3 yds ahead of the QB in the middle of the pocket.
+      let frontClear = true, away = 99;
+      for (const d of sim.defense) {
+        if (d.down) continue;
+        const rel = sub(d.pos, q.pos);
+        if (rel.x > 0.5 && rel.x < 3.2 && Math.abs(rel.y) < 2.2 && !(d.eng && d.eng.lev < -0.2)) frontClear = false;
+        if (Math.sign(rel.y) === -edgeSign || rel.y === 0) away = Math.min(away, Math.hypot(rel.x, rel.y));
+      }
+      if (pk.collapse > 0.5 && away > 3.5) {
+        // The edge is gone and the middle is closing: leave the pocket away from it.
+        qbAction(sim, 'ROLL_OUT', `colapso ${Math.round(pk.collapse * 100)}% borda ${pk.sector}`);
+        spd = 0.85;
+        tgt = { x: Math.min(sim.losX - 2, q.pos.x + 0.5), y: clamp(q.pos.y - edgeSign * 3.2, sim.by - 11, sim.by + 11) };
+      } else if (frontClear && q.pos.x < sim.losX - 3) {
+        qbAction(sim, 'STEP_UP', `borda ${pk.sector}`);
+        tgt = { x: Math.min(sim.losX - 2.5, q.pos.x + 1.6), y: clamp(q.pos.y - edgeSign * 0.8, sim.by - 4, sim.by + 4) };
+      } else if (away > 3.5) {
+        qbAction(sim, 'ROLL_OUT', `fora da borda ${pk.sector}`);
+        spd = 0.85;
+        tgt = { x: Math.min(sim.losX - 2, q.pos.x + 0.5), y: clamp(q.pos.y - edgeSign * 3.2, sim.by - 11, sim.by + 11) };
+      } else tgt = { x: q.pos.x - 0.4, y: clamp(q.pos.y - edgeSign * 1.2, sim.by - 5, sim.by + 5) };
+    } else {
+      // Interior: slide to the side with more room (clearance of the nearest defender on each side).
+      const clear = sgn => { let m = 99; for (const d of sim.defense) { if (d.down) continue; const p = { x: q.pos.x, y: q.pos.y + sgn * 2.6 }; m = Math.min(m, dist(d.pos, p) - (d.eng ? 1.2 : 0)); } return m; };
+      const side = clear(-1) > clear(1) ? -1 : 1;
+      qbAction(sim, 'SLIDE', `interior → ${side < 0 ? 'L' : 'R'}`);
+      tgt = { x: q.pos.x - 0.4, y: clamp(q.pos.y + side * 2.6, sim.by - 5.5, sim.by + 5.5) };
+    }
+  } else if (s.action === 'STEP_UP' || s.action === 'SLIDE' || s.action === 'ROLL_OUT') {
+    if (pi.P < 0.1) s.action = null; // pocket cleaned up: next movement is a new action
   }
-  return seekVelocity(q, tgt, 0.5, 0.3);
+  return seekVelocity(q, tgt, spd, 0.3);
 }

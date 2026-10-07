@@ -9,7 +9,8 @@ import { OFF_SLOTS, DEF_SLOTS, PLAYBOOK, DEF_CALLS, assignSlots, alignment } fro
 import { steer, integrate, separate, seekVelocity, speedCap } from './movement.js';
 import { initRoute, updateRoute, scrambleVelocity } from './routes.js';
 import { initCoverage, coverageVelocity, ballReactionVelocity, perceive } from './coverage.js';
-import { chooseRushMove, updateEngagements, tryEngage } from './blocking.js';
+import { chooseRushMove, refineRushMove, updateEngagements, tryEngage } from './blocking.js';
+import { planStunt, stuntVelocity, stuntBlockVelocity } from './stunts.js';
 import { initQB, updateQB } from './qb.js';
 import { updateBall } from './ball.js';
 import { carrierVelocity, pursuitVelocity, escortVelocity, attemptTackles, checkCarrierDead, isSackable } from './tackle.js';
@@ -20,8 +21,16 @@ import { updateMoves } from './carrierMoves.js';
 export const SIM_HZ = 30;
 const MAX_PLAY_TIME = 20;
 
-export function chooseDefCall(rng, down, distance) {
+export function chooseDefCall(rng, down, distance, extended = false) {
   const long = distance >= 7, short = distance <= 2;
+  // CPU picker with the full menu (Cover 0/4/6, Tampa 2). The default menu is kept as it was (same RNG stream).
+  if (extended) {
+    return rng.weighted([
+      ['COVER_3', long ? 0.22 : 0.27], ['COVER_2', long ? 0.15 : 0.1], ['COVER_1', short ? 0.3 : 0.17],
+      ['COVER_1_BLITZ', short || down >= 3 ? 0.14 : 0.07], ['COVER_4', long ? 0.14 : 0.1], ['COVER_6', 0.07],
+      ['TAMPA_2', long ? 0.1 : 0.06], ['COVER_0', short || down >= 4 ? 0.05 : 0.02],
+    ]);
+  }
   return rng.weighted([
     ['COVER_3', long ? 0.3 : 0.35], ['COVER_2', long ? 0.3 : 0.2],
     ['COVER_1', short ? 0.4 : 0.25], ['COVER_1_BLITZ', short || down >= 3 ? 0.25 : 0.12],
@@ -93,7 +102,7 @@ export function createPlay(opts) {
 
   // Defensive assignments (coverage + rush).
   initCoverage(sim);
-  for (const e of sim.defense) if (e.assignment?.type === 'RUSH') e.rushMove = chooseRushMove(e, rng);
+  for (const e of sim.defense) if (e.assignment?.type === 'RUSH') e.rushMove = refineRushMove(e, chooseRushMove(e, rng), rng.fork(`rush-${e.slot}`));
   for (const e of sim.defense) if (e.assignment?.type === 'RUSH') e.assignment.label += `:${e.rushMove}`;
 
   if (callType === 'pass') {
@@ -103,6 +112,7 @@ export function createPlay(opts) {
     for (const [o, d] of Object.entries(pairs)) sim.off[o].assignment = { type: 'PASS_PRO', target: sim.def[d], label: `PASS_PRO→${d}` };
     sim.off.C.assignment = { type: 'PASS_PRO', target: null, label: 'PASS_PRO:SCAN' };
     initQB(sim, c.reads.map(s => sim.off[s]));
+    planStunt(sim, { stunt: opts.stunt });
   } else {
     const c = PLAYBOOK.run[concept];
     sim.runSide = c.side;
@@ -134,6 +144,8 @@ function passProVelocity(sim, e) {
     a = best;
   }
   if (!a) return seekVelocity(e, { x: sim.losX - 2, y: e.pos.y }, 0.5, 0.3);
+  const sb = stuntBlockVelocity(sim, e, a);
+  if (sb) return sb;
   if (tryEngage(sim, e, a, 'PASS')) return { x: 0, y: 0 };
   // Opportunistic: any free rusher in reach.
   for (const d of freeRushers(sim)) if (tryEngage(sim, e, d, 'PASS')) return { x: 0, y: 0 };
@@ -162,6 +174,7 @@ function runFrontVelocity(sim, e) {
 
 function rushVelocity(sim, e) {
   if (sim.call.type === 'run' && sim.carrier?.side !== 'def') return runFrontVelocity(sim, e);
+  if (e.stunt && sim.call.type === 'pass' && !sim.carrier) { const sv = stuntVelocity(sim, e); if (sv) return sv; }
   const goalEnt = sim.carrier || (sim.call.type === 'run' ? null : sim.qb);
   const goal = goalEnt ? goalEnt.pos : (sim.meshPoint || sim.qb.pos);
   const d = dist(e.pos, goal);

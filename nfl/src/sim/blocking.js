@@ -8,8 +8,15 @@
 import { dist, norm, sub, clamp } from './geometry.js';
 import { labelBlock } from './runBlocking.js';
 
-export const RUSH_MOVES = ['SPEED', 'POWER', 'FINESSE'];
+// Pass-rush moves. Each one is a distinct attribute contest (defender score vs the blocker's answer) plus a
+// signature: SPEED bends the edge, POWER drives the blocker back, FINESSE is the generic swipe/club, RIP dips under
+// the arm (bend), SWIM goes over the top (hands), SPIN is high-variance (rewards a clean spin, punishes a failed one)
+// and COUNTER is only used after a first move stalled (reads the blocker's overset).
+export const RUSH_MOVES = ['SPEED', 'POWER', 'FINESSE', 'RIP', 'SWIM', 'SPIN', 'COUNTER'];
+export const BASE_RUSH_MOVES = ['SPEED', 'POWER', 'FINESSE'];
+export const RUSH_MOVE_LABEL = { SPEED: 'Speed rush', POWER: 'Bull rush', FINESSE: 'Finesse', RIP: 'Rip', SWIM: 'Swim', SPIN: 'Spin', COUNTER: 'Counter' };
 
+// The first rusher draw is unchanged (one RNG call per rusher); chooseRushMove returns SPEED/POWER/FINESSE.
 export function chooseRushMove(def, rng) {
   const r = def.prof.r;
   return rng.weighted([
@@ -17,6 +24,43 @@ export function chooseRushMove(def, rng) {
     ['POWER', 0.2 + r.strength * 1.1 + (def.prof.mass - 1) * 1.2],
     ['FINESSE', 0.2 + r.passRush * 0.9 + r.agility * 0.4],
   ]);
+}
+
+// Refine the base family into the specific move (RIP/SWIM/SPIN) from the rusher's attributes. `rng` is a forked
+// stream (sim.rng.fork) so the main play stream is not perturbed by the extra draws.
+export function refineRushMove(def, base, rng) {
+  const r = def.prof.r;
+  if (base === 'SPEED') return rng.weighted([['SPEED', 0.5 + r.speed * 0.6], ['RIP', 0.15 + 0.9 * (0.5 * r.agility + 0.5 * r.explosiveness) + 0.3 * r.passRush]]);
+  if (base === 'FINESSE') return rng.weighted([['FINESSE', 0.45], ['SWIM', 0.12 + 0.8 * r.passRush], ['SPIN', 0.06 + 0.7 * (0.6 * r.agility + 0.4 * r.changeOfDirection) * (1 - 0.4 * (def.prof.mass - 0.7))]]);
+  return base;
+}
+
+// Calibration: the specialist moves are not strictly better than the base family (set-up cost / risk).
+const MOVE_EDGE = { RIP: 0.9, SWIM: 0.9, SPIN: 0.88, COUNTER: 1.0 };
+function rushScores(move, D, d) {
+  return (MOVE_EDGE[move] ?? 1) * rushRaw(move, D, d);
+}
+function rushRaw(move, D, d) {
+  switch (move) {
+    case 'SPEED': return 0.5 * D.speed + 0.3 * D.explosiveness + 0.2 * D.passRush;
+    case 'POWER': return 0.45 * D.strength + 0.25 * D.passRush + 0.3 * (0.5 + (d.prof.mass - 1) * 1.5);
+    case 'RIP': return 0.35 * D.explosiveness + 0.3 * D.agility + 0.35 * D.passRush;
+    case 'SWIM': return 0.5 * D.passRush + 0.3 * D.agility + 0.2 * D.strength;
+    case 'SPIN': return 0.35 * D.agility + 0.25 * D.changeOfDirection + 0.2 * D.explosiveness + 0.2 * D.passRush;
+    case 'COUNTER': return 0.4 * D.passRush + 0.3 * D.playRecognition + 0.3 * D.agility;
+    default: return 0.6 * D.passRush + 0.2 * D.agility + 0.2 * D.explosiveness; // FINESSE
+  }
+}
+function blockScores(move, B, b) {
+  switch (move) {
+    case 'SPEED': return 0.5 * B.blockFootwork + 0.3 * B.passBlock + 0.2 * B.agility;
+    case 'POWER': return 0.45 * B.blockStrength + 0.25 * B.passBlock + 0.3 * (0.5 + (b.prof.mass - 1) * 1.5);
+    case 'RIP': return 0.4 * B.blockFootwork + 0.35 * B.passBlock + 0.25 * B.awareness;
+    case 'SWIM': return 0.5 * B.passBlock + 0.25 * B.awareness + 0.25 * B.blockStrength;
+    case 'SPIN': return 0.45 * B.blockFootwork + 0.35 * B.awareness + 0.2 * B.passBlock;
+    case 'COUNTER': return 0.45 * B.awareness + 0.3 * B.passBlock + 0.25 * B.blockFootwork;
+    default: return 0.5 * B.passBlock + 0.3 * B.blockFootwork + 0.2 * B.awareness;
+  }
 }
 
 function matchup(eng) {
@@ -34,9 +78,7 @@ function matchup(eng) {
       // Pullers and kick-out blocks arrive with momentum.
       if (tech === 'PULL' && eng.t < 0.4) s += 0.08;
     }
-    else if (eng.move === 'SPEED') s = 0.5 * B.blockFootwork + 0.3 * B.passBlock + 0.2 * B.agility;
-    else if (eng.move === 'POWER') s = 0.45 * B.blockStrength + 0.25 * B.passBlock + 0.3 * (0.5 + (b.prof.mass - 1) * 1.5);
-    else s = 0.5 * B.passBlock + 0.3 * B.blockFootwork + 0.2 * B.awareness;
+    else s = blockScores(eng.move, B, b);
     bScore += s * en(b) * (b.stun > 0 ? 0.5 : 1);
   }
   if (blockers.length > 1) bScore *= 0.68; // double team ~1.36x a single blocker
@@ -50,9 +92,7 @@ function matchup(eng) {
     // on his hip can cross face. Contributes continuously, never a binary win.
     dScore -= 0.1 * (eng.fit ?? 0);
   }
-  else if (eng.move === 'SPEED') dScore = 0.5 * D.speed + 0.3 * D.explosiveness + 0.2 * D.passRush;
-  else if (eng.move === 'POWER') dScore = 0.45 * D.strength + 0.25 * D.passRush + 0.3 * (0.5 + (d.prof.mass - 1) * 1.5);
-  else dScore = 0.6 * D.passRush + 0.2 * D.agility + 0.2 * D.explosiveness;
+  else dScore = rushScores(eng.move, D, d);
   return dScore * en(d) - bScore;
 }
 
@@ -68,8 +108,11 @@ export function createEngagement(sim, blocker, def, mode) {
     eng.fit = fitOf(sim, eng, blocker);
     eng.attach = norm(sub(blocker.pos, def.pos));
   }
+  if (mode === 'PASS') { eng.ms = { move: eng.move, t0: 0, phase: 'SET', spin: 0 }; def.rushAnim = { move: eng.move, phase: 'SET', t: 0, spin: 0 }; }
+  def.engCount = (def.engCount || 0) + 1;
   blocker.engagedWith = def; def.engagedWith = blocker; blocker.eng = eng; def.eng = eng;
   sim.engagements.push(eng);
+  if (mode === 'RUN') sim.emit('BLOCK_ENGAGE', { by: blocker.id, on: def.id, tech: blocker.assignment?.tech || null }, true);
   return eng;
 }
 
@@ -90,13 +133,17 @@ function driveDir(sim, eng) {
 }
 
 function release(sim, eng, outcome) {
+  // Block log (feeds the "Por que terminou" explanation): who won each fight and how it ended.
+  (sim.blockLog ||= []).push({ t: +sim.t.toFixed(2), mode: eng.mode, def: eng.def.id, blockers: eng.blockers.map(b => b.id), tech: eng.blockers[0]?.assignment?.tech || null, move: eng.mode === 'PASS' ? eng.move : null, lev: +eng.lev.toFixed(2), outcome: outcome === 'SHED' ? 'DEF_WIN' : outcome === 'BREAK' ? 'BREAK' : 'BLOCK_WIN', at: { x: +eng.def.pos.x.toFixed(1), y: +eng.def.pos.y.toFixed(1) } });
   for (const b of eng.blockers) { b.engagedWith = null; b.eng = null; }
+  if (eng.mode === 'PASS' && eng.def.rushAnim) eng.def.rushAnim.phase = outcome === 'SHED' ? 'WON' : 'END';
   if (eng.mode === 'RUN') eng.def.lastRunShed = sim.t;
   eng.def.engagedWith = null; eng.def.eng = null;
   sim.engagements.splice(sim.engagements.indexOf(eng), 1);
   if (outcome === 'SHED') {
     for (const b of eng.blockers) { b.stun = 0.35; b.noBlock = 0.8; b.beatenBy = eng.def; }
     eng.def.noBlock = 0.7;
+    if (eng.mode === 'PASS') { eng.def.winMove = eng.move; eng.def.shedFrom = eng.blockers.map(b => b.id); sim.emit('RUSH_WIN', { by: eng.def.id, over: eng.blockers.map(b => b.id), move: eng.move, t: +sim.t.toFixed(2) }, true); }
     // Pass-rush wins are game events (pressure); run-block disengages are debug detail.
     sim.emit('SHED', { by: eng.def.id, from: eng.blockers.map(b => b.id), move: eng.move, mode: eng.mode }, eng.mode === 'RUN');
   }
@@ -131,12 +178,31 @@ export function updateEngagements(sim, dt) {
       const past = (c.pos.x - d.pos.x) * dir > 1 || dc > 7 ? 1 : 0;
       eng.lev += (near * (1.0 + 1.2 * d.prof.r.tackling) + past * 1.6) * dt;
     }
-    eng.lev += m * 1.9 * dt + sim.rng.normal(0, eng.mode === 'RUN' ? 0.42 : 0.47) * Math.sqrt(dt);
+    // Move signature: SPIN is high variance (explosive when it works), the first 0.2 s are hand fighting (SET).
+    const ms = eng.ms;
+    let sd = eng.mode === 'RUN' ? 0.42 : 0.47, rate = 1.9;
+    if (ms && eng.mode === 'PASS') {
+      ms.t0 += dt;
+      ms.phase = ms.t0 < 0.2 ? 'SET' : ms.t0 < 0.65 ? 'EXECUTE' : 'GRIND';
+      if (ms.phase === 'SET') rate = 1.1;
+      if (eng.move === 'SPIN' && ms.phase === 'EXECUTE') { sd = 0.8; ms.spin += dt * 9.5; }
+      if (eng.move === 'SPIN' && ms.phase === 'GRIND' && !ms.resolved) { ms.resolved = true; eng.lev += eng.lev > 0.2 ? 0.25 : -0.3; } // clean spin vs lost momentum
+      if (eng.move === 'COUNTER' && ms.phase === 'EXECUTE') sd = 0.6;
+      d.rushAnim = { move: eng.move, phase: ms.phase, t: +ms.t0.toFixed(2), spin: ms.spin };
+      if (eng.move === 'SPIN' && ms.phase === 'EXECUTE') d.facing += dt * 9.5; // spin is visible
+    }
+    eng.lev += m * rate * dt + sim.rng.normal(0, sd) * Math.sqrt(dt);
     eng.lev = Math.max(-1.6, eng.lev);
-    // Counter move after a stalemate.
+    // Counter move after a stalemate: read the blocker's reaction (overset) and counter, else switch move.
     if (eng.mode === 'PASS' && eng.lev < -0.9 && sim.rng.chance(dt * 0.9)) {
-      d.rushMove = eng.move = sim.rng.pick(RUSH_MOVES.filter(x => x !== eng.move));
-      eng.lev = -0.45;
+      const prev = eng.move;
+      const counter = prev !== 'COUNTER' && sim.rng.chance(0.3 + 0.5 * d.prof.r.passRush);
+      d.rushMove = eng.move = counter ? 'COUNTER' : sim.rng.pick(BASE_RUSH_MOVES.filter(x => x !== prev));
+      eng.lev = counter ? -0.1 : -0.45;
+      eng.ms = { move: eng.move, t0: 0, phase: 'SET', spin: 0, from: prev };
+      if (d.assignment?.label) d.assignment.label = d.assignment.label.replace(/:[A-Z_]+$/, `:${eng.move}`);
+      (eng.switches ||= []).push({ t: +sim.t.toFixed(2), from: prev, to: eng.move });
+      sim.emit('RUSH_COUNTER', { by: d.id, from: prev, to: eng.move }, true);
     }
     if (eng.lev >= 1) { release(sim, eng, 'SHED'); continue; }
     // Pair motion: winning defender drives toward his goal; winning blocker drives him away.
@@ -145,10 +211,14 @@ export function updateEngagements(sim, dt) {
     if (eng.lev > 0) {
       const push = eng.move === 'POWER' || eng.mode === 'RUN' ? 1.7 : 0.9;
       vx = toGoal.x * eng.lev * push; vy = toGoal.y * eng.lev * push;
-      if (eng.mode === 'PASS' && eng.move === 'SPEED') {
-        // Speed rush bends around the edge: lateral (outside) component.
+      if (eng.mode === 'PASS' && (eng.move === 'SPEED' || eng.move === 'RIP')) {
+        // Speed rush / rip bend around the edge: lateral (outside) component.
         const out = Math.sign(d.pos.y - sim.qb.pos.y) || 1;
-        vy += out * 1.4 * (eng.lev + 0.3);
+        vy += out * (eng.move === 'RIP' ? 1.1 : 1.4) * (eng.lev + 0.3);
+      } else if (eng.mode === 'PASS' && (eng.move === 'SWIM' || eng.move === 'SPIN' || eng.move === 'COUNTER')) {
+        // Over the top / back inside: slice toward the QB's inside shoulder.
+        const inn = -(Math.sign(d.pos.y - sim.qb.pos.y) || 1);
+        vy += inn * 0.55 * (eng.lev + 0.3);
       }
     } else {
       const drive = eng.mode === 'RUN' ? 1.3 : 0.35;

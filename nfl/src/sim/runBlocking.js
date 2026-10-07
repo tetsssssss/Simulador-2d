@@ -180,6 +180,11 @@ export function assignRunBlocks(sim, concept) {
   const wrTargets = { X: 'CBL', Z: 'CBR', SLOT: 'SS' };
   for (const [w, d] of Object.entries(wrTargets)) sim.off[w].blockTarget = sim.def[d];
   // Gap schemes hit later (pullers must get there): the RB presses the design longer.
+  // Visible vocabulary: one debug event per assigned blocker (REACH / DRIVE / DOUBLE / COMBO / PULL / SEAL / CLIMB / KICK).
+  for (const o of line) {
+    const a = o.assignment;
+    if (a?.type === 'RUN_BLOCK') sim.emit('BLOCK_ASSIGN', { by: o.id, slot: o.slot, tech: a.tech, role: a.role || null, target: a.target?.id || null, climbTo: a.climbTo?.id || null }, true);
+  }
   sim.runPlan = { scheme: c.scheme, aimY: sim.by + s * c.aim, doubleHold: c.doubleHold ?? 0.5, press: c.pull ? 0.55 : 0.32 };
 }
 

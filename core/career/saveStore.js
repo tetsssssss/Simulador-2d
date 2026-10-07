@@ -5,9 +5,9 @@
 // - Manual save, autosave (separate rolling key per career — a bad autosave never overwrites the manual save),
 //   export / import JSON, corrupted saves kept aside, index of careers, active career.
 // - NFL v0.5 slots (asu_nfl_save_N, version 1) can be imported as hub careers (copy; the NFL slots are untouched).
-export const CAREER_SAVE_VERSION = 2;
+export const CAREER_SAVE_VERSION = 3;
 const INDEX = 'asu_careers_index', ACTIVE = 'asu_careers_active';
-const KEY = id => `asu_career_${id}`, AUTO = id => `asu_career_${id}_auto`, BACKUP = (id, v) => `asu_career_${id}_backup_v${v}`;
+const KEY = id => `asu_career_${id}`, AUTO = id => `asu_career_${id}_auto`, AUTO2 = id => `asu_career_${id}_auto2`, BACKUP = (id, v) => `asu_career_${id}_backup_v${v}`;
 
 export function memoryStorage() {
   const m = new Map();
@@ -48,6 +48,31 @@ export const migrations = createMigrationManager().register(1, o => {
   };
 });
 
+// v2 → v3: adds the "career 3.0" extension state (career.x). Only spec-independent defaults are written here; the sport
+// layer finishes the job (ensureV3) the first time the save is attached to its spec. Nothing from v2 is removed or rewritten.
+migrations.register(2, o => {
+  const c = o.career;
+  if (c && typeof c === 'object' && !c.legacyNfl) {
+    c.saveVersion = 3;
+    if (!c.x) c.x = { v: 3, ready: false, migratedFrom: 2, cal: { day: 0, offDay: 0 }, feed: [], newsCur: { tx: 0, news: 0 } };
+  }
+  return o;
+});
+
+// Structural sanity check (a parseable but broken save is treated as corrupt). Legacy NFL shells are exempt.
+export function integrityCheck(career) {
+  if (!career || typeof career !== 'object') return 'sem carreira';
+  if (career.legacyNfl && !career.players) return null;
+  if (!career.teams && !career.players && !career.phase) return null; // empty shell: the sport adapter rebuilds the league
+  if (!Array.isArray(career.teams) || !career.teams.length) return 'times ausentes';
+  if (!career.players || typeof career.players !== 'object') return 'jogadores ausentes';
+  if (!career.standings || typeof career.standings !== 'object') return 'tabela ausente';
+  if (!Number.isFinite(career.season)) return 'temporada inválida';
+  if (!['PRESEASON', 'REGULAR', 'PLAYOFFS', 'OFFSEASON'].includes(career.phase)) return 'fase inválida';
+  if (!Number.isFinite(career.slate)) return 'rodada inválida';
+  return null;
+}
+
 export function metadataOf(career) {
   if (!career) return {};
   const st = career.standings?.[career.userTeam], me = career.me && career.players?.[career.me.id];
@@ -78,12 +103,12 @@ export function createCareerStore(storage = safeStorage()) {
     if (!env || typeof env !== 'object') return 'vazio';
     if (!['nfl', 'nhl', 'mlb'].includes(env.sport)) return 'esporte inválido';
     if (!env.career || typeof env.career !== 'object') return 'sem carreira';
-    return null;
+    return integrityCheck(env.career);
   }
   const api = {
     list: () => index(),
-    load(id, { preferAuto = true } = {}) {
-      const keys = preferAuto ? [AUTO(id), KEY(id)] : [KEY(id)];
+    load(id, { preferAuto = true, slot } = {}) {
+      const keys = slot === 'manual' ? [KEY(id)] : slot === 'auto' ? [AUTO(id)] : slot === 'auto2' ? [AUTO2(id)] : preferAuto ? [AUTO(id), AUTO2(id), KEY(id)] : [KEY(id)];
       const found = keys.map(k => ({ k, raw: readRaw(k) })).filter(x => x.raw !== null);
       if (!found.length) return { status: 'missing' };
       // newest valid copy wins (autosave vs manual)
@@ -92,25 +117,42 @@ export function createCareerStore(storage = safeStorage()) {
         try {
           const { env, migrated } = parseAndMigrate(id, f.raw);
           const err = validate(env); if (err) throw new Error(err);
-          if (!best || env.updatedAt > best.env.updatedAt) best = { env, migrated, from: f.k === AUTO(id) ? 'auto' : 'manual' };
+          if (!best || env.updatedAt > best.env.updatedAt) best = { env, migrated, from: f.k === AUTO(id) ? 'auto' : f.k === AUTO2(id) ? 'auto2' : 'manual' };
         } catch (e) { lastErr = e; storage.setItem(`${f.k}_corrupt`, f.raw); }
       }
       if (!best) return { status: 'corrupt', error: lastErr?.message || 'save ilegível' };
       return { status: 'ok', save: best.env, migrated: best.migrated, from: best.from };
     },
+    // Manual save (clears the autosave ring) or autosave (rolling ring of 2 slots: auto = newest, auto2 = previous).
+    // Storage-full (localStorage ~5 MB) is handled: the oldest ring slot is dropped and the write retried; if it still
+    // fails an Error with code 'QUOTA' is thrown and every existing slot is left intact.
     save(career, { manual = true } = {}) {
       if (!career?.id) throw new Error('carreira sem id');
       const prev = api.load(career.id);
       const env = envelope(career, prev.status === 'ok' ? prev.save : null);
       const text = JSON.stringify(env);
-      storage.setItem(manual ? KEY(career.id) : AUTO(career.id), text);
-      if (manual) storage.removeItem(AUTO(career.id));
+      const put = (k, v) => {
+        try { storage.setItem(k, v); return; } catch (e) { /* quota: free the oldest rolling slot and retry once */ }
+        storage.removeItem(AUTO2(career.id));
+        try { storage.setItem(k, v); } catch (e) { const err = new Error('Armazenamento cheio: exporte e apague carreiras antigas.'); err.code = 'QUOTA'; throw err; }
+      };
+      if (manual) { put(KEY(career.id), text); storage.removeItem(AUTO(career.id)); storage.removeItem(AUTO2(career.id)); }
+      else {
+        const cur = readRaw(AUTO(career.id));
+        if (cur !== null) { try { storage.setItem(AUTO2(career.id), cur); } catch { storage.removeItem(AUTO2(career.id)); } }
+        put(AUTO(career.id), text);
+      }
       touchIndex(env); storage.setItem(ACTIVE, career.id);
       return { env, bytes: text.length };
     },
+    slots(id) {
+      return [['manual', KEY(id)], ['auto', AUTO(id)], ['auto2', AUTO2(id)]].map(([slot, k]) => ({ slot, raw: readRaw(k) })).filter(x => x.raw !== null).map(({ slot, raw }) => {
+        try { const o = JSON.parse(raw); return { slot, bytes: raw.length, updatedAt: o.updatedAt, saveVersion: o.saveVersion, metadata: o.metadata, ok: true }; } catch { return { slot, bytes: raw.length, ok: false }; }
+      });
+    },
     autosave(career) { return api.save(career, { manual: false }); },
     remove(id) {
-      for (const k of [KEY(id), AUTO(id), `${KEY(id)}_corrupt`, `${AUTO(id)}_corrupt`]) storage.removeItem(k);
+      for (const k of [KEY(id), AUTO(id), AUTO2(id), `${KEY(id)}_corrupt`, `${AUTO(id)}_corrupt`, `${AUTO2(id)}_corrupt`]) storage.removeItem(k);
       writeIndex(index().filter(e => e.id !== id));
       if (storage.getItem(ACTIVE) === id) storage.removeItem(ACTIVE);
     },
@@ -147,3 +189,8 @@ export function createCareerStore(storage = safeStorage()) {
   };
   return api;
 }
+
+// Names used by the career 3.0 docs.
+export const SaveVersion = CAREER_SAVE_VERSION;
+export const MigrationManager = migrations;
+export const createSaveManager = createCareerStore;

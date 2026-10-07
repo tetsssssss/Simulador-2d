@@ -12,6 +12,8 @@ import { fixedRatings } from '../mlbData.js';
 import { createRng } from '../../../core/rng/rng.js';
 import { fictionalName, marketValue } from '../../../core/career/people.js';
 import { clamp, poisson, avg, topBy, assignByQuota, expectedByQuota, needsByQuota, estimatedAge, rankLabel } from '../../../core/career/specKit.js';
+import { MLB_V3 } from './mlbRules.js';
+import { engineConfig } from '../../../core/career/tactics.js';
 
 const G = p => (['SP', 'RP', 'P'].includes(p) ? (p === 'RP' ? 'RP' : 'SP') : p === 'C' ? 'C' : ['1B', '2B', '3B', 'SS', 'IF'].includes(p) ? 'IF' : ['LF', 'CF', 'RF', 'OF'].includes(p) ? 'OF' : 'DH');
 const QUOTA = { SP: [5, 0], RP: [3, 5], C: [1, 1], IF: [4, 2], OF: [3, 1], DH: [1, 0] };
@@ -21,6 +23,7 @@ const LV = ['A', 'AA', 'AAA'];
 async function withTimeout(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]); }
 
 export const MLB_SPEC = {
+  v3: MLB_V3,
   sport: 'mlb', label: 'MLB', confLabel: 'Liga', starOvr: 80, usePoints: false, homeAdvantage: 1.0, aiTradeRate: 0.012,
   calendar: { games: 162, seriesLength: 3, crossesYear: false, startMonth: 3, startDay: 26, slateDays: 1.13, firstSeason: 2026 },
   scoring: { kind: 'poisson', mean: 4.5, k: 0.02, ties: false, otLoss: false, otAdds: 1 },
@@ -32,7 +35,7 @@ export const MLB_SPEC = {
   roster: { max: 26, min: 26, forty: 40 }, minorsLabel: 'para as ligas menores', trade: { surplusWeight: 0.8 }, waivers: true,
   draft: { rounds: 10, positions: ['SP', 'SP', 'RP', 'C', 'SS', '2B', '3B', '1B', 'CF', 'LF', 'RF'], potMean: 64, potSd: 9, gapMean: 18, gapSd: 6, ageMin: 18, ageMax: 22, undraftedKeep: 72,
     rookieContract: s => ({ sal: 0.76, yrs: 6, kind: 'PRE_ARB', bonus: +(Math.max(0.2, 9 - s.overall * 0.12)).toFixed(2) }),
-    initialStatus: (p) => { p.lvl = p.ovr >= 60 ? 'AA' : 'A'; p.opt = 3; p.on40 = false; return 'MIN'; } },
+    initialStatus: (p) => { p.lvl = p.ovr >= 60 ? 'AA' : p.ovr >= 50 ? 'A' : 'R'; p.opt = 3; p.on40 = false; return 'MIN'; } },
   tactics: [
     { key: 'hook', label: 'Troca de arremessador', options: ['paciente', 'normal', 'rápida'], default: 'normal' },
     { key: 'run', label: 'Corrida de bases / roubo', options: ['conservador', 'normal', 'agressivo'], default: 'normal' },
@@ -51,7 +54,9 @@ export const MLB_SPEC = {
   },
   assignRoles(list, c, abbr, opts = {}) {
     assignByQuota(list.filter(p => p.st === 'ACT'), G, QUOTA, { ...opts, trust: true });
-    topBy(list.filter(p => p.pos === 'SP' && p.st === 'ACT'), 5).forEach((p, i) => { p.rot = i; });
+    const userRot = c?.x?.tac?.rotation && abbr === c.userTeam && c.role === 'COACH' ? c.x.tac.rotation : null;
+    if (userRot) { userRot.forEach((id, i) => { const q = c.players[id]; if (q && q.pos === 'SP' && q.st === 'ACT') q.rot = i; }); const taken = new Set(userRot); topBy(list.filter(p => p.pos === 'SP' && p.st === 'ACT' && !taken.has(p.id)), 5).forEach((p, i) => { p.rot = userRot.length + i; }); }
+    else topBy(list.filter(p => p.pos === 'SP' && p.st === 'ACT'), 5).forEach((p, i) => { p.rot = i; });
     for (const p of list) if (p.st === 'MIN') p.role = 'B';
   },
   expectedRole: (p, list) => expectedByQuota(p, list, G, QUOTA),
@@ -106,7 +111,13 @@ export const MLB_SPEC = {
       const L = buildLineup(use.map(entryFor), '');
       const fix = r => r && ({ ...r, id: `${side}-${r.pid}`, team: side });
       const T = teamBy(abbr);
-      return { abbr, name: T?.name || abbr, color: mlbColor(abbr), color2: mlbColor(abbr, 1), lineup: { ...L, order: L.order.map(fix), field: Object.fromEntries(Object.entries(L.field).map(([k, v]) => [k, fix(v)])), sp: fix(L.sp), bullpen: L.bullpen.map(fix) } };
+      const cfg = engineConfig(MLB_SPEC, c, abbr);
+      let order = L.order.map(fix);
+      if (abbr === c.userTeam && c.role === 'COACH' && c.x?.tac) { // saved batting order (vs the opposing starter's hand is a future refinement)
+        const want = cfg.battingOrderVsR.map(id => String(entryFor(c.players[id] || {}).person?.id)), byPid = new Map(order.map(r => [String(r.pid), r]));
+        if (want.every(pid => byPid.has(pid))) order = want.map(pid => byPid.get(pid));
+      }
+      return { abbr, name: T?.name || abbr, color: mlbColor(abbr), color2: mlbColor(abbr, 1), tactics: cfg, lineup: { ...L, order, field: Object.fromEntries(Object.entries(L.field).map(([k, v]) => [k, fix(v)])), sp: fix(L.sp), bullpen: L.bullpen.map(fix) } };
     };
     const home = build(h, 'home'), away = build(a, 'away');
     if (!home.lineup.ok || !away.lineup.ok) throw new Error('lineup incompleto');

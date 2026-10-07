@@ -7,6 +7,13 @@
 import { createRng, hashSeed } from '../rng/rng.js';
 import { CAREER_SAVE_VERSION } from './saveStore.js';
 import { buildSchedule, emptyStandings, recordResult, quickResult, sortTeams, seedPlayoffs, nextPlayoffRound, applySeriesGame, roundOver, winPct } from './league.js';
+import * as H from './hooks.js';
+import * as TA from './tradeAI.js';
+import * as CO from './coach.js';
+import { applyPickOwners } from './picks.js';
+import { applyPlayerProfile, intlSignMe } from './playerCareer.js';
+import { ensureV3 } from './x.js';
+import { difficultyOf } from './kit.js';
 import { progressSeason, trainTick, rollInjuries, healTick, estimateContract, contractAsk, negotiate, payroll, capSpace, marketValue, evaluateTrade, tradeValue, newRelation, relationTick, talk, draftClass, retires, persona, round1 } from './people.js';
 
 export const ROLES = { COACH: 'Técnico', GM: 'Dirigente', PLAYER: 'Jogador' };
@@ -17,7 +24,9 @@ export const rngFor = (c, tag) => createRng(hashSeed(`${c.seed}|${tag}|${c.seaso
 
 // ---------- helpers ----------
 // The spec is attached as a non-enumerable property: available at runtime, never written into the save.
-export function attachSpec(c, spec) { Object.defineProperty(c, '_spec', { value: spec, enumerable: false, configurable: true, writable: true }); return c; }
+export function attachSpec(c, spec) { Object.defineProperty(c, '_spec', { value: spec, enumerable: false, configurable: true, writable: true }); if (spec.v3 && c.schedule?.length && !c.x?.ready) H.onAttach(spec, c); return c; }
+// transaction log entry with team / player references (used by the news engine and the transactions screen)
+export function tx(c, kind, text, teams = [], players = [], extra = {}) { c.history.transactions.push({ s: c.season, kind, text, teams, players, d: c.x?.cal?.day, ...extra }); }
 export const P = (c, id) => c.players[id];
 export const teamPlayers = (c, abbr, { active = false } = {}) => Object.values(c.players).filter(p => p.t === abbr && (p.st === 'ACT' || (!active && (p.st === 'IR' || p.st === 'MIN'))) && (!active || !p.inj));
 export const teamOf = (c, abbr) => c.teams.find(t => t.abbr === abbr);
@@ -35,7 +44,7 @@ export function teamRating(spec, c, abbr) {
   const t = teamOf(c, abbr);
   const morale = abbr === myTeam(c) ? (list.reduce((a, p) => a + (p.rel?.mo ?? 60), 0) / Math.max(1, list.length) - 60) * 0.05 : 0;
   const tactic = abbr === c.userTeam && c.role !== 'PLAYER' && spec.tacticEffect ? spec.tacticEffect(c.tactics, list) : 0;
-  return base + morale + tactic + (t?.boost || 0);
+  return base + morale + tactic + (t?.boost || 0) + H.ratingBonus(spec, c, abbr);
 }
 
 // ---------- creation ----------
@@ -63,8 +72,10 @@ export async function createCareer(spec, { role, name, team, seed, player, setti
   spec.afterLoad?.(c, rng);
   for (const p of teamPlayers(c, myTeam(c) || '__')) p.rel = newRelation(rng);
   newSeason(spec, c, { first: true });
+  if (spec.v3) ensureV3(spec, c);
   if (role === 'PLAYER') createMyPlayer(spec, c, player, rng);
   else { for (const p of teamPlayers(c, c.userTeam)) p.rel ||= newRelation(rng); news(c, `${ROLES[role]} do ${teamOf(c, team)?.name}: começa a carreira (temporada ${c.season}).`, 'big'); }
+  if (spec.v3) H.onCreate(spec, c);
   return c;
 }
 
@@ -89,6 +100,7 @@ export function newSeason(spec, c, { first = false } = {}) {
   for (const p of Object.values(c.players)) if (p.st === 'PROSPECT' && p.t === 'DRAFT' && !p.mine) delete c.players[p.id];
   for (const p of draftClass(spec, { year: c.season, seed: c.seed, size })) c.players[p.id] = p;
   setGoals(spec, c);
+  H.onNewSeason(spec, c);
 }
 
 // ---------- goals / board ----------
@@ -134,6 +146,7 @@ function createMyPlayer(spec, c, input, rng) {
   c.players[p.id] = p;
   const stage = spec.roadToPro[0];
   c.me = { id: p.id, stage: stage.key, stageYear: 1, focus: 'balanced', log: [], stock: null, agent: 60 };
+  if (spec.v3) applyPlayerProfile(spec, c, p, { pos: p.pos, ...input });
   news(c, `${p.n} (${p.pos}, ${p.age} anos) começa a Road to Pro: ${stage.label}.`, 'big');
   setGoals(spec, c);
 }
@@ -151,11 +164,13 @@ function amateurSeason(spec, c) {
 // ---------- the regular season ----------
 export async function playSlate(spec, c, { onProgress } = {}) {
   if (c.phase === 'PRESEASON') {
+    H.onPreseasonEnd(spec, c);
     // roster limit: extra players of the user's team go to the minors (AHL / AAA / practice squad) automatically
     const mine0 = c.userTeam && teamPlayers(c, c.userTeam).filter(p => p.st === 'ACT').sort((a, b) => b.ovr - a.ovr);
     if (mine0 && mine0.length > spec.roster.max) { const cut = mine0.slice(spec.roster.max); for (const p of cut) p.st = 'MIN'; news(c, `Elenco ajustado ao limite (${spec.roster.max}): ${cut.map(p => p.n).join(', ')} ${spec.minorsLabel || 'para as ligas menores'}.`, 'team'); spec.assignRoles(teamPlayers(c, c.userTeam), c, c.userTeam, { keepUser: true }); }
     c.phase = 'REGULAR'; news(c, `Começa a temporada regular ${c.season}${spec.calendar.crossesYear ? '-' + String(c.seasonEnd).slice(2) : ''}.`, 'big'); return []; }
   if (c.phase !== 'REGULAR') return [];
+  H.syncToSlateDay(spec, c);
   const games = c.schedule.filter(g => g.s === c.slate);
   const rng = rngFor(c, 'slate');
   const mine = myTeam(c), results = [];
@@ -167,6 +182,7 @@ export async function playSlate(spec, c, { onProgress } = {}) {
     results.push({ g, res, mine: involve });
   }
   afterGames(spec, c, results, rng);
+  H.onAfterGames(spec, c, results);
   c.slate++;
   if (c.slate >= c.slates) startPlayoffs(spec, c);
   return results;
@@ -207,8 +223,11 @@ function afterGames(spec, c, results, rng) {
   const all = [...teamsPlayed].flatMap(t => teamPlayers(c, t));
   healTick(all.filter(p => p.inj));
   for (const p of all) if (p.st === 'IR' && !p.inj) p.st = 'ACT';
-  for (const p of rollInjuries(spec, all, rng, c.settings)) {
+  const userSide = all.filter(p => p.t === mine), otherSide = all.filter(p => p.t !== mine);
+  const newInj = [...rollInjuries(spec, otherSide, rng, c.settings), ...rollInjuries(spec, userSide, rng, { ...c.settings, injuryRate: (c.settings.injuryRate ?? 1) * H.injuryMultFor(spec, c, mine) * (c.x?.ready ? difficultyOf(c).injury : 1) })];
+  for (const p of newInj) {
     if (p.inj.games >= spec.injuries.irGames) p.st = 'IR';
+    H.onInjury(spec, c, p);
     if (p.t === mine || p.ovr >= spec.starOvr) news(c, `Lesão: ${p.n} (${p.t}, ${p.pos}) — ${p.inj.type}, ${p.inj.games} jogos.`, p.t === mine ? 'bad' : 'info');
   }
   // relationships, training, board
@@ -235,7 +254,7 @@ function afterGames(spec, c, results, rng) {
     if (me && c.slate % 25 === 24) { spec.minorsPromotion?.(c, me); syncStage(spec, c); }
   }
   // AI front offices: occasional trades between AI teams
-  if (rng.next() < spec.aiTradeRate) aiTrade(spec, c, rng);
+  if (!c.x?.ready && rng.next() < spec.aiTradeRate) aiTrade(spec, c, rng);
 }
 
 // ---------- playoffs ----------
@@ -249,7 +268,8 @@ function startPlayoffs(spec, c) {
 export async function playPlayoffGameDay(spec, c, { onProgress } = {}) {
   if (c.phase !== 'PLAYOFFS') return [];
   const po = c.playoffs, rnd = po.rounds[po.round], rng = rngFor(c, `po-${po.round}-${rnd.series.reduce((a, s) => a + s.games.length, 0)}`), mine = myTeam(c);
-  const out = [];
+  const out = [], hookRes = [];
+  if (c.x?.ready && !c.x.cal.managed) H.tickPlayoffDay(spec, c);
   for (const s of rnd.series) {
     if (s.winner) continue;
     const n = s.games.length, aHome = [0, 1, 4, 6].includes(n) || s.bestOf === 1;
@@ -258,8 +278,10 @@ export async function playPlayoffGameDay(spec, c, { onProgress } = {}) {
     let hs = res.hs, as = res.as; if (hs === as) { if (rng.next() < 0.5) hs++; else as++; }
     applySeriesGame(s, hs > as ? h : a, `${a} ${as} @ ${h} ${hs}`);
     out.push({ s, h, a, hs, as, mine: h === mine || a === mine });
+    if (h === mine || a === mine) hookRes.push({ g: { h, a, r: [hs, as] }, res, mine: true });
     if (s.winner && (s.a === mine || s.b === mine)) news(c, s.winner === mine ? `${mine} vence a série contra ${s.winner === s.a ? s.b : s.a} (${Math.max(s.wa, s.wb)}-${Math.min(s.wa, s.wb)})!` : `${mine} é eliminado por ${s.winner}.`, s.winner === mine ? 'good' : 'bad');
   }
+  H.onAfterGames(spec, c, hookRes);
   if (roundOver(po)) {
     if (po.round === po.format.bestOf.length - 1) {
       po.champion = rnd.series[0].winner;
@@ -291,9 +313,11 @@ function offseasonStage(spec, c) {
     if (c.role !== 'PLAYER' && st) {
       const score = evaluateGoals(spec, c);
       c.board.confidence = clamp(c.board.confidence + score * 25, 0, 100);
+      const v3 = c.x?.ready ? H.afterGoalsEvaluated : null;
       const finish = sortTeams(c.teams, c.standings, !!spec.usePoints).findIndex(t => t.abbr === c.userTeam) + 1;
       c.history.seasons.push({ s: c.season, team: c.userTeam, w: st.w, l: st.l, t: st.t, otl: st.otl, finish, champion: c.playoffs?.champion, goals: c.goals.map(g => ({ text: g.text, status: g.status })), confidence: Math.round(c.board.confidence) });
-      if (c.board.confidence < 18) { c.fired = true; news(c, `A diretoria decidiu pela sua demissão (confiança ${Math.round(c.board.confidence)}).`, 'bad'); }
+      const r3 = v3 ? v3(spec, c, score) : null;
+      if (r3 ? r3.fired : c.board.confidence < 18) { if (!r3) { c.fired = true; news(c, `A diretoria decidiu pela sua demissão (confiança ${Math.round(c.board.confidence)}).`, 'bad'); } }
       else news(c, `Avaliação da diretoria: confiança ${Math.round(c.board.confidence)}/100.`, score >= 0 ? 'good' : 'bad');
     }
     if (c.role === 'PLAYER' && meStage(spec, c)?.kind === 'amateur') amateurAdvance(spec, c);
@@ -306,7 +330,8 @@ function offseasonStage(spec, c) {
       p.age++;
       const pt = p.mine && !p.ps?.gp ? 0.85 : p.ps?.gp ? clamp(p.ps.gp / spec.calendar.games, 0, 1) * (p.role === 'S' ? 1 : p.role === 'R' ? 0.7 : 0.4) : (p.st === 'PROSPECT' ? 0.5 : 0.2);
       const focus = p.mine ? 1 : p.t === mine && c.training.intensity > 1 ? 0.5 : 0;
-      const d = progressSeason(spec, p, rng, { pt, focus });
+      const d = progressSeason(spec, p, rng, { pt, focus, mods: H.progressMods(spec, c, p) });
+      H.afterProgress(spec, c, p, d, rng);
       if (p.t === mine && Math.abs(d) >= 3) logs.push(`${p.n} ${d > 0 ? '+' : ''}${d} (${p.ovr})`);
       if (!p.mine && p.st !== 'PROSPECT' && retires(spec, p, rng)) { p.st = 'RET'; p.t = 'RET'; if (p.ovr >= spec.starOvr) news(c, `${p.n} anuncia a aposentadoria aos ${p.age} anos.`, 'info'); }
     }
@@ -314,14 +339,19 @@ function offseasonStage(spec, c) {
     if (logs.length) news(c, `Evolução no elenco: ${logs.slice(0, 8).join(', ')}.`, 'team');
   }
   if (c.off === 'RESIGN') {
-    for (const p of Object.values(c.players)) { if (!p.c || p.st === 'PROSPECT') continue; p.c.yrs--; p.svc = (p.svc || 0) + (p.t !== 'FA' && p.st !== 'MIN' ? 1 : 0); }
+    for (const p of Object.values(c.players)) {
+      if (!p.c || p.st === 'PROSPECT') continue;
+      if (!H.skipContractTick(spec, p)) p.c.yrs--;
+      p.svc = (p.svc || 0) + (c.x?.ready ? (p.t !== 'FA' && p.st !== 'MIN' ? H.serviceTick(spec, p) : 0) : (p.t !== 'FA' && p.st !== 'MIN' ? 1 : 0));
+    }
     spec.contractYear?.(c, rng); // arbitration / RFA / options (sport rules)
     const expiring = Object.values(c.players).filter(p => p.c && p.c.yrs <= 0 && p.t !== 'FA');
     for (const p of expiring) {
       if (p.t === c.userTeam && c.role === 'GM') { p.expiring = true; continue; } // the user decides in this stage
       if (p.mine) { p.expiring = true; continue; }
       const keep = rng.next() < (p.ovr >= 75 ? 0.7 : p.ovr >= 65 ? 0.45 : 0.2) * (p.age > 33 ? 0.5 : 1);
-      if (keep) { const ask = contractAsk(spec, p); p.c = { sal: ask.sal, yrs: ask.yrs, kind: 'VET' }; }
+      const ask0 = contractAsk(spec, p), room = spec.cap?.kind === 'hard' ? capSpace(spec, Object.values(c.players), p.t) + (p.c?.sal || 0) : Infinity;
+      if (keep && ask0.sal <= room) { const ask = ask0; p.c = { sal: ask.sal, yrs: ask.yrs, kind: 'VET' }; }
       else toFreeAgency(c, p);
     }
     const mineExp = expiring.filter(p => p.expiring && (p.t === c.userTeam || p.mine));
@@ -336,8 +366,9 @@ function offseasonStage(spec, c) {
     for (const t of c.teams) spec.assignRoles(teamPlayers(c, t.abbr), c, t.abbr);
     spec.cutDown?.(c, rng);
   }
+  H.onOffseasonStage(spec, c);
 }
-function toFreeAgency(c, p) { const from = p.t; p.t = 'FA'; p.st = 'FA'; p.role = null; p.c = { sal: 0, yrs: 0, kind: 'FA' }; if (from !== 'FA') c.history.transactions.push({ s: c.season, kind: 'FA', text: `${p.n} (${from}) vai para a free agency` }); }
+function toFreeAgency(c, p) { const from = p.t; p.t = 'FA'; p.st = 'FA'; p.role = null; p.c = { sal: 0, yrs: 0, kind: 'FA' }; if (from !== 'FA') c.history.transactions.push({ s: c.season, kind: 'FA', text: `${p.n} (${from}) vai para a free agency`, teams: [from], players: [p.id] }); }
 
 // ---------- draft ----------
 export function buildDraftOrder(spec, c) {
@@ -345,6 +376,7 @@ export function buildDraftOrder(spec, c) {
   if (c.playoffs?.champion) { const i = order.indexOf(c.playoffs.champion); order.splice(i, 1); order.push(c.playoffs.champion); }
   const picks = [];
   for (let r = 0; r < spec.draft.rounds; r++) order.forEach((t, i) => picks.push({ round: r + 1, pick: i + 1, overall: picks.length + 1, team: t, playerId: null }));
+  if (c.x?.ready) applyPickOwners(c, picks, c.season);
   return { year: c.season, picks, cursor: 0, done: false };
 }
 export const draftPool = c => Object.values(c.players).filter(p => p.st === 'PROSPECT' && p.t === 'DRAFT');
@@ -361,7 +393,7 @@ export function draftPick(spec, c, playerId) {
   const rookie = spec.draft.rookieContract(slot);
   Object.assign(p, { t: slot.team, st: spec.draft.initialStatus ? spec.draft.initialStatus(p, slot) : 'ACT', c: { ...rookie, rookie: true }, svc: 0, drafted: { year: d.year, round: slot.round, pick: slot.pick, overall: slot.overall, team: slot.team } });
   if (slot.team === myTeam(c) || p.mine) p.rel ||= { tr: 55, rs: 50, mo: 70, sat: 60 };
-  c.history.transactions.push({ s: c.season, kind: 'DRAFT', text: `${slot.overall}º: ${slot.team} escolhe ${p.n} (${p.pos})` });
+  c.history.transactions.push({ s: c.season, kind: 'DRAFT', text: `${slot.overall}º: ${slot.team} escolhe ${p.n} (${p.pos})`, teams: [slot.team], players: [p.id] });
   if (p.mine) { news(c, `DRAFT! ${p.n} é escolhido por ${teamOf(c, slot.team)?.name} — ${slot.round}ª rodada, ${slot.overall}º geral.`, 'big'); syncStage(spec, c); c.me.stageYear = 1; }
   else if (slot.round === 1 && slot.pick <= 3) news(c, `Draft: ${slot.team} escolhe ${p.n} (${p.pos}) com a ${slot.overall}ª escolha.`, 'info');
   d.cursor++;
@@ -409,7 +441,7 @@ function aiFreeAgency(spec, c, rng) {
       if (spec.cap && spec.cap.kind === 'hard' && capSpace(spec, Object.values(c.players), t.abbr) < ask.sal) continue;
       p.t = t.abbr; p.st = 'ACT'; p.c = { sal: ask.sal, yrs: ask.yrs, kind: 'VET' }; slots--;
       if (p.ovr >= spec.starOvr) news(c, `Free agency: ${p.n} assina com ${t.abbr} (${ask.sal}M × ${ask.yrs}).`, 'info');
-      c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${t.abbr} contrata ${p.n} (${ask.sal}M × ${ask.yrs})` });
+      c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${t.abbr} contrata ${p.n} (${ask.sal}M × ${ask.yrs})`, teams: [t.abbr], players: [p.id] });
     }
   }
 }
@@ -421,14 +453,14 @@ export function signFreeAgent(spec, c, id, offer) {
   const r = negotiate(spec, p, offer, contractAsk(spec, p, { freeAgent: true }));
   if (!r.ok) return r;
   p.t = c.userTeam; p.st = 'ACT'; p.c = { sal: offer.sal, yrs: offer.yrs, kind: 'VET' }; p.rel = newRelation(rngFor(c, `fa-${id}`));
-  c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${c.userTeam} contrata ${p.n} (${offer.sal}M × ${offer.yrs})` });
+  c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${c.userTeam} contrata ${p.n} (${offer.sal}M × ${offer.yrs})`, teams: [c.userTeam], players: [p.id] });
   news(c, `${teamOf(c, c.userTeam)?.name} contrata ${p.n} (${p.pos}, ${p.ovr}) — ${offer.sal}M × ${offer.yrs} anos.`, 'good');
   return { ok: true, text: r.text };
 }
 export function releasePlayer(spec, c, id) {
   const p = c.players[id]; if (!p || p.t !== c.userTeam) return { ok: false, text: '' };
   const dead = spec.releaseCost ? spec.releaseCost(p) : round1((p.c?.sal || 0) * Math.max(0, (p.c?.yrs || 0)) * 0.5);
-  c.history.transactions.push({ s: c.season, kind: 'RELEASE', text: `${c.userTeam} dispensa ${p.n}${dead ? ` (custo ${dead}M)` : ''}` });
+  c.history.transactions.push({ s: c.season, kind: 'RELEASE', text: `${c.userTeam} dispensa ${p.n}${dead ? ` (custo ${dead}M)` : ''}`, teams: [c.userTeam], players: [p.id] });
   toFreeAgency(c, p); p.waivers = spec.waivers ? 1 : 0;
   news(c, `${p.n} foi dispensado${spec.waivers ? ' (waivers)' : ''}.`, 'team');
   if (spec.waivers) waiverClaim(spec, c, p);
@@ -445,14 +477,20 @@ function waiverClaim(spec, c, p) {
 }
 export function extendContract(spec, c, id, offer) {
   const p = c.players[id]; if (!p) return { ok: false, text: '' };
-  const r = negotiate(spec, p, offer, contractAsk(spec, p));
-  if (r.ok) { p.c = { sal: offer.sal, yrs: offer.yrs + (p.expiring ? 0 : Math.max(0, p.c.yrs)), kind: 'VET' }; p.expiring = false; c.history.transactions.push({ s: c.season, kind: 'EXTEND', text: `${p.t} renova com ${p.n} (${offer.sal}M × ${offer.yrs})` }); news(c, `${p.n} renova: ${offer.sal}M × ${offer.yrs} anos.`, 'good'); if (p.rel) p.rel.tr = clamp(p.rel.tr + 5, 0, 100); }
+  if (p.noReSign) return { ok: false, text: `${p.n} se recusa a renegociar (confiança baixa). Resolva o evento ou convença-o com um bônus.` };
+  if (spec.cap?.kind === 'hard' && p.t === c.userTeam) { const sp = capSpace(spec, Object.values(c.players), c.userTeam) + (p.expiring ? 0 : p.c?.sal || 0); if (offer.sal > sp) return { ok: false, text: `Sem espaço no teto (${round1(sp)}M).` }; }
+  const base = contractAsk(spec, p), r = negotiate(spec, p, offer, p.askBonus ? { ...base, sal: round1(base.sal * p.askBonus) } : base);
+  if (r.ok) { p.c = { sal: offer.sal, yrs: offer.yrs + (p.expiring ? 0 : Math.max(0, p.c.yrs)), kind: 'VET' }; p.expiring = false; c.history.transactions.push({ s: c.season, kind: 'EXTEND', text: `${p.t} renova com ${p.n} (${offer.sal}M × ${offer.yrs})`, teams: [p.t], players: [p.id] }); news(c, `${p.n} renova: ${offer.sal}M × ${offer.yrs} anos.`, 'good'); if (p.rel) p.rel.tr = clamp(p.rel.tr + 5, 0, 100); }
   return r;
 }
 
 // ---------- trades ----------
 export function teamInfo(spec, c, abbr) { const t = teamOf(c, abbr); return { mode: t?.mode, need: spec.teamNeeds ? spec.teamNeeds(teamPlayers(c, abbr)) : {} }; }
-export function proposeTrade(spec, c, { give, get, aiTeam }) {
+export function proposeTrade(spec, c, { give, get, aiTeam, givePicks = [], getPicks = [] }) {
+  if (c.x?.ready) { // career 3.0: trade AI (value, need, window, picks, cap)
+    const r = TA.propose(spec, c, { from: c.userTeam, to: aiTeam, give: { players: give, picks: givePicks }, get: { players: get, picks: getPicks } });
+    return { ...r, ok: r.ok, recv: r.valueIn, send: r.valueOut, text: r.ok ? `${aiTeam} aceita a troca.` : r.text };
+  }
   const G = give.map(id => c.players[id]).filter(Boolean), R = get.map(id => c.players[id]).filter(Boolean);
   const ctx = { c, teamInfo: a => teamInfo(spec, c, a), players: Object.values(c.players) };
   const r = evaluateTrade(spec, ctx, { give: G, get: R, aiTeam, difficulty: c.settings.difficulty });
@@ -476,7 +514,7 @@ function aiTrade(spec, c, rng) {
   if (Math.abs(va - vb) > Math.max(4, va * 0.15)) return;
   pa.t = B.abbr; pb.t = A.abbr;
   const text = `Troca entre ${A.abbr} e ${B.abbr}: ${pa.n} ↔ ${pb.n}`;
-  c.history.transactions.push({ s: c.season, kind: 'TRADE', text });
+  c.history.transactions.push({ s: c.season, kind: 'TRADE', text, teams: [A.abbr, B.abbr], players: [pa.id, pb.id], ai: true });
   if (pa.ovr >= spec.starOvr - 4 || pb.ovr >= spec.starOvr - 4) news(c, text + '.', 'info');
 }
 
@@ -507,6 +545,7 @@ export function amateurAdvance(spec, c) {
   amateurSeason(spec, c);
   const me = c.players[c.me.id];
   const eligible = me.age >= spec.draft.ageMin;
+  if (c.me.path === 'INTERNATIONAL' && spec.sport === 'mlb' && me.age >= 16 && (c.me.stageYear >= 1)) { intlSignMe(spec, c); return; }
   if (eligible && (st.autoDeclare || c.me.stageYear >= st.years || c.me.declare)) { c.me.declared = true; me.t = 'DRAFT'; me.st = 'PROSPECT'; news(c, `${me.n} se declara para o draft ${c.season}.`, 'big'); }
 }
 export { contractAsk, negotiate, payroll, capSpace, marketValue, tradeValue };
@@ -530,7 +569,7 @@ export function requestTrade(spec, c) {
   const dest = rng.pick(c.teams.filter(t => t.abbr !== me.t && spec.teamNeeds(teamPlayers(c, t.abbr))[spec.posGroup(me.pos)]) || c.teams.filter(t => t.abbr !== me.t));
   const from = me.t; me.t = dest.abbr; me.rel = { tr: 55, rs: 50, mo: 65, sat: 55 }; me.userRole = null;
   spec.assignRoles(teamPlayers(c, dest.abbr), c, dest.abbr);
-  c.history.transactions.push({ s: c.season, kind: 'TRADE', text: `${me.n} é trocado de ${from} para ${dest.abbr}` });
+  c.history.transactions.push({ s: c.season, kind: 'TRADE', text: `${me.n} é trocado de ${from} para ${dest.abbr}`, teams: [from, dest.abbr], players: [me.id] });
   news(c, `${me.n} é trocado para o ${dest.name}.`, 'big');
   return { ok: true, text: `Troca concluída: ${dest.name}.` };
 }
@@ -549,13 +588,18 @@ export function acceptOffer(spec, c, offer) {
   me.t = offer.team; me.st = 'ACT'; me.c = { sal: offer.sal, yrs: offer.yrs, kind: 'VET' }; me.expiring = false;
   if (moved) me.rel = { tr: 55, rs: 50, mo: 70, sat: 60 };
   spec.assignRoles(teamPlayers(c, me.t), c, me.t); syncStage(spec, c);
-  c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${me.n} assina com ${offer.team} (${offer.sal}M × ${offer.yrs})` });
+  c.history.transactions.push({ s: c.season, kind: 'SIGN', text: `${me.n} assina com ${offer.team} (${offer.sal}M × ${offer.yrs})`, teams: [offer.team], players: [me.id] });
   news(c, `${me.n} assina com o ${offer.name}: ${offer.sal}M × ${offer.yrs} anos.`, 'big');
 }
 export function declareForDraft(spec, c) { const me = c.players[c.me.id]; if (me.age < spec.draft.ageMin) return { ok: false, text: `Idade mínima para o draft: ${spec.draft.ageMin}.` }; c.me.declare = true; return { ok: true, text: 'Você vai se declarar para o draft ao fim da temporada.' }; }
 // Fired coach / GM: job offers from struggling teams.
-export function jobOffers(spec, c) { return sortTeams(c.teams, c.standings, !!spec.usePoints).reverse().filter(t => t.abbr !== c.userTeam).slice(0, 4).map(t => ({ abbr: t.abbr, name: t.name })); }
+export function jobOffers(spec, c) {
+  if (c.x?.ready) { if (!c.x.market.offers.length) CO.refreshOffers(spec, c); return c.x.market.offers.map(o => ({ abbr: o.team, name: o.name, ...o })); }
+  return legacyJobOffers(spec, c);
+}
+function legacyJobOffers(spec, c) { return sortTeams(c.teams, c.standings, !!spec.usePoints).reverse().filter(t => t.abbr !== c.userTeam).slice(0, 4).map(t => ({ abbr: t.abbr, name: t.name })); }
 export function takeJob(spec, c, abbr) {
+  if (c.x?.ready) return CO.takeJob(spec, c, abbr, c.x.market.offers.find(o => o.team === abbr) || {});
   const old = c.userTeam; c.userTeam = abbr; c.fired = false; c.board = { confidence: 55, patience: 2 };
   for (const p of teamPlayers(c, old)) { p.rel = null; p.userRole = null; }
   const rng = rngFor(c, `job-${abbr}`); for (const p of teamPlayers(c, abbr)) p.rel ||= newRelation(rng);

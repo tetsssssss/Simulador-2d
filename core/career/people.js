@@ -4,6 +4,7 @@
 // positional need, team mode — not only OVR), CareerRelationships (trust, respect, morale, role satisfaction),
 // draft classes (fictional prospects, clearly labelled) and retirements.
 import { createRng, hashSeed } from '../rng/rng.js';
+import { curveMods } from './curves.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const round1 = v => Math.round(v * 10) / 10;
@@ -16,13 +17,17 @@ export function ageFactor(spec, age) {
   return -decline * (1 + (age - peakEnd) * 0.15);
 }
 // Season-end progression. focus/pt (0..1 playing time) and work ethic shift the outcome; potential caps the ceiling.
-export function progressSeason(spec, p, rng, { pt = 0.5, focus = 0 } = {}) {
-  const f = ageFactor(spec, p.age);
+// p.cv (growth curve, see curves.js) shifts the age windows and scales growth / decline. mods = { growth, decline } come from
+// staff, facilities and training plans (1 = neutral). Without p.cv / mods the behaviour is the original one.
+export function progressSeason(spec, p, rng, { pt = 0.5, focus = 0, mods = {} } = {}) {
+  const cm = p.cv ? curveMods(spec, p.cv, p.age) : null;
+  const f = ageFactor(cm ? { ...spec, ageCurve: cm.ageCurve } : spec, p.age);
+  const gm = (cm ? cm.grow : 1) * (mods.growth ?? 1), dm = (cm ? cm.decl : 1) * (mods.decline ?? 1);
   const room = Math.max(0, p.pot - p.ovr);
   let d;
-  if (f > 0.5) d = room * (0.18 + 0.12 * pt + 0.05 * focus) + rng.normal(0, 1.6);
-  else if (f > 0) d = Math.min(room, 1.2) * (0.5 + pt * 0.5) + rng.normal(0, 1.1);
-  else d = f + rng.normal(0, 1.0);
+  if (f > 0.5) d = room * (0.18 + 0.12 * pt + 0.05 * focus) * gm + rng.normal(0, 1.6);
+  else if (f > 0) d = Math.min(room, 1.2) * (0.5 + pt * 0.5) * gm + rng.normal(0, 1.1);
+  else d = f * dm + rng.normal(0, 1.0);
   const before = p.ovr;
   p.ovr = clamp(Math.round(p.ovr + d), 30, 99);
   if (p.ovr > p.pot) p.pot = p.ovr;

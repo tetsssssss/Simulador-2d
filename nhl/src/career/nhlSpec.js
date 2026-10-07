@@ -7,6 +7,8 @@ import { buildLineup } from '../game/lineup.js';
 import { createHockeyEngine } from '../sim/hockeyEngine.js';
 import { simRatings } from '../sim/ratings.js';
 import { clamp, poisson, avg, topBy, assignByQuota, expectedByQuota, needsByQuota, estimatedAge, rankLabel } from '../../../core/career/specKit.js';
+import { NHL_V3 } from './nhlRules.js';
+import { engineConfig } from '../../../core/career/tactics.js';
 
 const GROUP = pos => (pos === 'G' ? 'G' : pos === 'D' ? 'D' : 'F');
 const QUOTA = { F: [6, 6], D: [4, 2], G: [1, 1] };
@@ -26,6 +28,7 @@ function toCareer(p) {
 }
 
 export const NHL_SPEC = {
+  v3: NHL_V3,
   sport: 'nhl', label: 'NHL', confLabel: 'Conferência', starOvr: 80, usePoints: true, homeAdvantage: 1.5, aiTradeRate: 0.025,
   calendar: { games: 82, crossesYear: true, startMonth: 10, startDay: 8, slateDays: 2.2, firstSeason: 2026 },
   scoring: { kind: 'poisson', mean: 3.05, k: 0.018, ties: false, otLoss: true, otAdds: 1 },
@@ -36,7 +39,7 @@ export const NHL_SPEC = {
   cap: { limit: 95.5, kind: 'hard', label: 'Salary cap (referência 2025-26)' },
   roster: { max: 23, min: 20 }, minorsLabel: 'para a AHL', trade: { surplusWeight: 1.2 }, waivers: true,
   draft: { rounds: 7, positions: ['C', 'C', 'LW', 'RW', 'D', 'D', 'G'], potMean: 66, potSd: 8, gapMean: 15, gapSd: 5, ageMin: 18, ageMax: 19, undraftedKeep: 70,
-    rookieContract: s => ({ sal: s.round === 1 ? 0.95 : 0.85, yrs: 3, kind: 'ELC' }), initialStatus: p => (p.ovr >= 64 ? 'ACT' : 'MIN') },
+    rookieContract: s => ({ sal: s.round === 1 ? 0.95 : 0.85, yrs: 3, kind: 'ELC' }), initialStatus: p => { if (p.ovr >= 64) return 'ACT'; p.lvl = p.age <= 19 ? (p.id.length % 3 === 0 ? 'EUROPE' : 'JUNIOR') : 'AHL'; return 'MIN'; } },
   tactics: [
     { key: 'forecheck', label: 'Forecheck', options: ['passivo', 'equilibrado', 'agressivo'], default: 'equilibrado' },
     { key: 'pace', label: 'Ritmo', options: ['controlado', 'normal', 'rápido'], default: 'normal' },
@@ -78,7 +81,9 @@ export const NHL_SPEC = {
       const list = Object.values(c.players).filter(p => p.t === abbr && p.st === 'ACT' && !p.inj);
       const rows = list.map(p => rawFor(p));
       const T = D.teams.find(t => t.abbr === abbr);
-      return { abbr, name: T?.name || abbr, color: nhlColor(abbr), color2: nhlColor(abbr, 1), lineup: buildLineup(rows) };
+      const lineup = buildLineup(rows), cfg = engineConfig(NHL_SPEC, c, abbr);
+      if (abbr === c.userTeam && c.role === 'COACH' && c.x?.tac) applyUserLines(lineup, cfg, list);
+      return { abbr, name: T?.name || abbr, color: nhlColor(abbr), color2: nhlColor(abbr, 1), lineup, tactics: cfg };
     };
     const home = build('home'), away = build('away');
     if (!home.lineup.ok || !away.lineup.ok) throw new Error('elenco incompleto para o motor');
@@ -122,6 +127,8 @@ export const NHL_SPEC = {
   // ---------- player career ----------
   roadToPro: [
     { key: 'JUNIOR', label: 'Junior (CHL)', years: 3, kind: 'amateur', games: 68, autoDeclare: true },
+    { key: 'COLLEGE', label: 'College (NCAA)', years: 3, kind: 'amateur', games: 38, autoDeclare: true },
+    { key: 'EUROPE', label: 'Europa (liga profissional)', years: 3, kind: 'amateur', games: 50, autoDeclare: true },
     { key: 'AHL', label: 'AHL', kind: 'minors' },
     { key: 'NHL', label: 'NHL', kind: 'pro' },
   ],
@@ -172,6 +179,13 @@ export function nhlLinesFromState(S) {
     out.push([String(rec.pid), rec.goalie ? { sa: b.sa, sv: b.sv, ga: b.ga, w: won ? 1 : 0 } : { g: b.g, a: b.a, pts: b.g + b.a, sog: b.sog, hit: b.hit, blk: b.blk, pm: b.pm, pim: b.pim }]);
   }
   return out;
+}
+// The user's saved lines / pairs / goalies replace the automatic lineup handed to the engine (when complete and healthy).
+function applyUserLines(lineup, cfg, list) {
+  const row = new Map(list.map(p => [p.id, rawFor(p)]));
+  const lines = cfg.lines.map(l => ({ C: row.get(l[0]), LW: row.get(l[1]), RW: row.get(l[2]) })), pairs = cfg.pairs.map(l => ({ LD: row.get(l[0]), RD: row.get(l[1]) }));
+  const goalies = [row.get(cfg.goalie.starter), row.get(cfg.goalie.backup)].filter(Boolean);
+  if (lines.every(l => l.C && l.LW && l.RW) && pairs.every(l => l.LD && l.RD) && goalies.length) { lineup.lines = lines; lineup.pairs = pairs; lineup.goalies = goalies; }
 }
 // raw engine row for a career player (real snapshot record, or a synthetic one for drafted / created players)
 function rawFor(p) {

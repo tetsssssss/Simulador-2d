@@ -136,11 +136,11 @@ function build(P, ctx) {
       A(name, 22 + (f(`Contact vs ${hand}`) * 0.6 + f(`Power vs ${hand}`) * 0.4) * 0.65);
       const same = P.bats === hand ? 1 : 0, sw = P.bats === 'S';
       add(name, sw ? 'rebatedor ambidestro: sem desvantagem' : same ? `mesmo lado (${hand}): desvantagem de plateia` : `lado oposto (${hand}): vantagem`, sw ? 3 : same ? -5 : 4);
-      if (isActive) { add(name, 'confronto de hoje', formPts * 0.2 + confPts * 0.2); if (mhist) add(name, 'histórico contra o arremessador', mhist); }
+      if (isActive) { add(name, 'enfrenta este lado hoje', sw ? 1.5 : same ? -2.5 : 2.5); add(name, 'confronto de hoje', formPts * 0.2 + confPts * 0.2); if (mhist) add(name, 'histórico contra o arremessador', mhist); }
     } else {
       A(name, 22 + ((f('Fastball Quality') + f('Breaking Ball Quality') + f('Offspeed Quality')) / 3) * 0.65);
       const same = P.throws === hand; add(name, same ? `arremessador mesmo lado (${hand})` : `lado oposto (${hand})`, same ? 3.5 : -3);
-      if (isActive) { add(name, 'confronto de hoje', formPts * 0.2 + confPts * 0.2); if (mhist) add(name, 'histórico contra o rebatedor', mhist); }
+      if (isActive) { add(name, 'enfrenta este lado hoje', same ? 2 : -2); add(name, 'confronto de hoje', formPts * 0.2 + confPts * 0.2); if (mhist) add(name, 'histórico contra o rebatedor', mhist); }
     }
   };
   setSide('vs R Matchup', 'R'); setSide('vs L Matchup', 'L');

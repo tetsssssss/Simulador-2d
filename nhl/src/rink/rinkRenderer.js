@@ -126,6 +126,27 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     // boards: white with yellow kick plate
     ctx.strokeStyle = '#f2f5f8'; ctx.lineWidth = Math.max(2, 0.8 * s); ctx.stroke(ice);
     ctx.strokeStyle = '#f2c230'; ctx.lineWidth = Math.max(1, 0.25 * s); ctx.stroke(roundedRink(new Path2D(), 0.45));
+    drawGlass(outer);
+  }
+
+  // Glass above the boards: a translucent band with a bright top edge, stanchions and a diagonal reflection sheen.
+  function drawGlass(outer) {
+    const s = S();
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(150,205,255,.22)'; ctx.lineWidth = Math.max(2, 1.9 * s); ctx.stroke(outer);           // glass body
+    ctx.strokeStyle = 'rgba(235,248,255,.85)'; ctx.lineWidth = Math.max(1, 0.28 * s); ctx.stroke(outer);           // top edge
+    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, 0.18 * s); ctx.stroke(roundedRink(new Path2D(), -2.3)); // outer frame
+    // stanchions every 12 ft along the long sides, reflection streaks inside the glass
+    ctx.fillStyle = 'rgba(210,225,240,.55)';
+    for (let x = 14; x < RINK.L - 10; x += 12) for (const y of [-1.2, RINK.W + 1.2]) ctx.fillRect(X(x) - 0.5, Y(y) - 1.2 * s, Math.max(1, 0.25 * s), 2.4 * s);
+    ctx.lineWidth = Math.max(1, 0.45 * s); ctx.lineCap = 'round';
+    for (let x = 8; x < RINK.L - 8; x += 31) for (const y of [-1.2, RINK.W + 1.2]) {
+      const g = ctx.createLinearGradient(X(x), Y(y), X(x + 9), Y(y));
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.strokeStyle = g; ctx.beginPath(); ctx.moveTo(X(x), Y(y) + 0.5 * s); ctx.lineTo(X(x + 9), Y(y) - 0.5 * s); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function lerp(e, a) { return { x: (e.px ?? e.x) + (e.x - (e.px ?? e.x)) * a, y: (e.py ?? e.y) + (e.y - (e.py ?? e.y)) * a }; }
@@ -140,8 +161,11 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
       const pos = lerp(p, a), team = state[p.team] || {};
       const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
       const img = mode === 'photo' ? photoImage(p.p) : null;
-      const avatar = mode === 'avatar' ? { opts: getAvatar('nhl', p.p?.id ?? p.pid ?? p.id), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: p.goalie ? 'stick' : 'stick', pose: p.goalie ? 'goalie' : 'stand',
-        moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: pos.x > (state.center ?? 100) ? -1 : 1 } : null;
+      // hints for the avatar: goalie silhouette, low stance in crossovers / stops / wind-ups, facing side, stride flag
+      const low = !p.goalie && (p.cross || p.wind || p.skate === 'brake');
+      const avatar = mode === 'avatar' ? { opts: getAvatar('nhl', p.p?.id ?? p.pid ?? p.id), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
+        moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: Math.cos(p.facing || 0) >= 0 ? 1 : -1,
+        crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
       drawSprite(ctx, {
         x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',
@@ -149,7 +173,55 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
         selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0,
       });
       screen.set(p.id, { X: X0, Y: Y0, r: rr, p });
+      if (p.goalie) drawGoalieState(p, X0, Y0, rr, state);
+      else if (p.cross || p.skate === 'brake') drawStride(p, X0, Y0, rr, state.t || 0);
     }
+    drawHighlights(state, a, r);
+  }
+
+  // Goalie save pose, read from goalie.state: pad spread (butterfly / pad save / slide), glove or blocker flash.
+  const SAVE_COL = { BUTTERFLY: '#5cdcff', SLIDE: '#7cf0b6', GLOVE: '#ffd24a', BLOCKER: '#ff9a4a', PAD_SAVE: '#c58bff', RECOVER: '#ff6a6a' };
+  function drawGoalieState(p, x, y, r, state) {
+    const st = p.state; if (!st || st === 'READY') return;
+    const col = SAVE_COL[st] || '#fff', ux = Math.cos(p.facing || 0), uy = Math.sin(p.facing || 0);
+    ctx.save(); ctx.strokeStyle = col; ctx.fillStyle = col; ctx.globalAlpha = 0.85; ctx.lineCap = 'round';
+    if (st === 'BUTTERFLY' || st === 'PAD_SAVE' || st === 'SLIDE') { // pads fanned out sideways (perpendicular to facing)
+      const span = r * (st === 'BUTTERFLY' ? 1.5 : st === 'SLIDE' ? 1.9 : 1.2), nx = -uy, ny = ux, ox = ux * r * 0.55, oy = uy * r * 0.55;
+      ctx.lineWidth = Math.max(2, r * 0.32); ctx.beginPath(); ctx.moveTo(x + ox - nx * span, y + oy - ny * span); ctx.lineTo(x + ox + nx * span, y + oy + ny * span); ctx.stroke();
+    } else if (st === 'GLOVE' || st === 'BLOCKER') { // hand flash toward the shot side
+      const side = st === 'GLOVE' ? -1 : 1, nx = -uy, ny = ux;
+      ctx.beginPath(); ctx.arc(x + ux * r * 0.8 + nx * side * r * 0.95, y + uy * r * 0.8 + ny * side * r * 0.95, Math.max(3, r * 0.3), 0, Math.PI * 2); ctx.fill();
+    } else if (st === 'RECOVER') { ctx.setLineDash([3, 3]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, r * 1.35, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+  // short stride marks while a skater carves a crossover or stops hard (ice spray)
+  function drawStride(p, x, y, r, t) {
+    const back = (p.facing || 0) + Math.PI, k = Math.sin(t * 16 + (p.num || 0)), nx = -Math.sin(back), ny = Math.cos(back);
+    ctx.save(); ctx.strokeStyle = p.skate === 'brake' ? 'rgba(180,215,255,.75)' : 'rgba(110,150,200,.55)'; ctx.lineWidth = Math.max(1, r * 0.12); ctx.lineCap = 'round';
+    for (const sgn of [-1, 1]) { const o = sgn * r * 0.45 * (1 + 0.25 * k * sgn); ctx.beginPath(); ctx.moveTo(x + nx * o + Math.cos(back) * r * 0.9, y + ny * o + Math.sin(back) * r * 0.9 + r * 0.5); ctx.lineTo(x + nx * o + Math.cos(back) * r * 1.9, y + ny * o + Math.sin(back) * r * 1.9 + r * 0.5); ctx.stroke(); }
+    ctx.restore();
+  }
+  // discreet highlights: arrow over the puck carrier (possession), pass target arrow line, short-lived ring on the last shooter
+  function drawHighlights(state, a, r) {
+    const pk = state.puck, carrier = pk?.owner ? screen.get(pk.owner) : null;
+    ctx.save();
+    if (carrier) { // possession chevron above the carrier
+      const bob = Math.sin((state.t || 0) * 7) * 1.5, cx = carrier.X, cy = carrier.Y - carrier.r * 2.55 - 6 + bob, w = Math.max(4, r * 0.4);
+      ctx.fillStyle = 'rgba(246,196,83,.95)'; ctx.strokeStyle = 'rgba(20,24,30,.8)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx - w, cy - w); ctx.lineTo(cx + w, cy - w); ctx.lineTo(cx, cy + w * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    const tg = state.pass?.targetId ? screen.get(state.pass.targetId) : null;
+    if (tg && pk && !pk.owner) { // dotted line puck → pass target
+      const px = X(pk.x), py = Y(pk.y); ctx.strokeStyle = 'rgba(37,150,190,.65)'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tg.X, tg.Y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const ls = state.lastShotInfo, age = ls ? (state.t || 0) - ls.t : 9;
+    if (ls && age >= 0 && age < 1.8 && screen.get(ls.by)) { // last shooter: ring that expands and fades
+      const sc = screen.get(ls.by), k = age / 1.8;
+      ctx.strokeStyle = `rgba(255,86,70,${0.9 * (1 - k)})`; ctx.lineWidth = Math.max(1.5, r * 0.14);
+      ctx.beginPath(); ctx.ellipse(sc.X, sc.Y + sc.r * 0.62, sc.r * (1.3 + 0.9 * k), sc.r * (1.3 + 0.9 * k) * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawPuck(state, a, dt) {
@@ -158,11 +230,27 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     let x, y;
     if (owner) { const o = lerp(owner, a); x = o.x + Math.cos(owner.facing || 0) * 2.2; y = o.y + Math.sin(owner.facing || 0) * 2.2; }
     else { x = (pk.px ?? pk.x) + (pk.x - (pk.px ?? pk.x)) * a; y = (pk.py ?? pk.y) + (pk.y - (pk.py ?? pk.y)) * a; }
+    if (!Number.isFinite(x + y)) { x = RINK.center; y = MIDY; }
     const sx = X(x), sy = Y(y);
-    trail.push({ x: sx, y: sy }); while (trail.length > 9) trail.shift();
+    if (!trail.length || Math.hypot(trail[trail.length - 1].x - sx, trail[trail.length - 1].y - sy) > 1) trail.push({ x: sx, y: sy });
+    while (trail.length > 12) trail.shift();
     const speed = Math.hypot(pk.vx || 0, pk.vy || 0);
-    const r = Math.max(3, Math.min(8, 0.75 * S()));
-    drawTrackedObject(ctx, { x: sx, y: sy, z: (pk.z || 0) * S(), r, color: '#0b0f14', rim: '#f6c453', halo: owner ? 'rgba(246,196,83,.35)' : 'rgba(255,255,255,.75)', trail: owner || speed < 6 ? trail.slice(-3) : trail, airborne: (pk.z || 0) > 0.6 });
+    const r = Math.max(3.4, Math.min(9, 0.8 * S()));
+    // discreet trail (dark on white ice), only while the puck is travelling
+    if (!owner && speed > 8 && trail.length > 1) {
+      ctx.save(); ctx.lineCap = 'round';
+      for (let i = 1; i < trail.length; i++) { const k = i / trail.length; ctx.strokeStyle = `rgba(30,60,100,${0.28 * k})`; ctx.lineWidth = Math.max(1, r * 0.8 * k); ctx.beginPath(); ctx.moveTo(trail[i - 1].x, trail[i - 1].y); ctx.lineTo(trail[i].x, trail[i].y); ctx.stroke(); }
+      ctx.restore();
+    }
+    // halo: warm ring so the puck never gets lost against the white ice (stronger when loose)
+    ctx.save();
+    const pulse = 1 + 0.12 * Math.sin((state.t || 0) * 9), hr = r * (owner ? 2.3 : 3.1) * pulse;
+    const g = ctx.createRadialGradient(sx, sy - (pk.z || 0) * S() * 0.5, r * 0.6, sx, sy, hr);
+    g.addColorStop(0, owner ? 'rgba(246,196,83,.5)' : 'rgba(255,110,60,.55)'); g.addColorStop(1, 'rgba(255,110,60,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, hr, 0, Math.PI * 2); ctx.fill();
+    if (!owner) { ctx.strokeStyle = 'rgba(255,90,40,.85)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(sx, sy, r * 1.9, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+    drawTrackedObject(ctx, { x: sx, y: sy, z: (pk.z || 0) * S() * 0.6, r, color: '#0b0f14', rim: '#f6c453', halo: 'rgba(255,255,255,0)', trail: [], airborne: (pk.z || 0) > 0.6 });
   }
 
   function cameraTarget(state) {

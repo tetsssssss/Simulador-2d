@@ -196,7 +196,7 @@ export function decideRun(sim, rb) {
   else decision = 'FOLLOW_BLOCK';
   const prevY = run.lane?.y;
   if (decision !== run.decision || prevY === undefined || Math.abs(chosen.y - prevY) > 1.3) {
-    const ev = { decision, laneY: +chosen.y.toFixed(1), laneType: chosen.type, score: +chosen.score.toFixed(2), lanes: lanes.length, free: free.size };
+    const ev = { decision, laneY: +chosen.y.toFixed(1), laneType: chosen.type, score: +chosen.score.toFixed(2), lanes: lanes.length, free: free.size, support: +(chosen.support || 0).toFixed(1), m1: +(chosen.m1 ?? 0).toFixed(2), lead: chosen.lead?.id || null };
     sim.emit('RB_DECISION', ev, true);
     run.history.push({ t: +sim.t.toFixed(2), ...ev });
     // Hard direction change at speed = a cut (plant foot): agility makes it sharper, costs a little speed.

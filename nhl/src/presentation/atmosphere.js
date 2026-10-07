@@ -16,11 +16,12 @@ export const NHL_ATMOSPHERE = {
     const h = e.team === 'home';
     switch (e.type) {
       case 'GOAL': return h ? { bump: 80, sounds: [['horn', { category: FX, len: 3 }], ['cheer', { category: CR, power: 1 }]] } : { bump: 4, sounds: [['groan', { category: CR, power: 0.7 }]] };
-      case 'SHOT': return { bump: h ? 8 : 4, sounds: [['crack', { category: FX, power: e.shotType === 'slap' ? 1 : 0.6 }]] };
+      case 'SHOT': return { bump: h ? 8 : 4, sounds: [['crack', { category: FX, power: e.shotType === 'slap' ? 1 : e.shotType === 'one-timer' ? 0.85 : 0.6 }]] };
       case 'SAVE': return { bump: e.big ? (h ? 6 : 28) : 4, sounds: [['pop', { category: FX, power: 0.8 }], ...(e.big ? [['oohs', { category: CR, power: 0.7 }]] : [])] };
       case 'REBOUND': return { bump: 10 };
       case 'BLOCK': return { sounds: [['thud', { category: FX, power: 0.5 }]] };
-      case 'PASS': return { sounds: [['stick', { category: FX, power: 0.35 }]] };
+      case 'PASS': return { sounds: [['stick', { category: FX, power: e.kind === 'saucer' || e.kind === 'stretch' ? 0.5 : 0.35 }]] };
+      case 'RECEPTION': case 'TURNOVER': return {};
       case 'FACEOFF': return { sounds: [['stick', { category: FX, power: 0.6 }]] };
       case 'HIT': return { bump: e.big ? 22 : 6, sounds: [['boards', { category: FX, power: e.big ? 1 : 0.6 }], ...(e.big ? [['oohs', { category: CR, power: 0.6 }]] : [])] };
       case 'BREAKAWAY': return { bump: h ? 40 : 15, sounds: [['oohs', { category: CR, power: 0.8 }]] };

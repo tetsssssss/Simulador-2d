@@ -140,7 +140,7 @@ export function attemptTackles(sim) {
       const assists = sim.ents.filter(o => o !== d && o.side === d.side && !o.down && dist(o.pos, c.pos) < 1.6).map(o => o.id);
       c.pos.x += (cu.x * dir > 0 ? dir : 0) * fall;
       c.down = true;
-      if (holdingBall) sim.emit('SACK', { by: d.id, qb: c.id, x: +c.pos.x.toFixed(1) });
+      if (holdingBall) sim.emit('SACK', { by: d.id, qb: c.id, x: +c.pos.x.toFixed(1), move: d.winMove || d.rushMove || null, unblocked: !d.engCount, stunt: sim.stunt ? (sim.stunt.pen === d || sim.stunt.loop === d ? sim.stunt.type : null) : null, collapse: sim.qbState?.pocket?.collapse ?? null });
       else sim.emit('TACKLE', { by: d.id, carrier: c.id, assists, x: +c.pos.x.toFixed(1) });
       sim.whistle(holdingBall ? 'SACK' : 'TACKLE');
       return;

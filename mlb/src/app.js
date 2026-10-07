@@ -1,5 +1,6 @@
 // MLB Universe 2D — shell (same visual identity as NFL/NHL Universe 2D, separate app/engine).
 // Hash routes: #home #teams #team/<ABBR> #roster/<ABBR> #prospects #draft/<YEAR> #stadiums #rivalries #history #diamond
+import { adaptiveFor, defaultScenario, liveContext, teamOfPlayer } from './adaptiveCtx.js';
 import { D, teamBy, photo, fallback, pos, positionalOvr, fixedRatings, adaptiveRatings, roster, person, draft, prospects, hash, cachedRosterCount } from './mlbData.js';
 import { mountMatch } from './game/matchView.js';
 import { demoRoster } from './game/lineup.js';
@@ -95,7 +96,7 @@ function bindPlayers(scope) {
     showPlayer(p);
   }));
 }
-function attrList(list) { return list.map(a => `<div class="mlb-attr"><span>${esc(a.name)}</span><b>${a.value}</b><i style="width:${a.value}%" class="${ovrCls(a.value)}"></i></div>`).join(''); }
+function attrList(list) { return list.map(a => `<div class="mlb-attr"${a.tip ? ` title="${esc(a.tip)}"` : ''}><span>${esc(a.name)}</span><b>${a.value}</b><i style="width:${a.inverted ? 100 - a.value : a.value}%" class="${ovrCls(a.inverted ? 100 - a.value : a.value)}"></i>${a.drivers?.length ? `<div class="why">${esc(a.drivers.slice(0, 2).map(d => `${d.pts > 0 ? '+' : ''}${d.pts} ${d.label}`).join(' · '))}</div>` : ''}</div>`).join(''); }
 function historyHtml(p) {
   const s = p.stats2025, bio = [p.birthDate && `Nasc. ${esc(p.birthDate)}`, p.mlbDebutDate && `Estreia MLB ${esc(p.mlbDebutDate)}`].filter(Boolean).join(' · ');
   const row = (k, o) => `<tr><td>${k}</td>${o.map(v => `<td>${v ?? '—'}</td>`).join('')}</tr>`;
@@ -105,17 +106,50 @@ function historyHtml(p) {
     (pi ? row('Arremessos', [pi.gp, `ERA ${pi.era}`, `WHIP ${pi.whip}`, `${pi.ip} IP`, `${pi.w}-${pi.l} · ${pi.sv} SV · ${pi.so} K`]) : '') + '</tbody></table>' : '<div class="muted small">Sem estatísticas de 2025 no snapshot (estreante ou fora da amostra).</div>');
 }
 function showPlayer(p) {
-  const nm = p.fullName || p.person?.fullName || 'Atleta', id = p.id || p.person?.id, fx = fixedRatings(p);
-  let day = 0;
+  const nm = p.fullName || p.person?.fullName || 'Atleta', id = p.id || p.person?.id, fx = fixedRatings(p), pit = pos(p) === 'P' || pos(p) === 'TWP';
+  let day = 0, sc = defaultScenario(p, day);
+  const my = teamOfPlayer(p);
+  const opts = (arr, cur) => arr.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const BASES = [[[], 'Bases vazias'], [[1], 'Corredor na 1ª'], [[2], 'Corredor na 2ª'], [[1, 3], '1ª e 3ª'], [[2, 3], '2ª e 3ª'], [[1, 2, 3], 'Bases lotadas']];
+  const bkey = b => JSON.stringify(b);
   $('#modal').classList.remove('hidden');
   $('#modalContent').innerHTML = `<div class="hero-id">${img(photo(id), nm, 'mlb-photo big')}<div><div class="eyebrow">${esc(p.currentTeam?.name || '')}</div><h2>${esc(nm)}</h2>
     <div class="hero-meta"><span>#${esc(p.primaryNumber || '—')}</span><span>${esc(p.primaryPosition?.name || pos(p))}</span><span>Bats ${esc(p.batSide?.code || '—')}</span><span>Throws ${esc(p.pitchHand?.code || '—')}</span><span>${p.currentAge ?? '—'} anos</span><span>${esc(p.height || '—')} · ${p.weight || '—'} lb</span></div></div><span class="grow"></span>${ovrBadge(positionalOvr(p, fx), true)}</div>
     <div class="sec-h">40 atributos fixos</div><div class="mlb-attr-grid">${attrList(fx)}</div>
-    <div class="sec-h" style="display:flex;align-items:center;gap:10px">30 atributos adaptativos (contexto do dia) <button id="reroll" class="small">Atualizar contexto do dia</button></div>
-    <div class="mlb-attr-grid" id="adapt">${attrList(adaptiveRatings(p, 'initial'))}</div>
+    <div class="sec-h" style="display:flex;align-items:center;gap:10px">30 atributos adaptativos (contexto do dia) <button id="reroll" class="small">Atualizar contexto do dia</button><span class="muted small" id="dayLbl"></span></div>
+    <div class="adapt-ctx" id="adaptCtx"></div>
+    <div class="muted small" id="adaptSummary" style="margin-bottom:6px"></div>
+    <div class="mlb-attr-grid" id="adapt"></div>
+    <div class="muted small">Passe o mouse em um atributo para ver os fatores (forma, fadiga, confiança, confronto, estádio, pressão, sequência, situação). “Fatigue” = frescor (100 = descansado); “Cold Zone Vulnerability” e “Injury Risk Today”: maior = pior.</div>
     ${historyHtml(p)}
-    <p class="muted small">Ratings próprios do simulador (determinísticos). Dados biográficos e foto: MLB.</p>`;
-  $('#reroll').onclick = () => { day++; $('#adapt').innerHTML = attrList(adaptiveRatings(p, 'day' + day)); };
+    <p class="muted small">Ratings próprios do simulador (determinísticos). Atributos adaptativos: função pura de ratings + contexto (sem re-sorteio). Dados biográficos e foto: MLB.</p>`;
+  const live = liveContext(p);
+  function draw() {
+    const res = adaptiveFor(p, day, sc);
+    $('#adapt').innerHTML = attrList(res.list);
+    const stadium = sc.home ? my?.stadium : teamBy(sc.opp)?.stadium;
+    $('#dayLbl').textContent = `Dia ${day + 1}`;
+    $('#adaptSummary').textContent = `${sc.home ? 'Em casa' : 'Fora'} (${stadium || 'estádio'}) · vs ${sc.opp} (${sc.hand === 'L' ? 'canhoto' : 'destro'}) · ${sc.inning}ª entrada, placar ${sc.scoreDiff >= 0 ? '+' : ''}${sc.scoreDiff}, ${sc.outs} out(s) · alavancagem ${res.leverage.toFixed(2)}${live ? ' · partida 2D ao vivo disponível' : ''}`;
+  }
+  function form() {
+    $('#adaptCtx').innerHTML = `<label>Local<select data-k="home">${opts([[1, 'Em casa'], [0, 'Fora']], sc.home ? 1 : 0)}</select></label>
+      <label>Adversário<select data-k="opp">${opts(D.teams.map(t => [t.abbr, t.abbr + ' · ' + t.stadium]), sc.opp)}</select></label>
+      <label>Mão do ${pit ? 'rebatedor' : 'arremessador'}<select data-k="hand">${opts([['R', 'Destro'], ['L', 'Canhoto']], sc.hand)}</select></label>
+      <label>Entrada<select data-k="inning">${opts(Array.from({ length: 9 }, (_, i) => [i + 1, `${i + 1}ª`]), sc.inning)}</select></label>
+      <label>Placar (meu time)<select data-k="scoreDiff">${opts(Array.from({ length: 9 }, (_, i) => [i - 4, (i - 4 >= 0 ? '+' : '') + (i - 4)]), sc.scoreDiff)}</select></label>
+      <label>Bases<select data-k="bases">${opts(BASES.map(([b, l]) => [bkey(b), l]), bkey(sc.bases))}</select></label>
+      <label>Outs<select data-k="outs">${opts([[0, '0'], [1, '1'], [2, '2']], sc.outs)}</select></label>
+      <label>${pit ? 'Arremessos hoje' : 'Aparições hoje'}<input type="range" data-k="load" min="0" max="${pit ? 120 : 6}" value="${sc.load}"></label>
+      <label>Descanso (dias)<input type="range" data-k="rest" min="0" max="6" value="${sc.rest}"></label>
+      ${pit ? '' : `<label>Jogos seguidos<input type="range" data-k="consecutive" min="0" max="25" value="${sc.consecutive}"></label>`}`;
+    $('#adaptCtx').querySelectorAll('[data-k]').forEach(el => el.addEventListener('input', () => {
+      const k = el.dataset.k, v = el.value;
+      sc[k] = k === 'home' ? v === '1' : k === 'bases' ? JSON.parse(v) : ['hand', 'opp'].includes(k) ? v : +v;
+      draw();
+    }));
+  }
+  $('#reroll').onclick = () => { day++; sc = defaultScenario(p, day); form(); draw(); }; // next day: new schedule slot, rest, load and recent window
+  form(); draw();
 }
 
 async function rosterView(abbr, tok) {

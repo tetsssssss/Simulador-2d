@@ -350,3 +350,11 @@ div.preset{display:flex}
 .evt-flash.tone-score{color:#ffd75a;border-color:#ffd75a;box-shadow:0 0 30px rgba(255,215,90,.35)}
 .evt-flash.tone-save{color:#8fd6ff}.evt-flash.tone-turnover{color:#ff8a8a}
 .ctrl-extra{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* v0.6: "Por que terminou", log reason, camera presets */
+.rc-why{grid-column:1/-1;margin-top:5px;padding-top:5px;border-top:1px solid var(--line2);font-size:11px;line-height:1.35;color:#c3d0dd;display:grid;gap:1px}
+.rc-why>b{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.rc-why i{font-style:normal;font-weight:800;color:#8fb7ff;margin-right:4px}
+.result-pop .rcard{max-width:min(560px,92vw)}
+.logline .lwhy{display:block;color:#9fb2c8;font-size:11px}
+#camSeg button.on{background:rgba(78,161,255,.18);border-color:#4ea1ff;color:#d6e8ff}
