@@ -1,0 +1,44 @@
+/* NHL Universe 2D — only what differs from the shared NFL shell (../nfl/styles.css). */
+.sport-mlb{--accent:#ff7a59;--accent-d:#c9472b}
+.sport-mlb .brand-mark{background:linear-gradient(145deg,#ff7a59,#9e2f1a);color:#1a0703}
+.sport-mlb .nav-btn.active{background:linear-gradient(90deg,rgba(255,122,89,.16),rgba(255,122,89,.02))}
+.sport-mlb button.primary:hover,.sport-mlb .btn.primary:hover{background:#ffa184}
+.sport-mlb .toggle.on,.sport-mlb .seg .on,.sport-mlb button.on{background:rgba(255,122,89,.15);color:#ffe1d8}
+.sport-mlb .side-foot button{justify-content:center}
+.hidden{display:none!important}
+.mlb-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(120deg,#0f2236,#0b1420 60%);padding:18px}
+.mlb-hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.mlb-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
+.mlb-grid2>.panel+.panel{margin-top:0}
+.mlb-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line)}
+.mlb-row:last-child{border-bottom:0}
+.mlb-row.clickable{cursor:pointer}.mlb-row.clickable:hover{background:var(--panel2)}
+.mlb-logo-strip{display:flex;flex-wrap:wrap;gap:6px}
+.mlb-logo-strip a{padding:4px;border-radius:8px;border:1px solid transparent}
+.mlb-logo-strip a:hover,.mlb-logo-strip a.on{border-color:var(--accent);background:var(--panel2)}
+.mlb-team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.mlb-team-grid>.panel+.panel{margin-top:0}
+.mlb-team-card{display:flex;gap:12px;align-items:center;color:var(--text);text-decoration:none!important}
+.mlb-team-card:hover{border-color:var(--accent)}
+.mlb-player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.mlb-player-grid>.panel+.panel{margin-top:0}
+.mlb-pcard{display:flex;gap:10px;align-items:center;cursor:pointer}
+.mlb-pcard:hover{border-color:var(--accent)}
+.mlb-pcard-body{flex:1;min-width:0}
+.mlb-pcard-body b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mlb-photo{width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:50% 15%;background:#1b2a3d;flex:none}
+.mlb-photo.big{width:120px;height:120px}
+.mlb-av{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#1b2a3d;flex:none}
+.mlb-notice{padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--panel2)}
+.mlb-bar{height:6px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-top:8px}
+.mlb-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#f5c04a)}
+.mlb-modal{position:fixed;inset:0;background:rgba(3,7,12,.72);display:grid;place-items:center;z-index:20;padding:20px}
+.mlb-modal-card{width:min(980px,100%);max-height:90vh;overflow:auto;position:relative;padding:18px}
+.mlb-close{position:absolute;right:10px;top:8px;font-size:22px;border:0}
+.mlb-attr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px}
+.mlb-attr{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;font-size:12px}
+.mlb-attr i{grid-column:1/-1;height:4px;border-radius:99px;display:block}
+.mlb-logo-fb{display:inline-grid;place-items:center;flex:none;border-radius:8px;background:var(--panel3);border:1px solid var(--line2);color:#ffd9cc;font-weight:900;letter-spacing:.02em}
+.mlb-rank{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:6px;background:var(--panel3);font-weight:900;font-size:12px;flex:none}
+.mlb-field-wrap{background:#0b1420;border-radius:10px;padding:8px}
+.mlb-field-wrap canvas{display:block;width:100%;height:auto;border-radius:6px}

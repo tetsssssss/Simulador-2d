@@ -1,14 +1,31 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MLB Universe 2D</title><link rel="stylesheet" href="styles.css"></head>
-<body><div id="app"><aside>
-<div class="brand"><div class="ball">⚾</div><div><strong>MLB Universe</strong><small>2D Franchise Lab</small></div></div>
-<nav id="nav">
-<button class="active" data-view="home">Visão Geral</button><button data-view="teams">Franquias</button>
-<button data-view="rosters">Elencos</button><button data-view="prospects">Prospectos</button><button data-view="draft">Draft</button>
-<button data-view="stadiums">Estádios</button><button data-view="rivalries">Rivalidades</button><button data-view="history">Histórico</button>
-<button data-view="diamond">Diamond 2D</button></nav>
-<div class="foot"><span id="status">MLB StatsAPI sob demanda</span><button id="sync">Sincronizar 30 rosters</button></div>
-</aside><main><header><div><h1 id="title">MLB Universe 2D</h1><p id="subtitle">Franquias, atletas, prospectos, draft e baseball vivo.</p></div><div class="season">2026</div></header><section id="content"></section></main></div>
-<div id="modal" class="modal hidden"><div class="modalbox"><button id="close" class="close">×</button><div id="modalContent"></div></div></div>
-<script src="js/data.js"></script><script src="js/app.js"></script></body></html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MLB Universe 2D — American Sports Universe</title>
+<!-- Same visual shell as NFL/NHL Universe 2D (single source of the identity) + MLB specifics. -->
+<link rel="stylesheet" href="../nfl/styles.css" />
+<link rel="stylesheet" href="mlb.css" />
+</head>
+<body class="sport-mlb">
+<div id="app">
+  <aside class="sidebar">
+    <a class="brand" href="#home"><div class="brand-mark">MLB</div><div><strong>MLB Universe 2D</strong><span>American Sports Universe</span></div></a>
+    <nav id="nav"></nav>
+    <div class="side-foot"><button id="syncAll">Sincronizar 30 rosters</button><div class="source-pill" id="sourcePill">MLB StatsAPI sob demanda</div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="tb-title"><h1 id="pageTitle">Home</h1><p id="pageSub"></p></div>
+      <div class="top-actions"><span class="chip">2026</span></div>
+    </header>
+    <section id="content" class="content"></section>
+  </main>
+</div>
+<div id="modal" class="mlb-modal hidden"><div class="mlb-modal-card panel"><button id="closeModal" class="ghost mlb-close" aria-label="Fechar">×</button><div id="modalContent"></div></div></div>
+<!-- Existing MLB base (30 teams, logos, stadiums, rivalries, World Series, 40 + 30 attributes): reused as-is. -->
+<script src="js/data.js"></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

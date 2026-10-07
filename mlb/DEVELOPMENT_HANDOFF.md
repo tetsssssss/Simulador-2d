@@ -40,3 +40,7 @@ O modelo foi preparado para substituir progressivamente cada rating por fórmula
 ## Próxima sessão sugerida
 Começar pelo motor de partida:
 PitchModel -> BatterDecision -> ContactModel -> BallFlight -> FieldingAI -> Baserunning -> EventLog.
+
+## v18 (American Sports Universe shell)
+UI reescrita no shell comum (ver `../CLAUDE_HANDOFF.md`): `index.html` + `src/{app,mlbData,diamond}.js` + `mlb.css`.
+`js/data.js` continua sendo a base. `js/app.js` e `styles.css` da Alpha ficaram sem uso (referência).
