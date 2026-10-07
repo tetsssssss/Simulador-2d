@@ -1,5 +1,6 @@
 # CLAUDE_HANDOFF — NFL Universe 2D (v0.5 · Product Layer)
 
+> Universo (seletor NFL/NHL, NHL): ver `../CLAUDE_HANDOFF.md`. Esta NFL v0.5 roda inalterada dentro do shell.
 > Memória técnica para a próxima sessão. Compacto de propósito. Histórico antigo: `DEVELOPMENT_HANDOFF.md`.
 > Calibração do motor: `docs/CALIBRATION_v04.md`. Sessão 03 = **Prompt B** (produto/UI). Sessão 02 = Prompt A (motor/corrida).
 

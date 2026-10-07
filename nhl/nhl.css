@@ -1,0 +1,43 @@
+/* NHL Universe 2D — only what differs from the shared NFL shell (../nfl/styles.css). */
+.sport-nhl{--accent:#5cc8ff;--accent-d:#2a8fd0}
+.sport-nhl .brand-mark{background:linear-gradient(145deg,#5cc8ff,#1d5f99);color:#031220}
+.sport-nhl .nav-btn.active{background:linear-gradient(90deg,rgba(92,200,255,.16),rgba(92,200,255,.02))}
+.sport-nhl button.primary:hover,.sport-nhl .btn.primary:hover{background:#8ad8ff}
+.sport-nhl .toggle.on,.sport-nhl .seg .on,.sport-nhl button.on{background:rgba(92,200,255,.15);color:#d6f1ff}
+.sport-nhl .side-foot button{justify-content:center}
+.hidden{display:none!important}
+.nhl-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:linear-gradient(120deg,#0f2236,#0b1420 60%);padding:18px}
+.nhl-hero-actions{display:flex;gap:8px;flex-wrap:wrap}
+.nhl-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px}
+.nhl-grid2>.panel+.panel{margin-top:0}
+.nhl-row{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid var(--line)}
+.nhl-row:last-child{border-bottom:0}
+.nhl-row.clickable{cursor:pointer}.nhl-row.clickable:hover{background:var(--panel2)}
+.nhl-logo-strip{display:flex;flex-wrap:wrap;gap:6px}
+.nhl-logo-strip a{padding:4px;border-radius:8px;border:1px solid transparent}
+.nhl-logo-strip a:hover,.nhl-logo-strip a.on{border-color:var(--accent);background:var(--panel2)}
+.nhl-team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.nhl-team-grid>.panel+.panel{margin-top:0}
+.nhl-team-card{display:flex;gap:12px;align-items:center;color:var(--text);text-decoration:none!important}
+.nhl-team-card:hover{border-color:var(--accent)}
+.nhl-player-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.nhl-player-grid>.panel+.panel{margin-top:0}
+.nhl-pcard{display:flex;gap:10px;align-items:center;cursor:pointer}
+.nhl-pcard:hover{border-color:var(--accent)}
+.nhl-pcard-body{flex:1;min-width:0}
+.nhl-pcard-body b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nhl-photo{width:64px;height:64px;border-radius:50%;object-fit:cover;object-position:50% 15%;background:#1b2a3d;flex:none}
+.nhl-photo.big{width:120px;height:120px}
+.nhl-av{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#1b2a3d;flex:none}
+.nhl-notice{padding:10px 12px;border:1px solid var(--line2);border-radius:8px;background:var(--panel2)}
+.nhl-bar{height:6px;background:var(--panel3);border-radius:99px;overflow:hidden;margin-top:8px}
+.nhl-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#2fe08f)}
+.nhl-modal{position:fixed;inset:0;background:rgba(3,7,12,.72);display:grid;place-items:center;z-index:20;padding:20px}
+.nhl-modal-card{width:min(980px,100%);max-height:90vh;overflow:auto;position:relative;padding:18px}
+.nhl-close{position:absolute;right:10px;top:8px;font-size:22px;border:0}
+.nhl-attr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px}
+.nhl-attr{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;font-size:12px}
+.nhl-attr i{grid-column:1/-1;height:4px;border-radius:99px;display:block}
+.nhl-rink-wrap{background:#0b1420;border-radius:10px;padding:8px}
+.nhl-rink-wrap canvas{display:block;width:100%;height:auto;border-radius:6px}
+.nhl-logo-fb{display:inline-grid;place-items:center;flex:none;border-radius:8px;background:var(--panel3);border:1px solid var(--line2);color:#cfe7ff;font-weight:900;letter-spacing:.02em}

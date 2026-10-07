@@ -40,3 +40,7 @@ Alpha 0.1 funcional em frontend vanilla.
 8. Career save.
 9. 2D: skating physics.
 10. Puck possession/pass/shot/goalie/check systems.
+
+## v11 (American Sports Universe shell)
+UI reescrita no shell comum (ver `../CLAUDE_HANDOFF.md`): `index.html` + `src/{app,nhlData,rink}.js` + `nhl.css`.
+`js/data.js` continua sendo a base. `js/app.js` e `styles.css` da Alpha ficaram sem uso (referência).
