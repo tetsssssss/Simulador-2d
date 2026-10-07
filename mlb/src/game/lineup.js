@@ -11,7 +11,7 @@ export function playerRecord(entry, team) {
   const per = entry.person || entry;
   const name = per.fullName || entry.fullName || 'Jogador';
   return {
-    id: `${team}-${per.id}`, pid: per.id, p: { ...entry, id: per.id, person: per, demo: entry.demo }, team, name, last: name.split(' ').slice(-1)[0],
+    id: `${team}-${per.id}`, pid: per.id, p: { ...entry, id: per.id, person: per, demo: entry.demo }, team, name, last: entry.demo ? name.replace(/^\S+ Demo /, 'Demo ').replace(/ (\d+)$/, '$1') : name.split(' ').slice(-1)[0],
     num: entry.jerseyNumber || per.primaryNumber || '', pos: pos(entry) === 'TWP' ? 'P' : pos(entry),
     bats: per.batSide?.code || 'R', throws: per.pitchHand?.code || 'R', demo: !!entry.demo,
   };

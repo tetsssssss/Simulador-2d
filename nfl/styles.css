@@ -349,3 +349,4 @@ div.preset{display:flex}
 .evt-flash.show{opacity:1;transform:translate(-50%,0)}
 .evt-flash.tone-score{color:#ffd75a;border-color:#ffd75a;box-shadow:0 0 30px rgba(255,215,90,.35)}
 .evt-flash.tone-save{color:#8fd6ff}.evt-flash.tone-turnover{color:#ff8a8a}
+.ctrl-extra{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}

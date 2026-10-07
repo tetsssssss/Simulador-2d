@@ -10,6 +10,7 @@ import { separateKits, textColorOn } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { mountEngineControls } from '../../../core/ui/engineControls.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
@@ -57,7 +58,6 @@ export function mountMatch(root, deps = {}) {
     $('#srcNote').textContent = src.includes('snapshot') ? 'Elencos: snapshot local 2023-24 (NHL API indisponível)' : 'Elencos: NHL Web API';
     if (deps.createEngine) {
       view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}#${view.seedN || 0}` });
-      const spd = +store.get('asu_nhl_speed'); if (spd && view.engine.setSpeed) view.engine.setSpeed(spd);
       view.state = view.engine.state;
     } else view.state = faceoffState(home, away);
     startPresentation(`${pref.away}@${pref.home}`);
@@ -127,7 +127,7 @@ export function mountMatch(root, deps = {}) {
   // ---------- presentation (commentary) — one per engine run; events drained from state.events ----------
   const pres = { comm: null, engine: null, unmount: null, idx: 0 };
   function startPresentation(seed) {
-    pres.unmount?.(); pres.engine?.dispose();
+    pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     const s0 = view.state;
     stands.cur = s0 ? nhlStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
     pres.atmosphere = createAtmosphere({ rules: NHL_ATMOSPHERE, audio, crowd: stands });
@@ -145,32 +145,13 @@ export function mountMatch(root, deps = {}) {
     el.className = `evt-flash show tone-${tone}`; el.textContent = text;
     clearTimeout(view.flashT); view.flashT = setTimeout(() => { if (!view.disposed) el.classList.remove('show'); }, 2600);
   }
-  // Speed / simulation controls (only when an engine drives the match).
+  // Speed / pause / simulation controls (only when an engine drives the match).
   function drawEngineControls() {
+    pres.unControls?.(); pres.unControls = null;
     const e = view.engine, el = $('#ctrlExtra'); if (!el) return;
     if (!e?.setSpeed) { el.innerHTML = ''; return; }
-    const speeds = [1, 2, 4, 8];
-    el.innerHTML = `<div class="seg" id="spdSeg">${speeds.map(v => `<button data-spd="${v}" class="${e.speed === v ? 'on' : ''}">${v}x</button>`).join('')}</div>
-      <button id="pauseBtn" title="Pausar / continuar (espaço)">${view.paused ? '▶' : '❚❚'}</button>
-      ${e.simulate ? '<button id="simPeriodBtn" title="Simula o resto do período">Sim período ⏭</button><button id="simEndBtn" title="Simula até o fim do jogo">Sim to end ⏭⏭</button>' : ''}
-      <button id="newGameBtn" class="ghost" title="Nova partida (nova seed)">↻</button>`;
-    el.querySelector('#spdSeg').onclick = ev => { const v = +ev.target.dataset.spd; if (!v) return; e.setSpeed(v); store.set('asu_nhl_speed', String(v)); drawEngineControls(); };
-    el.querySelector('#pauseBtn').onclick = () => { view.paused = !view.paused; drawEngineControls(); };
-    el.querySelector('#newGameBtn').onclick = () => { view.seedN = (view.seedN || 0) + 1; restart(); };
-    const sim = (untilPeriodEnd) => {
-      if (view.simming) return; view.simming = true;
-      const S = e.state, p0 = S.period;
-      const chunk = () => {
-        if (view.disposed || view.engine !== e) return;
-        e.simulate(90);
-        drainEvents(); view.redraw();
-        if (S.over || (untilPeriodEnd && S.period !== p0)) { view.simming = false; drawEngineControls(); return; }
-        setTimeout(chunk, 0);
-      };
-      chunk();
-    };
-    el.querySelector('#simPeriodBtn') && (el.querySelector('#simPeriodBtn').onclick = () => sim(true));
-    el.querySelector('#simEndBtn') && (el.querySelector('#simEndBtn').onclick = () => sim(false));
+    pres.unControls = mountEngineControls(el, { engine: e, view, storeKey: 'asu_nhl_speed', periodKey: s => s.period, labels: { period: 'Sim período' },
+      onChunk: () => { drainEvents(); view.redraw(); }, onNewGame: () => { view.seedN = (view.seedN || 0) + 1; restart(); } });
   }
   function drainEvents() {
     const s = view.state, ev = s?.events; if (!ev || !pres.engine) return;
@@ -184,7 +165,7 @@ export function mountMatch(root, deps = {}) {
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose();
+    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;

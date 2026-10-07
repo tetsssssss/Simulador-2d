@@ -3,6 +3,7 @@
 import { D, teamBy, photo, fallback, pos, positionalOvr, fixedRatings, adaptiveRatings, roster, person, draft, prospects, hash, cachedRosterCount } from './mlbData.js';
 import { mountMatch } from './game/matchView.js';
 import { demoRoster } from './game/lineup.js';
+import { baseballHook } from './game/engineHook.js';
 
 const $ = s => document.querySelector(s);
 const content = $('#content');
@@ -175,7 +176,7 @@ function diamond() {
   cleanup = mountMatch(content, matchDeps());
 }
 // Extension point: later phases (engine, commentary, audio, crowd) register here without touching the view.
-export const matchHooks = [];
+export const matchHooks = [baseballHook];
 function matchDeps() { return matchHooks.reduce((d, h) => h(d) || d, {}); }
 
 // ---------- router ----------

@@ -45,6 +45,11 @@ for (let round = 0; round < 3; round++) {
     check(`${sport} round ${round}: no NaN in state`, nan === 0 || nan === null, `NaN=${nan}`);
     const loops = await f.evaluate(() => window.__nhlLoops ?? window.__mlbLoops ?? null);
     if (loops !== null) check(`${sport} round ${round}: one mounted match view`, loops === 1, `mounted=${loops}`);
+    if (round === 0 && sport !== 'nfl') {
+      await page.waitForTimeout(4000);
+      const eng = await f.evaluate(() => { const v = window.__nhlMatch || window.__mlbMatch; return { has: !!v?.engine, t: v?.state?.t || 0, ev: v?.state?.events?.length || 0, lines: document.querySelectorAll('#liveComm .lc-line').length, bad: [...document.querySelectorAll('#liveComm .lc-x')].some(e => /undefined|NaN|null/.test(e.textContent)) }; });
+      check(`${sport} engine running with live commentary`, eng.has && eng.t > 3 && eng.ev >= 2 && eng.lines >= 2 && !eng.bad, JSON.stringify(eng));
+    }
     if (OUT && round === 0) await page.screenshot({ path: `${OUT}/smoke_${sport}.png` });
   }
 }

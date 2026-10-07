@@ -2,7 +2,7 @@
 // rivalries, World Series history, 40 fixed + 30 adaptive attribute names) and the MLB StatsAPI adapters /
 // ratings from the Alpha 0.1 js/app.js — logic ported unchanged, so ratings are identical.
 // (OVR positional split and context-driven adaptive attributes are scheduled for later sessions.)
-export const D = window.MLB_DATA;
+export const D = globalThis.MLB_DATA || { teams: [], fixedAttrs: [], adaptiveAttrs: [] };
 const API = 'https://statsapi.mlb.com/api/v1';
 const cache = { rosters: {}, people: {}, drafts: {}, prospects: null };
 

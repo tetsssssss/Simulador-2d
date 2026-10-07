@@ -11,6 +11,7 @@ import { separateKits } from '../../../core/render/sprites.js';
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
+import { mountEngineControls } from '../../../core/ui/engineControls.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { MLB_ATMOSPHERE, mlbStands } from '../presentation/atmosphere.js';
@@ -40,10 +41,10 @@ export function mountMatch(root, deps = {}) {
     <div class="toolbar mlb-setup"><select id="awaySel">${teamOpts(pref.away)}</select><span class="muted">@</span><select id="homeSel">${teamOpts(pref.home)}</select><span class="grow"></span><span class="muted small" id="srcNote"></span></div>
     <div class="mlb-bug" id="bug"></div>
     <div class="mlb-match-grid">
-      <div class="mlb-field-col"><div class="mlb-field-wrap2"><canvas id="fieldCanvas"></canvas><div class="mlb-pcard2" id="pcard"></div><div class="mlb-pitchinfo" id="pitchInfo"></div></div>
+      <div class="mlb-field-col"><div class="mlb-field-wrap2"><canvas id="fieldCanvas"></canvas><div class="mlb-pcard2" id="pcard"></div><div class="mlb-pitchinfo" id="pitchInfo"></div><div class="evt-flash" id="evtFlash"></div></div>
         <div class="controls mlb-controls" id="controls">
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
-          <span class="grow" id="ctrlExtra"></span>
+          <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
           <label class="chk"><input type="checkbox" id="optPhotos" ${pref.photos ? 'checked' : ''}> Fotos</label>
           <label class="chk"><input type="checkbox" id="optDebug"> Debug</label>
@@ -72,7 +73,7 @@ export function mountMatch(root, deps = {}) {
     const [hk, ak] = separateKits([h.color, h.color2], [a.color, a.color2]);
     const home = withSide({ ...h, brand: h.color, color: hk[0], color2: hk[1] }, 'home'), away = withSide({ ...a, brand: a.color, color: ak[0], color2: ak[1] }, 'away');
     $('#srcNote').innerHTML = [h, a].some(t => t.source === 'demo') ? '<span class="bad">Elenco DEMO (MLB StatsAPI indisponível) — sem nomes/fotos reais</span>' : 'Elencos: MLB StatsAPI (2026)';
-    if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}` }); view.state = view.engine.state; }
+    if (deps.createEngine) { view.engine = deps.createEngine({ home, away, seed: `${pref.away}@${pref.home}#${view.seedN || 0}` }); view.state = view.engine.state; }
     else view.state = staticState(home, away);
     startPresentation(`${pref.away}@${pref.home}`);
     drawBug(); drawSide();
@@ -89,6 +90,13 @@ export function mountMatch(root, deps = {}) {
       <div class="mb-count"><span>BALLS <b>${s.balls}</b></span><span>STRIKES <b>${s.strikes}</b></span><span>OUTS <b>${'●'.repeat(s.outs)}${'○'.repeat(Math.max(0, 3 - s.outs))}</b></span></div>`;
   }
 
+  // last pitch: type, velocity and location in the zone (readability: what was thrown and where)
+  function drawPitchInfo() {
+    const el = $('#pitchInfo'), lp = view.state?.lastPitch; if (!el) return;
+    if (!lp) { el.innerHTML = ''; return; }
+    const px = 50 + lp.x / 1.6 * 50, pz = 100 - (lp.z - 0.5) / 4 * 100;
+    el.innerHTML = `<div class="pi-zone"><i class="pi-box"></i><b class="${lp.inZone ? 'in' : 'out'}" style="left:${Math.max(4, Math.min(96, px))}%;top:${Math.max(4, Math.min(96, pz))}%"></b></div><div><b>${esc(lp.type)}</b><span>${lp.mph} mph</span><small>${view.state.balls}-${view.state.strikes}</small></div>`;
+  }
   function drawSide() {
     const s = view.state; if (!s) return;
     const fieldTeam = s.half === 'top' ? 'home' : 'away';
@@ -104,7 +112,8 @@ export function mountMatch(root, deps = {}) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
     const dt = view.last ? Math.min(0.1, (ts - view.last) / 1000) : 0; view.last = ts;
     let alpha = 1;
-    if (view.engine) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); drawPitchInfo(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, showPhotos: pref.photos, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
@@ -130,7 +139,7 @@ export function mountMatch(root, deps = {}) {
   // ---------- presentation (commentary) — one per engine run; events drained from state.events ----------
   const pres = { comm: null, engine: null, unmount: null, idx: 0 };
   function startPresentation(seed) {
-    pres.unmount?.(); pres.engine?.dispose();
+    pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     const s0 = view.state;
     stands.cur = s0 ? mlbStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
     pres.atmosphere = createAtmosphere({ rules: MLB_ATMOSPHERE, audio, crowd: stands });
@@ -139,6 +148,20 @@ export function mountMatch(root, deps = {}) {
     if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
     pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'mlb', voiceVolume: () => audio.volume('COMMENTARY') });
     pres.idx = 0;
+    pres.comm.subscribe(l => { if (l.priority >= 3) flash(l.text, l.tone); });
+    drawEngineControls();
+  }
+  function flash(text, tone) {
+    const el = $('#evtFlash'); if (!el) return;
+    el.className = `evt-flash show tone-${tone}`; el.textContent = text;
+    clearTimeout(view.flashT); view.flashT = setTimeout(() => { if (!view.disposed) el.classList.remove('show'); }, 2600);
+  }
+  function drawEngineControls() {
+    pres.unControls?.(); pres.unControls = null;
+    const e = view.engine, el = $('#ctrlExtra'); if (!el) return;
+    if (!e?.setSpeed) { el.innerHTML = ''; return; }
+    pres.unControls = mountEngineControls(el, { engine: e, view, storeKey: 'asu_mlb_speed', periodKey: s => `${s.inning}${s.half}`, labels: { period: 'Sim meia-entrada' },
+      onChunk: () => { drainEvents(); view.redraw(); }, onNewGame: () => { view.seedN = (view.seedN || 0) + 1; restart(); } });
   }
   function drainEvents() {
     const s = view.state, ev = s?.events; if (!ev || !pres.engine) return;
@@ -151,7 +174,7 @@ export function mountMatch(root, deps = {}) {
   function restart() { view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose();
+    view.disposed = true; cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__mlbLoops = Math.max(0, (window.__mlbLoops || 1) - 1);
   }
   window.__mlbLoops = (window.__mlbLoops || 0) + 1;
