@@ -215,7 +215,7 @@ export const NFL_V3 = {
       const grp = g(spec, p), top = Object.values(c.players).filter(q => g(spec, q) === grp && q.c && q.st === 'ACT').sort((a, b) => b.c.sal - a.c.sal).slice(0, 5);
       const sal = round1(Math.max(p.c?.sal || 0, mean(top, q => q.c.sal)));
       const all = Object.values(c.players), before = p.c.sal;
-      if (payroll(all, c.userTeam) - (p.expiring ? 0 : before) + sal > spec.cap.limit) return { ok: false, text: `Sem espaço no teto para a tag (${sal}M).` };
+      if (payroll(all, c.userTeam) - before + sal > spec.cap.limit) return { ok: false, text: `Sem espaço no teto para a tag (${sal}M).` };
       p.c = { sal, yrs: 1, kind: 'TAG' }; p.expiring = false; x.gm.tagUsed = c.season;
       if (p.rel) p.rel.tr = clamp(p.rel.tr - 4, 0, 100);
       return { ok: true, text: `${p.n} recebe a franchise tag: ${sal}M por 1 ano.`, sal };
