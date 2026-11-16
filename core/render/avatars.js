@@ -116,13 +116,19 @@ export function drawAvatar(ctx, o) {
   const handAt = (S, ang, len = armLen) => ({ x: S.x + Math.sin(ang) * len * dir, y: S.y + Math.cos(ang) * len });
   const backS = sh(-dir), backH = handAt(backS, -0.12 - swingA * 0.5 - (act?.type === 'celebrate' ? 2.9 + Math.sin(act.p * 20) * 0.3 : 0));
   let cpB = null; // keyframed back arm: shoulder → elbow → hand (forearm angle is absolute, see core/anim/pose.js)
-  if (cp) { const el = handAt(backS, cp.aB, armLen * 0.5); cpB = { el, h: { x: el.x + Math.sin(cp.fB) * armLen * 0.5 * dir, y: el.y + Math.cos(cp.fB) * armLen * 0.5 } }; limb(ctx, backS.x, backS.y, el.x, el.y, aw, color); limb(ctx, el.x, el.y, cpB.h.x, cpB.h.y, aw * 0.95, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(cpB.h.x, cpB.h.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); }
+  let lateBack = null; // a raised back arm is also drawn over the head (referee signals, catches, celebrations)
+  if (cp) {
+    const el = handAt(backS, cp.aB, armLen * 0.5); cpB = { el, h: { x: el.x + Math.sin(cp.fB) * armLen * 0.5 * dir, y: el.y + Math.cos(cp.fB) * armLen * 0.5 } };
+    const drawB = () => { limb(ctx, backS.x, backS.y, el.x, el.y, aw, color); limb(ctx, el.x, el.y, cpB.h.x, cpB.h.y, aw * 0.95, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(cpB.h.x, cpB.h.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); };
+    if (Math.abs(cp.aB) > 1.9 || Math.abs(cp.fB) > 2.6) lateBack = drawB; else drawB();
+  }
   else { limb(ctx, backS.x, backS.y, backH.x, backH.y, aw, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(backH.x, backH.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); }
   // torso
   ctx.fillStyle = color; rr(ctx, -torsoW / 2, shY, torsoW, hipY - shY + 0.6 * u, 0.9 * u); ctx.fill();
   ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, hipY - 0.15 * u, torsoW, 0.45 * u);
   if (kit === 'football') {
-    ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, shY + 0.2 * u, torsoW, 0.35 * u);
+    if (role !== 'ref') { ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, shY + 0.2 * u, torsoW, 0.35 * u); }
+    else { ctx.fillStyle = '#f4f4f4'; const n = 7, w = torsoW / n; for (let i = 0; i < n; i += 2) ctx.fillRect(-torsoW / 2 + i * w, shY, w, hipY - shY + 0.45 * u); } // black & white stripes
     // shoulder pads: the silhouette that reads as "football" at a glance (wider than the jersey, darker rim)
     for (const sd of [-1, 1]) { ctx.fillStyle = shade(color, 1.1); ctx.strokeStyle = shade(color, 0.6); ctx.lineWidth = Math.max(1, u * 0.14); ctx.beginPath(); ctx.ellipse(sd * torsoW * 0.5, shY + 0.45 * u, 1.05 * u, 0.85 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   }
@@ -176,7 +182,7 @@ export function drawAvatar(ctx, o) {
   // ---- head ----
   const hr = 1.95 * u * (a.build === 2 ? 1.04 : a.build === 0 ? 0.97 : 1), hdY = headY + (act?.type === 'celebrate' ? -0.1 * u : 0);
   ctx.fillStyle = skinD; ctx.fillRect(-0.55 * u, hdY + hr * 0.7, 1.1 * u, 0.9 * u);
-  const geared = a.gear === 0;
+  const geared = a.gear === 0 && role !== 'ref';
   if (a.hairStyle === 2 || a.hairStyle === 6) { ctx.fillStyle = hair; if (a.hairStyle === 2) rr(ctx, -hr * 1.05, hdY - hr * 0.2, hr * 2.1, hr * 1.7, hr * 0.7); else { ctx.beginPath(); ctx.ellipse(-dir * hr * 1.05, hdY + hr * 0.5 + (moving ? Math.sin(ph) * 0.2 * u : 0), hr * 0.38, hr * 0.8, -dir * 0.35, 0, Math.PI * 2); } ctx.fill(); }
   ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, hdY, hr, 0, Math.PI * 2); ctx.fill();
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * hr * 0.98, hdY + hr * 0.1, hr * 0.2, 0, Math.PI * 2); ctx.fill(); }
@@ -199,6 +205,10 @@ export function drawAvatar(ctx, o) {
   else if (a.beard === 2) { ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(0, hdY, hr * 1.02, 0.05, Math.PI - 0.05); ctx.arc(0, hdY + hr * 0.2, hr * 0.7, Math.PI - 0.3, 0.3, true); ctx.fill(); }
   else if (a.beard === 3) { ctx.fillStyle = hair; rr(ctx, ex - hr * 0.5, ey + hr * 0.38, hr * 1.0, hr * 0.2, hr * 0.1); ctx.fill(); }
   if (a.accessory === 2 && (!geared || kit !== 'baseball')) { ctx.fillStyle = color2; ctx.fillRect(-hr * 1.0, hdY - hr * 0.55, hr * 2.0, hr * 0.28); }
+  if (role === 'ref') { // white referee cap with a short brim on the facing side
+    ctx.fillStyle = '#f6f6f6'; ctx.beginPath(); ctx.arc(0, hdY - hr * 0.1, hr * 1.06, Math.PI * 1.02, Math.PI * 1.98); ctx.lineTo(hr * 0.98, hdY - hr * 0.1); ctx.lineTo(-hr * 0.98, hdY - hr * 0.1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#d8d8d8'; ctx.beginPath(); ctx.ellipse(dir * hr * 0.75, hdY - hr * 0.1, hr * 0.62, hr * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+  }
   if (geared) {
     ctx.fillStyle = color;
     if (kit === 'baseball') {
@@ -216,7 +226,7 @@ export function drawAvatar(ctx, o) {
       ctx.strokeStyle = '#d7dde5'; ctx.lineWidth = Math.max(1, hr * 0.11); ctx.beginPath(); ctx.moveTo(dir * hr * 0.2, hdY + hr * 0.1); ctx.lineTo(dir * hr * 1.1, hdY + hr * 0.25); ctx.moveTo(dir * hr * 0.2, hdY + hr * 0.45); ctx.lineTo(dir * hr * 1.05, hdY + hr * 0.5); ctx.stroke();
     }
   }
-  lateFront?.();
+  lateBack?.(); lateFront?.();
   ctx.restore(); // lean pivot
   ctx.restore(); ctx.lineWidth = lw;
 }

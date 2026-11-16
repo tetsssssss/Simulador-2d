@@ -6,6 +6,7 @@ import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
 import { actionsFor, locomotionClipId } from './animationMap.js';
+import { buildPenalty, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { getAvatar } from '../../../core/render/avatars.js';
@@ -243,6 +244,14 @@ export function createRenderer(canvas, { crowd = null } = {}) {
   // One-shot avatar actions driven by sim events (same grammar as NHL/MLB): QB throw on release, receiver catch, rush/sack/
   // forced-fumble contact → check, pass breakup → dive, interception → catch, block engage → short check, TD → celebrate.
   const acts = new Map(); let evIdx = 0, evSim = null, ballWas = false;
+  // ---- penalty presentation (wall-clock; the simulation is untouched) ----
+  let penalty = null; // { label, ref:{pos,facing}, until }
+  const wallNow = () => performance.now() / 1000;
+  function startPenalty(foul, sim, o = {}) {
+    const pn = buildPenalty(foul, sim, { ...o, now: wallNow() }); if (!pn) return null;
+    for (const a of pn.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true, next: a.next });
+    penalty = pn; return pn;
+  }
   function pumpActions(sim) {
     if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); }
     const t0 = sim.t ?? 0, set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
@@ -251,6 +260,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const e = ev[evIdx];
       if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
+      if (e.type === 'PENALTY') startPenalty(e.foul, sim, { by: e.by, on: e.on }); // future engine event
       switch (e.type) {
         case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;                // legacy procedural actions kept where no clip exists yet
         case 'HANDOFF': set(e.to, 'catch', 0.5, 0.2); break;
@@ -258,7 +268,14 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       }
     }
   }
-  const actionOf = (sim, id) => { const A = acts.get(id); if (!A) return null; const k = ((sim.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1 && !A.loop) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const actionOf = (sim, id) => {
+    let A = acts.get(id); if (!A) return null;
+    const clock = () => (A.wall ? wallNow() : (sim.t ?? 0));
+    let k = (clock() - A.t0) / A.dur;
+    while (k > 1 && A.next) { A = { ...A.next, t0: A.t0 + A.dur, wall: A.wall }; acts.set(id, A); k = (clock() - A.t0) / A.dur; } // chained clip (flag throw → signal)
+    if (k < 0) return null; if (k > 1 && !A.loop) { if (!A.hold) acts.delete(id); return A.hold ? { type: A.type, t: 1 } : null; }
+    return { type: A.type, t: k };
+  };
   const labelLayer = createLabelLayer();
   // Stride phase follows DISTANCE covered (not wall-clock time) so feet never skate over the grass: rad per yard falls with speed.
   const strides = new Map();
@@ -270,7 +287,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     st.x = p.x; st.y = p.y; st.t = now; return st.ph;
   }
   let handBall = false; // a keyframed clip is drawing the ball in the athlete's hands → skip the separate carried-ball sprite
-  function drawPlayer(e, a, isCarrier) {
+  function drawPlayer(e, a, isCarrier, override = null) {
     const s = ppy();
     const p = lerpPos(e, a);
     const [X, Y] = pt(p.x, p.y);
@@ -278,7 +295,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const av = prefs.visual === 'avatar';
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
-    const c = off ? teamCols.off : teamCols.def;
+    const c = override?.colors || (off ? teamCols.off : teamCols.def);
     let clipAct = av && lastSim ? actionOf(lastSim, e.id) : null;
     const ph = stridePhase(e, p);
     if (av && !clipAct && CLIP_LOCOMOTION) { // no event clip running: keyframed gait from real speed (stride phase = distance), or lying on the ground when tackled
@@ -290,7 +307,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
@@ -503,7 +520,12 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     screen = new Map();
     const holder = sim.carrier;
     for (const e of [...sim.ents].sort((a, b) => (a.down ? 0 : 1) - (b.down ? 0 : 1))) screen.set(e, drawPlayer(e, alpha, e === holder));
-    labelLayer.flush(ctx);
+    if (penalty && wallNow() < penalty.until) { // referee entity + banner while a penalty is being presented
+      const pos = penalty.ref.pos, ref = { id: REF_ID, slot: 'REF', side: 'off', jersey: '', name: 'Árbitro', p: null, pos, prev: pos, vel: { x: 0, y: 0 }, facing: penalty.ref.facing, down: false };
+      const rs = drawPlayer(ref, 1, false, { colors: ['#15181d', '#ffffff'], role: 'ref' });
+      labelLayer.flush(ctx);
+      label(penalty.label, rs.X, rs.Y - rs.r * 3.4 - 6, '#111', '#ffd24a');
+    } else { penalty = null; labelLayer.flush(ctx); }
     if (prefs.highlights) drawHighlights(sim, alpha, screen);
     if (opts.debug) drawDebug(sim, alpha, screen);
     drawBall(sim, alpha);
@@ -516,7 +538,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     return best;
   }
 
-  return { render, resize, pick, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
+  return { render, resize, pick, demoPenalty: (foul, o) => (lastSim ? startPenalty(foul, lastSim, o) : null), get penalty() { return penalty; }, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
 
 function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }

@@ -15,6 +15,13 @@ Fonte de nomes e rastreabilidade: `docs/ANIMATION_2D_CATALOG.csv` (289 entradas 
 Total: **125 clipes** (25 QB + 100 do pacote "noite"). 40 ligados ao jogo; 85 prontos (testados, previsualizáveis, exportáveis).
 Catálogo: `docs/ANIMATION_2D_CATALOG.csv` (coluna `clip_id`); clipes sem entrada no catálogo (faltas, árbitros, locomoção extra) têm `source: 'extra'`.
 
+## Árbitro e faltas (apresentação, sem tocar no motor)
+* `nfl/src/ui/penalties.js`: 12 faltas → clipe do infrator + reação da vítima + árbitro (flag → sinal, encadeados) + banner. Contrato para o
+  motor: evento `{ type: 'PENALTY', foul: <chave de FOULS>, by?, on? }` (hoje o motor NÃO emite). Usa relógio real (toca com o jogo pausado ou a 4x).
+* Entidade de árbitro: camisa listrada + boné (`role: 'ref'` em avatars.js), aparece só durante a apresentação.
+* Controle **"Falta (demo)"** na barra do jogo NFL: escolhe a falta e mostra — claramente uma demonstração, não afeta o placar nem a simulação.
+* Sinais ainda não autorados: personal foul (roughing/horse-collar usam o mais próximo, `rf_unsportsmanlike`).
+
 ## Como funciona
 * `core/anim/pose.js` — pose = valores de juntas (lean, crouch, air, braços `aF/fF/aB/fB` como ângulos, pernas `lF/kF/lB/kB`, `ball`);
   clipe = keyframes em tempo normalizado 0..1 + duração em **segundos de simulação** (acompanha 0,5x–4x do jogo). Ângulos de braço são
