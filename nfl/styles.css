@@ -356,5 +356,7 @@ div.preset{display:flex}
 .rc-why>b{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
 .rc-why i{font-style:normal;font-weight:800;color:#8fb7ff;margin-right:4px}
 .result-pop .rcard{max-width:min(560px,92vw)}
+/* The pop-up sits over the action between plays: keep it to headline + yards. Tackle, concept and "Por que terminou" stay in the Em jogo panel and the game log. */
+.result-pop .rc-why,.result-pop .rc-tk,.result-pop .rc-def{display:none}
 .logline .lwhy{display:block;color:#9fb2c8;font-size:11px}
 #camSeg button.on{background:rgba(78,161,255,.18);border-color:#4ea1ff;color:#d6e8ff}
