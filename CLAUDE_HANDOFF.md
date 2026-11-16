@@ -14,6 +14,12 @@
 - MLB: novo visual do estádio (listras circulares, caminhos de base, pistas de aviso, muro com painéis do time da casa, postes de falta, coaches boxes, on-deck, vinheta); câmeras novas **Infield** e **Seguir bola**; Broadcast mostra o outfield inteiro.
 - Testes: `tests/avatars.test.mjs` (determinismo, persistência, render de todas as combinações).
 
+## CHECKPOINT G — Leitura visual + colisão (sessão atual)
+- DONE: `core/render/labels.js` (LabelLayer + `placeLabels` puro): plaquinhas de nome posicionadas sem sobreposição (abaixo/acima/lados/abaixo2/acima2), prioridade portador/alvo/selecionado > QB/goleiro/pitcher/batter > demais; sem espaço → some (nunca as "must"). `drawSprite({ labels, labelId })`; cada renderer faz `labelLayer.flush(ctx)` depois do loop de sprites (NFL fieldRenderer.js, NHL rinkRenderer.js, MLB fieldRenderer.js). NHL `separate()`: d=0 tratado, velocidade de aproximação removida, goleiro imóvel (patinador leva 100%), clamp no rinque, também em GOL/PARADA (celebração espalhada). NFL: `pumpActions` liga eventos do motor a ações do boneco (throw na liberação da bola, catch, check em TACKLE/SACK/SHED/BROKEN_TACKLE/FUMBLE/BLOCK_ENGAGE, dive em PASS_BREAKUP, celebrate em TD).
+- MEDIDO (NHL, 3 jogos ≈340 mil ticks): patinadores <2 ft: 1,7% → 0,2% dos ticks; goleiro×patinador sobreposto: 0,3% → 0,0%.
+- TESTS: tests/labels.test.mjs (5), colisão em tests/nhl_engine2.test.mjs (+1). Raiz 98/98, NFL 44/44. Ações NFL verificadas no browser (eventos SNAP/HANDOFF/TACKLE/PASS_COMPLETE/SACK… disparam, 0 erros de página); animação em si só por captura estática — não há teste automatizado de pose.
+- ISSUES: colisão NFL/MLB ainda não medida; faltam ações `snap`/`handoff` na NFL; tests/browser/* não reexecutados.
+
 # FILA AUTÔNOMA v2 (A→F) + bonecos animados / FINAL — sessão atual
 
 ## CHECKPOINT A — Campos 2D HQ

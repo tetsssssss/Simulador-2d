@@ -237,6 +237,31 @@ export function createRenderer(canvas, { crowd = null } = {}) {
 
   // Shared sprite grammar: far = team color + number · mid = photo + number (+ position) · close = photo + name.
   // QB gets a role outline, the ball carrier a gold ring; offense/defense use their real team colors.
+  // One-shot avatar actions driven by sim events (same grammar as NHL/MLB): QB throw on release, receiver catch, rush/sack/
+  // forced-fumble contact → check, pass breakup → dive, interception → catch, block engage → short check, TD → celebrate.
+  const acts = new Map(); let evIdx = 0, evSim = null, ballWas = false;
+  function pumpActions(sim) {
+    if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); }
+    const t0 = sim.t ?? 0, set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
+    const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
+    for (; evIdx < ev.length; evIdx++) {
+      const e = ev[evIdx];
+      switch (e.type) {
+        case 'PASS_COMPLETE': set(e.receiver, 'catch', 0.5); break;
+        case 'INTERCEPTION': set(e.by, 'catch', 0.6); break;
+        case 'PASS_BREAKUP': set(e.by, 'dive', 0.6); break;
+        case 'TACKLE': set(e.by, 'check', 0.5); for (const a of e.assists || []) set(a, 'check', 0.45); break;
+        case 'SACK': case 'BROKEN_TACKLE': case 'SHED': set(e.by, 'check', 0.45); break;
+        case 'FUMBLE': set(e.forcedBy, 'check', 0.45); break;
+        case 'BLOCK_ENGAGE': set(e.by, 'check', 0.3); break;
+        case 'WHISTLE': if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) set(sim.carrier.id, 'celebrate', 2.4); break;
+      }
+    }
+    const inAir = !!sim.ball; // ball entity appears at release → passer throws
+    if (inAir && !ballWas && sim.ball.passer) set(sim.ball.passer.id, 'throw', 0.55);
+    ballWas = inAir;
+  }
+  const actionOf = (sim, id) => { const A = acts.get(id); if (!A) return null; const k = ((sim.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
   const labelLayer = createLabelLayer();
   function drawPlayer(e, a, isCarrier) {
     const s = ppy();
@@ -251,7 +276,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1 } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: lastSim ? actionOf(lastSim, e.id) : null } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
@@ -422,6 +447,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const y = sc.Y - sc.r - 7;
       ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(sc.X, y + 5); ctx.lineTo(sc.X - 4.5, y - 3); ctx.lineTo(sc.X + 4.5, y - 3); ctx.closePath(); ctx.fill();
     };
+    pumpActions(sim);
     const holder = sim.carrier;
     const qb = sim.qb;
     if (qb && !qb.down) ring(qb, 'rgba(150,205,255,.85)', [], 3, 1.4);
