@@ -6,7 +6,7 @@ import { buildLineup, faceoffSpots, skaterRecord } from './lineup.js';
 import { createRinkRenderer, CAMERAS } from '../rink/rinkRenderer.js';
 import { RINK, MIDY } from '../rink/geometry.js';
 import { photoUrl } from '../photos.js';
-import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES, AVATAR_STYLES, getAvatarStyle, setAvatarStyle } from '../../../core/render/avatars.js';
 import { openAvatarEditor, avatarThumb } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
 import { showFinal, hideFinal } from '../../../core/ui/finalOverlay.js';
@@ -40,6 +40,7 @@ export function mountMatch(root, deps = {}) {
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
           <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
+          <label class="chk">Estilo <select id="optStyle">${AVATAR_STYLES.map(([k, l]) => `<option value="${k}" ${k === getAvatarStyle() ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === pref.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk"><input type="checkbox" id="optDebug"> Rotas/Debug</label>
           <button id="focusBtn" class="primary" title="Só o rinque 2D em tela cheia (F)">⛶ Modo 2D</button>
@@ -127,6 +128,7 @@ export function mountMatch(root, deps = {}) {
   $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('uiTick', { category: 'UI' }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_nhl_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_nhl_names', pref.names ? '1' : '0'); };
+  $('#optStyle').onchange = e => { setAvatarStyle(e.target.value); };
   $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); };
   const unfocus = mountFocus(root.querySelector('.nhl-match'), { button: $('#focusBtn') });
   $('#optDebug').onchange = e => { pref.debug = e.target.checked; };

@@ -5,7 +5,7 @@ import { step } from '../sim/playSim.js';
 import { applyPlayEvents } from '../sim/stats.js';
 import { createRenderer, CAMERAS } from './fieldRenderer.js';
 import { FOULS, FOUL_KEYS } from './penalties.js';
-import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES, AVATAR_STYLES, getAvatarStyle, setAvatarStyle } from '../../../core/render/avatars.js';
 import { openAvatarEditor } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
 import { showFinal, hideFinal } from '../../../core/ui/finalOverlay.js';
@@ -76,6 +76,7 @@ export function mountGame(root, deps) {
           <button id="hlBtn" class="toggle on" title="Destaques discretos: QB, portador, alvo e defensor mais próximo">Destaques</button>
           <div class="seg" id="viewSeg"><button data-view="normal" class="${view.debug ? '' : 'on'}">Normal</button><button data-view="debug" class="${view.debug ? 'on' : ''}">Debug</button></div>
           <label class="chk" title="Demonstração visual (não altera o jogo): o árbitro lança o flag e mostra o sinal">Falta (demo) <select id="optFoul">${FOUL_KEYS.map(k => `<option value="${k}">${FOULS[k].label}</option>`).join('')}</select> <button class="btn" id="btnFoul" type="button">Mostrar</button></label>
+          <label class="chk">Estilo <select id="optStyle">${AVATAR_STYLES.map(([k, l]) => `<option value="${k}" ${k === getAvatarStyle() ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === view.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <button id="focusBtn" class="primary" title="Só o campo 2D em tela cheia (F)">⛶ Modo 2D</button>
           <button id="exitBtn" class="ghost" title="Sair para a seleção de modo">✕</button>
@@ -417,6 +418,7 @@ export function mountGame(root, deps) {
   // ---------- frame loop ----------
   const unfocus = mountFocus(root.querySelector('.match'), { button: $('#focusBtn') });
   $('#btnFoul').onclick = () => { renderer.demoPenalty($('#optFoul').value); };
+  $('#optStyle').onchange = e => { setAvatarStyle(e.target.value); };
   $('#optVisual').onchange = e => { view.visual = e.target.value; setVisualMode(view.visual); };
   function cleanup() { clearTimeout(view.finalT); unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;

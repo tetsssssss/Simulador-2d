@@ -39,6 +39,15 @@ export function getAvatar(sport, id) { return { ...defaultAvatar(`${sport}|${id}
 export function hasCustomAvatar(sport, id) { return !!read()[sport]?.[id]; }
 export function setAvatar(sport, id, opts) { const m = read(); (m[sport] ||= {})[id] = { ...opts }; write(); }
 export function resetAvatar(sport, id) { const m = read(); if (m[sport]) delete m[sport][id]; write(); }
+// Positional physique (presentation only; a customised avatar keeps the user's choice): linemen/tight ends/defensemen bigger, receivers
+// and defensive backs slimmer, everyone else medium. build: 0 slim · 1 medium · 2 heavy.
+const NFL_BUILD = [[/^(LT|LG|C|RG|RT|LDE|LDT|RDT|RDE|NT|DT|DE|TE)$/, 2], [/^(QB|RB|FB|SAM|MIKE|WILL|LB)$/, 1], [/^(X|Z|SLOT|WR|CBL|CBR|CB|FS|SS|S|K|P)$/, 0]];
+export function positionBuild(sport, slot) {
+  if (sport === 'nfl') { for (const [re, b] of NFL_BUILD) if (re.test(slot || '')) return b; return null; }
+  if (sport === 'nhl') return slot === 'LD' || slot === 'RD' ? 2 : null;
+  return null;
+}
+export function avatarFor(sport, id, slot) { const base = getAvatar(sport, id), b = positionBuild(sport, slot); return !hasCustomAvatar(sport, id) && b != null ? { ...base, build: b } : base; }
 export const VISUAL_MODES = [['avatar', 'Bonecos'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
 export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain') return v; return 'avatar'; } catch { return 'avatar'; } }
 export function setVisualMode(v) { try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ } }
@@ -55,6 +64,16 @@ function limb(ctx, x0, y0, x1, y1, w, color) { ctx.strokeStyle = color; ctx.line
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const ease = t => t * t * (3 - 2 * t);
 import { clipPoseOf } from '../anim/registry.js';
+// Body proportion profiles (all in u = body height / 10). 'chibi' is the original cartoon look (kept, selectable);
+// 'athlete' is the default: smaller head, broad V-shaped shoulders, tapered waist, longer and thicker legs, longer arms.
+export const AVATAR_STYLES = [['athlete', 'Atleta'], ['chibi', 'Cartoon']];
+const STYLES = {
+  chibi: { hip: -3.5, sh: -6.2, head: -8.2, hr: 1.95, shW: 3.1, waistW: 3.1, taper: false, legW: 1.15, lower: 0.92, legLen: 3.2, hipX: 0.7, spread: 0.75, legS: 1, armLen: 2.6, aw: 0.95, hand: 0.5, shoulderIn: 0, pad: [1.05, 0.85], foot: [1.55, 0.7], neck: [1.1, 0.9] },
+  athlete: { hip: -4.55, sh: -7.35, head: -8.7, hr: 1.38, shW: 3.55, waistW: 2.35, taper: true, legW: 1.5, lower: 0.78, legLen: 4.55, hipX: 0.7, spread: 0.85, legS: 1.3, armLen: 3.5, aw: 1.2, hand: 0.55, shoulderIn: 0.3, pad: [1.2, 0.92], foot: [1.9, 0.8], neck: [1.2, 1.0] },
+};
+const STYLE_KEY = 'asu_avatar_style';
+export function getAvatarStyle() { try { const v = localStorage.getItem(STYLE_KEY); return v === 'chibi' ? 'chibi' : 'athlete'; } catch { return 'athlete'; } }
+export function setAvatarStyle(v) { try { localStorage.setItem(STYLE_KEY, v === 'chibi' ? 'chibi' : 'athlete'); } catch { /* private mode */ } }
 export function drawAvatar(ctx, o) {
   const { h, opts, kit = 'baseball', color = '#1d4ed8', color2 = '#ffffff', number = '', facing = null, moving = false, t = 0,
     prop = 'none', pose = 'stand', role = '', showNumber = true, seed = 0, action = null, speed = null } = o;
@@ -62,6 +81,7 @@ export function drawAvatar(ctx, o) {
   const dpr = ctx.getTransform?.()?.a || 1;
   x = Math.round(x * dpr) / dpr; y = Math.round(y * dpr) / dpr;
   const u = h / 10, a = { ...defaultAvatar('x'), ...opts };
+  const P = STYLES[o.style] || STYLES[getAvatarStyle()];
   const dir = facing != null && Math.abs(Math.cos(facing)) > 0.2 ? Math.sign(Math.cos(facing)) : (o.dir || 1);
   const sp = moving ? clamp01(speed == null ? 1 : speed) : 0;
   const skate = kit === 'hockey' && pose !== 'goalie';
@@ -71,7 +91,7 @@ export function drawAvatar(ctx, o) {
   const breathe = moving ? 0 : Math.sin(t * 2.2 + seed) * 0.1 * u;
   const bob = moving ? Math.abs(Math.cos(ph)) * (skate ? 0.12 : 0.34) * u : breathe;
   const skin = SKINS[a.skin % SKINS.length], skinD = shade(skin, 0.78), hair = HAIR_COLORS[a.hairColor % HAIR_COLORS.length];
-  const bw = [0.88, 1, 1.18][a.build % 3], crouch = (pose === 'crouch' ? 1.5 * u : 0) + (cp ? cp.crouch * 1.5 * u : 0);
+  const bw = (P.taper ? [0.9, 1, 1.14] : [0.88, 1, 1.18])[a.build % 3], lim = Math.sqrt(bw), crouch = (pose === 'crouch' ? 1.5 * u : 0) + (cp ? cp.crouch * 1.5 * u : 0);
   const pants = kit === 'baseball' ? (role === 'batter' || role === 'runner' ? '#e9edf2' : '#dfe5ec') : kit === 'hockey' ? shade(color, 0.62) : color2 === '#ffffff' ? '#e9edf2' : color2;
   const sock = kit === 'baseball' ? color : kit === 'hockey' ? color2 : color;
   const lw = ctx.lineWidth; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -80,23 +100,23 @@ export function drawAvatar(ctx, o) {
   const air = cp ? cp.air * u : act?.type === 'celebrate' ? Math.abs(Math.sin(act.p * Math.PI * 3)) * 1.3 * u : 0;
   ctx.fillStyle = `rgba(0,0,0,${0.32 - air * 0.05})`; ctx.beginPath(); ctx.ellipse(0, 0.2 * u, (2.1 * u - air * 0.2) * bw, 0.75 * u, 0, 0, Math.PI * 2); ctx.fill();
   ctx.translate(0, -(cp ? 0 : bob) - air);
-  const hipY = -3.5 * u + crouch * 0.4, shY = -6.2 * u + crouch, headY = -8.2 * u + crouch * 1.1, torsoW = 3.1 * u * bw;
-  const legW = 1.15 * u * (pose === 'goalie' ? 1.9 : 1);
+  const hipY = P.hip * u + crouch * 0.4, shY = P.sh * u + crouch, headY = P.head * u + crouch * 1.1, torsoW = P.shW * u * bw, waistW = P.waistW * u * bw;
+  const legW = P.legW * u * lim * (pose === 'goalie' ? 1.9 : 1);
   // ---- legs: two bones (hip → knee → foot) ----
-  const stride = (skate ? 1.9 : 1.55) * u * (0.6 + 0.4 * sp), spread = pose === 'goalie' ? 1.1 * u : 0.75 * u, legLen = 3.2 * u - crouch * 0.1;
+  const stride = (skate ? 1.9 : 1.55) * u * (0.6 + 0.4 * sp), spread = pose === 'goalie' ? 1.1 * u : P.spread * u, legLen = P.legLen * u - crouch * 0.1;
   const legs = [-1, 1].map(s => {
-    const phs = ph + (s > 0 ? Math.PI : 0), swing = moving ? Math.sin(phs) : 0, lift = moving && !skate ? Math.max(0, Math.cos(phs)) * 1.15 * u : 0;
-    let fx = s * spread + swing * stride * dir * 0.55, fy = -lift;
-    if (cp) { const front = s === dir; fx = s * spread + dir * (front ? cp.lF : cp.lB) * u; fy = -(front ? cp.kF : cp.kB) * u; } // keyframed legs replace the locomotion cycle
-    if (skate && moving) fx = s * spread * 0.9 + swing * stride * dir * 0.8; // push-and-glide
+    const phs = ph + (s > 0 ? Math.PI : 0), swing = moving ? Math.sin(phs) : 0, lift = moving && !skate ? Math.max(0, Math.cos(phs)) * 1.15 * u * P.legS : 0;
+    let fx = s * spread + swing * stride * P.legS * dir * 0.55, fy = -lift;
+    if (cp) { const front = s === dir; fx = s * spread + dir * (front ? cp.lF : cp.lB) * u * P.legS; fy = -(front ? cp.kF : cp.kB) * u * P.legS; } // keyframed legs replace the locomotion cycle
+    if (skate && moving) fx = s * spread * 0.9 + swing * stride * P.legS * dir * 0.8; // push-and-glide
     if (act?.type === 'dive') fy = 0;
-    const hx = s * 0.7 * u, hy = hipY, dx = fx - hx, dy = (fy) - hy - 0.0, d = Math.min(Math.hypot(dx, dy), legLen * 1.98) || 0.01;
+    const hx = s * P.hipX * u, hy = hipY, dx = fx - hx, dy = (fy) - hy - 0.0, d = Math.min(Math.hypot(dx, dy), legLen * 1.98) || 0.01;
     const k = Math.sqrt(Math.max(0, (legLen / 2) ** 2 - (d / 2) ** 2)), mx = hx + dx / 2 + (dy / d) * k * dir * (moving ? 1 : 0.35), my = hy + dy / 2 - (dx / d) * k * dir * (moving ? 1 : 0.35);
     return { s, fx, fy, hx, hy, mx, my };
   }).sort((p, q) => (p.fy - q.fy));
   for (const L of legs) {
-    limb(ctx, L.hx, L.hy, L.mx, L.my, legW, pants); limb(ctx, L.mx, L.my, L.fx, L.fy - 0.2 * u, legW * 0.92, sock);
-    ctx.fillStyle = skate ? '#d9dde3' : '#12161c'; rr(ctx, L.fx - 0.7 * u + dir * 0.25 * u, L.fy - 0.5 * u, 1.55 * u, 0.7 * u, 0.3 * u); ctx.fill();
+    limb(ctx, L.hx, L.hy, L.mx, L.my, legW, pants); limb(ctx, L.mx, L.my, L.fx, L.fy - 0.2 * u, legW * P.lower, sock);
+    ctx.fillStyle = skate ? '#d9dde3' : '#12161c'; rr(ctx, L.fx - 0.7 * u + dir * 0.25 * u, L.fy - 0.5 * u, P.foot[0] * u, P.foot[1] * u, 0.3 * u); ctx.fill();
     if (skate) { ctx.strokeStyle = '#8b95a3'; ctx.lineWidth = Math.max(1, 0.18 * u); ctx.beginPath(); ctx.moveTo(L.fx - 0.9 * u, L.fy + 0.28 * u); ctx.lineTo(L.fx + 1.1 * u, L.fy + 0.28 * u); ctx.stroke(); }
   }
   if (pose === 'goalie') { ctx.fillStyle = shade(color2, 0.95); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = Math.max(1, u * 0.12); for (const s of [-1, 1]) { rr(ctx, s * spread - 0.75 * u, hipY + 0.2 * u, 1.5 * u, 3 * u, 0.5 * u); ctx.fill(); ctx.stroke(); } }
@@ -110,8 +130,8 @@ export function drawAvatar(ctx, o) {
   if (cp) lean = dir * cp.lean;
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(lean); ctx.translate(0, -hipY);
   // back arm
-  const armLen = 2.6 * u, aw = 0.95 * u;
-  const sh = (side) => ({ x: side * torsoW * 0.5, y: shY + 0.25 * u });
+  const armLen = P.armLen * u, aw = P.aw * u * lim;
+  const sh = (side) => ({ x: side * (torsoW * 0.5 - P.shoulderIn * u), y: shY + 0.25 * u });
   const swingA = moving ? sw * (skate ? 0.4 : 0.85) : 0;
   const handAt = (S, ang, len = armLen) => ({ x: S.x + Math.sin(ang) * len * dir, y: S.y + Math.cos(ang) * len });
   const backS = sh(-dir), backH = handAt(backS, -0.12 - swingA * 0.5 - (act?.type === 'celebrate' ? 2.9 + Math.sin(act.p * 20) * 0.3 : 0));
@@ -124,13 +144,22 @@ export function drawAvatar(ctx, o) {
   }
   else { limb(ctx, backS.x, backS.y, backH.x, backH.y, aw, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(backH.x, backH.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); }
   // torso
-  ctx.fillStyle = color; rr(ctx, -torsoW / 2, shY, torsoW, hipY - shY + 0.6 * u, 0.9 * u); ctx.fill();
-  ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, hipY - 0.15 * u, torsoW, 0.45 * u);
+  if (P.taper) { // V-shaped torso: broad shoulders narrowing to the waist, belt/pants line, subtle side shading
+    const yb = hipY + 0.6 * u, r = 0.7 * u;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-torsoW / 2 + r, shY); ctx.lineTo(torsoW / 2 - r, shY); ctx.quadraticCurveTo(torsoW / 2, shY, torsoW / 2 - 0.05 * u, shY + r);
+    ctx.lineTo(waistW / 2, yb - 0.4 * u); ctx.quadraticCurveTo(waistW / 2, yb, waistW / 2 - 0.4 * u, yb); ctx.lineTo(-waistW / 2 + 0.4 * u, yb); ctx.quadraticCurveTo(-waistW / 2, yb, -waistW / 2, yb - 0.4 * u);
+    ctx.lineTo(-torsoW / 2 + 0.05 * u, shY + r); ctx.quadraticCurveTo(-torsoW / 2, shY, -torsoW / 2 + r, shY); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.moveTo(-dir * torsoW * 0.5 + dir * 0.0, shY + r); ctx.lineTo(-dir * waistW * 0.5, yb - 0.4 * u); ctx.lineTo(-dir * (waistW * 0.5 - 0.5 * u), yb - 0.4 * u); ctx.lineTo(-dir * (torsoW * 0.5 - 0.6 * u), shY + r); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color2; ctx.fillRect(-waistW / 2, hipY - 0.1 * u, waistW, 0.4 * u);
+  } else {
+    ctx.fillStyle = color; rr(ctx, -torsoW / 2, shY, torsoW, hipY - shY + 0.6 * u, 0.9 * u); ctx.fill();
+    ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, hipY - 0.15 * u, torsoW, 0.45 * u);
+  }
   if (kit === 'football') {
     if (role !== 'ref') { ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, shY + 0.2 * u, torsoW, 0.35 * u); }
     else { ctx.fillStyle = '#f4f4f4'; const n = 7, w = torsoW / n; for (let i = 0; i < n; i += 2) ctx.fillRect(-torsoW / 2 + i * w, shY, w, hipY - shY + 0.45 * u); } // black & white stripes
     // shoulder pads: the silhouette that reads as "football" at a glance (wider than the jersey, darker rim)
-    for (const sd of [-1, 1]) { ctx.fillStyle = shade(color, 1.1); ctx.strokeStyle = shade(color, 0.6); ctx.lineWidth = Math.max(1, u * 0.14); ctx.beginPath(); ctx.ellipse(sd * torsoW * 0.5, shY + 0.45 * u, 1.05 * u, 0.85 * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    for (const sd of [-1, 1]) { ctx.fillStyle = shade(color, 1.1); ctx.strokeStyle = shade(color, 0.6); ctx.lineWidth = Math.max(1, u * 0.14); ctx.beginPath(); ctx.ellipse(sd * (torsoW * 0.5 - P.shoulderIn * 0.5 * u), shY + 0.45 * u, P.pad[0] * u, P.pad[1] * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   }
   if (showNumber && number !== '' && u >= 3.3) {
     const fg = (() => { const n = parseInt(color.replace('#', '').padEnd(6, '0').slice(0, 6), 16); return ((0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150) ? '#0b1118' : '#ffffff'; })();
@@ -180,8 +209,8 @@ export function drawAvatar(ctx, o) {
     else skinDot(hnd.x, hnd.y + 0.2 * u);
   }
   // ---- head ----
-  const hr = 1.95 * u * (a.build === 2 ? 1.04 : a.build === 0 ? 0.97 : 1), hdY = headY + (act?.type === 'celebrate' ? -0.1 * u : 0);
-  ctx.fillStyle = skinD; ctx.fillRect(-0.55 * u, hdY + hr * 0.7, 1.1 * u, 0.9 * u);
+  const hr = P.hr * u * (a.build === 2 ? 1.04 : a.build === 0 ? 0.97 : 1), hdY = headY + (act?.type === 'celebrate' ? -0.1 * u : 0);
+  ctx.fillStyle = skinD; if (P.taper) ctx.fillRect(-P.neck[0] * u / 2, hdY + hr * 0.6, P.neck[0] * u, Math.max(0.9 * u, shY + 0.5 * u - (hdY + hr * 0.6))); else ctx.fillRect(-0.55 * u, hdY + hr * 0.7, 1.1 * u, 0.9 * u); // legacy neck for the cartoon style
   const geared = a.gear === 0 && role !== 'ref';
   if (a.hairStyle === 2 || a.hairStyle === 6) { ctx.fillStyle = hair; if (a.hairStyle === 2) rr(ctx, -hr * 1.05, hdY - hr * 0.2, hr * 2.1, hr * 1.7, hr * 0.7); else { ctx.beginPath(); ctx.ellipse(-dir * hr * 1.05, hdY + hr * 0.5 + (moving ? Math.sin(ph) * 0.2 * u : 0), hr * 0.38, hr * 0.8, -dir * 0.35, 0, Math.PI * 2); } ctx.fill(); }
   ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, hdY, hr, 0, Math.PI * 2); ctx.fill();
