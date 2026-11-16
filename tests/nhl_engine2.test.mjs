@@ -140,3 +140,16 @@ test('NHL body separation: no stacked skaters outside faceoff placement, nobody 
   assert.equal(outside, 0);
   assert.ok(stacked / ticks < 0.005, `stacked fraction ${(stacked / ticks).toFixed(4)}`);
 });
+
+// Tunneling: a puck hit from behind the net at ≥100 mph moves more than the cage depth per tick; it must hit the mesh, not pass through.
+test('NHL puck cannot tunnel through the net cage at high speed (swept back-wall test)', async () => {
+  const { RINK, MIDY, goalX } = await import('../nhl/src/rink/geometry.js');
+  const e = createHockeyEngine({ home: team('BOS'), away: team('TOR'), seed: 'tun' }), S = e.state;
+  for (let i = 0; i < 300; i++) e.step();
+  for (const speed of [80, 150, 200]) for (const side of [-1, 1]) for (let k = 0; k < 9; k++) {
+    const gx = goalX(side), backX = side < 0 ? gx - RINK.netD : gx + RINK.netD, toIce = side < 0 ? 1 : -1, P = S.puck;
+    P.owner = null; P.z = 0; P.vz = 0; S.pass = null; S.phase = 'PLAY'; P.y = MIDY + (k - 4) * 0.5; P.x = backX - toIce * 0.8; P.px = P.x; P.py = P.y; P.vx = toIce * speed; P.vy = 0;
+    e.step(); e.step();
+    assert.ok((P.x - gx) * toIce <= 0.2, `puck at ${speed} ft/s passed through the cage (side ${side}, x=${P.x.toFixed(1)})`);
+  }
+});

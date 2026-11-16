@@ -235,7 +235,11 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // net frame: bounce off the back/sides of the cage
       const nx0 = side < 0 ? gx - RINK.netD : gx, nx1 = side < 0 ? gx : gx + RINK.netD;
-      if (P.x > nx0 && P.x < nx1 && Math.abs(P.y - MIDY) < POSTS + 0.3) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
+      const yCage = Math.abs(P.y - MIDY) < POSTS + 0.3, backX = side < 0 ? nx0 : nx1;
+      // swept test: a hard shot from behind the net travels more than the cage depth (3.3 ft) in one tick (≥ ~100 mph), so a
+      // point-in-box check let it tunnel through the cage. Crossing the back plane inside the posts counts as hitting the mesh.
+      const sweptBack = yCage && (ox - backX) * (P.x - backX) < 0 && (side < 0 ? ox < nx0 : ox > nx1);
+      if (sweptBack || (P.x > nx0 && P.x < nx1 && yCage)) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
     }
     if (!insideRink(P.x, P.y, 0.6)) {
       const c = clampInside(P.x, P.y, 0.6);
