@@ -5,6 +5,7 @@
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
+import { createLabelLayer } from '../../../core/render/labels.js';
 import { RINK, MIDY, FACEOFF_DOTS } from './geometry.js';
 import { photoImage } from '../photos.js';
 import { getAvatar } from '../../../core/render/avatars.js';
@@ -163,6 +164,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     }
   }
   const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const labelLayer = createLabelLayer();
   function drawPlayers(state, a, opts) {
     screen = new Map(); pumpActions(state);
     const s = S();
@@ -182,12 +184,13 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
       drawSprite(ctx, {
         x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',
         img, avatar, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
-        selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0,
+        selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0, labels: labelLayer, labelId: p.id,
       });
       screen.set(p.id, { X: X0, Y: Y0, r: rr, p });
       if (p.goalie) drawGoalieState(p, X0, Y0, rr, state);
       else if (p.cross || p.skate === 'brake') drawStride(p, X0, Y0, rr, state.t || 0);
     }
+    labelLayer.flush(ctx);
     drawHighlights(state, a, r);
   }
 

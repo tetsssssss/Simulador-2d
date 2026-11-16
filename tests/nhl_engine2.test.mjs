@@ -125,3 +125,18 @@ test('nhl v2: commentary narrates every emitted event without undefined/NaN', ()
   }
   for (const t of ['PASS', 'SHOT', 'SAVE', 'GOAL', 'HIT', 'PENALTY', 'TURNOVER', 'RECEPTION']) assert.ok(seen.has(t), `narrated ${t}`);
 });
+
+// Collision/spacing: skaters keep body spacing in PLAY and in stoppage/celebration phases; nobody leaves the rink.
+test('NHL body separation: no stacked skaters outside faceoff placement, nobody pushed out of the rink', () => {
+  const e = createHockeyEngine({ home: team('BOS'), away: team('TOR'), seed: 'sep-1' }), S = e.state;
+  let ticks = 0, stacked = 0, outside = 0, k = 0;
+  while (!S.over && k++ < 6e4) {
+    e.step(); if (S.phase === 'FACEOFF') continue; ticks++;
+    const L = S.players.filter(p => !p.onBench);
+    let bad = false;
+    for (let i = 0; i < L.length; i++) { if (!insideRink(L[i].x, L[i].y, 0)) outside++; for (let j = i + 1; j < L.length; j++) if (Math.hypot(L[i].x - L[j].x, L[i].y - L[j].y) < 1.0) bad = true; }
+    if (bad) stacked++;
+  }
+  assert.equal(outside, 0);
+  assert.ok(stacked / ticks < 0.005, `stacked fraction ${(stacked / ticks).toFixed(4)}`);
+});

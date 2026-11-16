@@ -8,6 +8,7 @@
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
+import { createLabelLayer } from '../../../core/render/labels.js';
 import { BASES, MOUND, FENCE, fenceDist, fencePoint } from './geometry.js';
 import { photoImage } from '../photos.js';
 import { getAvatar } from '../../../core/render/avatars.js';
@@ -154,6 +155,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     }
   }
   const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const labelLayer = createLabelLayer();
   function drawAthletes(state, a, opts) {
     pumpActions(state);
     screen = new Map();
@@ -178,10 +180,11 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
       drawSprite(ctx, {
         x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,
         shape: role, avatar, facing: e.facing != null ? -e.facing : null, carrier: state.ball?.holder === e.id, target: state.throwTarget === e.id,
-        selected: opts.selected === e.id, level: zoomLevel(r), t: state.t || 0,
+        selected: opts.selected === e.id, level: zoomLevel(r), t: state.t || 0, labels: labelLayer, labelId: e.id,
       });
       screen.set(e.id, { X: X0, Y: Y0, r, e });
     }
+    labelLayer.flush(ctx);
   }
 
   const PITCH_COL = { FF: '#ff7a59', FT: '#ff9a59', SI: '#e8b04a', FC: '#c9a0ff', SL: '#6bd0ff', CU: '#6b8cff', CH: '#7be39b', FS: '#4fe0c8' };

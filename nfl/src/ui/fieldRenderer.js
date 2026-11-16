@@ -4,6 +4,7 @@
 // (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
+import { createLabelLayer } from '../../../core/render/labels.js';
 import { getAvatar } from '../../../core/render/avatars.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
@@ -236,6 +237,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
 
   // Shared sprite grammar: far = team color + number · mid = photo + number (+ position) · close = photo + name.
   // QB gets a role outline, the ball carrier a gold ring; offense/defense use their real team colors.
+  const labelLayer = createLabelLayer();
   function drawPlayer(e, a, isCarrier) {
     const s = ppy();
     const p = lerpPos(e, a);
@@ -250,7 +252,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
       avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1 } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
-      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000,
+      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
   }
@@ -460,6 +462,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     screen = new Map();
     const holder = sim.carrier;
     for (const e of [...sim.ents].sort((a, b) => (a.down ? 0 : 1) - (b.down ? 0 : 1))) screen.set(e, drawPlayer(e, alpha, e === holder));
+    labelLayer.flush(ctx);
     if (prefs.highlights) drawHighlights(sim, alpha, screen);
     if (opts.debug) drawDebug(sim, alpha, screen);
     drawBall(sim, alpha);

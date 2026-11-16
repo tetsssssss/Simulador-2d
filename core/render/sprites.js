@@ -20,6 +20,26 @@ export function textColorOn(hex) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0b1118' : '#ffffff';
 }
 
+
+// Name plate: drawn immediately unless a LabelLayer (`o.labels`) is supplied, in which case placement is deferred so
+// plates of nearby bodies do not pile up (see labels.js). below/above = top-y of the plate in each candidate spot.
+function namePlate(ctx, o, label, font, hh, color, below, above, cx, bodyRect) {
+  ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(label).width + 10;
+  const must = !!(o.carrier || o.target || o.selected || o.shape === 'goalie' || o.shape === 'pitcher' || o.shape === 'batter' || o.avatar?.role === 'goalie' || o.avatar?.role === 'qb');
+  const prio = (o.carrier || o.target || o.selected) ? 3 : must ? 2 : 1;
+  const draw = (c, r) => {
+    c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(5,10,16,.82)'; roundRect(c, r.x, r.y, w, hh, 4); c.fill();
+    c.fillStyle = color; c.fillRect(r.x, r.y, 3, hh);
+    c.fillStyle = '#f2f6fb'; c.fillText(label, r.x + w / 2 + 1.5, r.y + hh / 2 + 0.5);
+  };
+  if (o.labels) {
+    o.labels.body({ id: o.labelId, ...bodyRect });
+    o.labels.add({ id: o.labelId, cx, below, above, w, h: hh, side: bodyRect.w / 2 + 3, prio, must, tf: ctx.getTransform(), draw });
+  } else draw(ctx, { x: cx - w / 2, y: below });
+}
+
 export function drawSprite(ctx, o) {
   const { x, y, r, color = '#1d4ed8', color2 = '#ffffff', number = '', pos = '', name = '', img = null,
     shape = 'circle', facing = null, carrier = false, selected = false, target = false, dim = false, level = zoomLevel(r), t = 0 } = o;
@@ -77,12 +97,9 @@ export function drawSprite(ctx, o) {
   }
   // name plate (close zoom)
   if (level === 'close' && name) {
-    const label = `${name}${pos ? ' · ' + pos : ''}`;
-    ctx.font = `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`;
-    const w = ctx.measureText(label).width + 10, h = Math.max(14, r * 0.72), py = y + r + ringW + 3;
-    ctx.fillStyle = 'rgba(5,10,16,.82)'; roundRect(ctx, x - w / 2, py, w, h, 4); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(x - w / 2, py, 3, h);
-    ctx.fillStyle = '#f2f6fb'; ctx.fillText(label, x + 1.5, py + h / 2 + 0.5);
+    const label = `${name}${pos ? ' · ' + pos : ''}`, hh = Math.max(14, r * 0.72), py = y + r + ringW + 3;
+    namePlate(ctx, o, label, `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`, hh, color, py, y - r - ringW - 3 - hh, x,
+      { x: x - r - ringW, y: y - r - ringW, w: 2 * (r + ringW), h: 2 * (r + ringW) });
   }
   // indicators (subtle)
   const ringR = (shape === 'goalie' ? r * 1.25 : r) + ringW + 3;
@@ -157,11 +174,8 @@ function drawAvatarSprite(ctx, o, level) {
     ctx.fillStyle = fg; ctx.font = `800 ${Math.max(8, bh * 0.78)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(number), x + r * 0.45 + bw / 2, fy + 0.5);
   }
   if (level !== 'far' && name) {
-    const label = `${name}${pos && level === 'close' ? ' · ' + pos : ''}`;
-    ctx.font = `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const w = ctx.measureText(label).width + 10, hh = Math.max(14, r * 0.72), py = fy + 3 + r * 0.25;
-    ctx.fillStyle = 'rgba(5,10,16,.82)'; roundRect(ctx, x - w / 2, py, w, hh, 4); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(x - w / 2, py, 3, hh);
-    ctx.fillStyle = '#f2f6fb'; ctx.fillText(label, x + 1.5, py + hh / 2 + 0.5);
+    const label = `${name}${pos && level === 'close' ? ' · ' + pos : ''}`, hh = Math.max(14, r * 0.72);
+    namePlate(ctx, o, label, `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`, hh, color, fy + 3 + r * 0.25, fy - h - hh - 3, x,
+      { x: x - r * 1.1, y: fy - h, w: r * 2.2, h: h + r * 0.4 });
   }
 }

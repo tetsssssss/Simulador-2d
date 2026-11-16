@@ -729,11 +729,25 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const tgt = Math.atan2(P.y - p.y, P.x - p.x); p.facing += clamp(angDiff(tgt, p.facing), -9 * DT, 9 * DT);
     p.skate = Math.hypot(p.vx, p.vy) > 2 ? 'shuffle' : 'idle';
   }
+  // Body separation (position + velocity). Skaters have a 2.6 ft personal radius; goalies are immovable in the crease,
+  // so the skater takes the whole correction. Exact overlaps (d = 0) get a deterministic push axis, closing speed is
+  // removed (inelastic contact) and the result is clamped back inside the rink, so nobody is shoved through the boards.
   function separate() {
-    const L = S.players;
-    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-      const a = L[i], b = L[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 0 && d < 2.6) { const push = (2.6 - d) / 2, nx = dx / d, ny = dy / d; if (!a.goalie) { a.x -= nx * push; a.y -= ny * push; } if (!b.goalie) { b.x += nx * push; b.y += ny * push; } }
+    const L = S.players, R = 2.6;
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+      const a = L[i], b = L[j]; if (a.onBench || b.onBench || (a.goalie && b.goalie)) continue;
+      let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+      if (d >= R) continue;
+      if (d < 1e-4) { const ang = ((i * 7 + j * 13) % 16) * (Math.PI / 8); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
+      const nx = dx / d, ny = dy / d, over = R - (d === 1 && Math.hypot(b.x - a.x, b.y - a.y) < 1e-4 ? 0 : d);
+      const wa = a.goalie ? 0 : b.goalie ? 1 : 0.5, wb = 1 - wa;
+      a.x -= nx * over * wa; a.y -= ny * over * wa; b.x += nx * over * wb; b.y += ny * over * wb;
+      const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      if (rel < 0) { // closing: kill the approach component on the movable side(s)
+        if (!a.goalie) { a.vx += nx * rel * wa; a.vy += ny * rel * wa; }
+        if (!b.goalie) { b.vx -= nx * rel * wb; b.vy -= ny * rel * wb; }
+      }
+      for (const q of [a, b]) if (!q.goalie) { const c = clampInside(q.x, q.y, 1.6); if (c.x !== q.x || c.y !== q.y) { q.x = c.x; q.y = c.y; } }
     }
   }
 
@@ -802,7 +816,8 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     }
     if (S.phase === 'STOPPAGE' || S.phase === 'GOAL' || S.phase === 'INTERMISSION' || S.phase === 'FINAL_PENDING') {
       phaseT -= DT;
-      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * 18; p.ty = MIDY + (p.y - MIDY) * 0.3; } } move(p); }
+      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * (16 + ((p.num || 0) % 3) * 2.8); p.ty = MIDY + (p.y - MIDY) * 0.3 + (((p.num || 0) % 5) - 2) * 3.2; } } move(p); }
+      separate(); // celebration huddles / stoppage scrums keep body spacing (no stacked sprites)
       puckStep();
       if (phaseT <= 0) {
         if (S.phase === 'FINAL_PENDING') { finish(); return; }
