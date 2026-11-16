@@ -153,12 +153,20 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
   function lerp(e, a) { return { x: (e.px ?? e.x) + (e.x - (e.px ?? e.x)) * a, y: (e.py ?? e.y) + (e.y - (e.py ?? e.y)) * a }; }
 
   // one-shot avatar actions driven by engine events (SHOT → shoot, HIT → check, GOAL → celebrate); keyed by player id
-  const acts = new Map(); let evIdx = 0;
+  const acts = new Map(); let evIdx = 0, ghosts = [];
+  // Skaters removed by a LINE_CHANGE stay on screen for GHOST_T seconds, skating to the bench door (visual only; the engine already benched them).
+  const GHOST_T = 1.6;
+  function ghostPlayers(state) {
+    const t = state.t ?? 0; ghosts = ghosts.filter(g => t - g.t0 >= 0 && t - g.t0 <= GHOST_T);
+    return ghosts.map(g => { const k = Math.min(1, (t - g.t0) / GHOST_T), e = k * k * (3 - 2 * k), x = g.x0 + (g.bx - g.x0) * e, y = g.y0 + (g.by - g.y0) * e, px = g.x0 + (g.bx - g.x0) * Math.max(0, e - 0.03), py = g.y0 + (g.by - g.y0) * Math.max(0, e - 0.03);
+      return { ...g.rec, x, y, px, py, vx: (g.bx - g.x0) * 0.4, vy: (g.by - g.y0) * 0.4, facing: Math.atan2(g.by - g.y0, g.bx - g.x0), onBench: true, ghost: true, skate: 'glide' }; });
+  }
   function pumpActions(state) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
-      if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6 });
+      if (e.type === 'LINE_CHANGE') for (const id of e.out || []) { const rec = state.roster?.[id]; if (rec) ghosts.push({ rec, t0, x0: rec.x, y0: rec.y, bx: (rec.team === 'home' ? 75 : 125) + ((id.length * 7) % 9 - 4), by: RINK.W - 2 }); } // skaters leaving glide to the bench door
+      else if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6 });
       else if (e.type === 'HIT') acts.set(e.by, { type: 'check', t0, dur: 0.45 });
       else if (e.type === 'GOAL') { acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); for (const id of e.assists || []) acts.set(id?.id ?? id, { type: 'celebrate', t0, dur: 2.2 }); }
     }
@@ -170,7 +178,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     const s = S();
     const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (opts.visual === 'avatar' ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
-    const list = [...state.players].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
+    const list = [...state.players, ...ghostPlayers(state)].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
       const pos = lerp(p, a), team = state[p.team] || {};
       const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
@@ -182,7 +190,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
         crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null, action: actionOf(state, p.id), speed: Math.min(1, Math.hypot(p.vx || 0, p.vy || 0) / 26) } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
       drawSprite(ctx, {
-        x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',
+        x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false && !p.ghost ? p.last : '',
         img, avatar, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
         selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0, labels: labelLayer, labelId: p.id,
       });

@@ -150,6 +150,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
       if (e.type === 'PITCH') { acts.set(e.pitcher, { type: 'throw', t0, dur: 0.85 }); if (e.decision && e.decision !== 'TAKE') acts.set(e.batter, { type: 'swing', t0: t0 + 0.45, dur: 0.55 }); }
+      else if (e.type === 'PICKOFF_ATTEMPT') { acts.set(e.pitcher, { type: 'throw', t0, dur: 0.7 }); acts.set(e.runner, { type: 'dive', t0: t0 + 0.3, dur: 0.7 }); } // throw to the base, runner dives back
       else if (e.type === 'HOME_RUN') acts.set(e.by, { type: 'celebrate', t0, dur: 3 });
       else if (e.type === 'RUN_SCORES') acts.set(e.runner, { type: 'celebrate', t0, dur: 1.6 });
     }
