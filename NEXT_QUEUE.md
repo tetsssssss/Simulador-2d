@@ -16,6 +16,6 @@ Fase atual: fila v2 A→F concluída (ver checkpoints no CLAUDE_HANDOFF.md). Úl
 ## Visual / colisão / sprites (sessão atual — branch ccr-1d32cd32-jtupys, PR #1)
 - [x] Etapa 1: `core/render/labels.js` (rótulos sem sobreposição, 3 esportes) + NHL `separate()` robusto.
 - [x] Etapa 2: ações de boneco por evento na NFL (`pumpActions` em nfl/src/ui/fieldRenderer.js).
-- [ ] Etapa 3: medir colisão NFL (`movement.separate`, R=0,8 jd) e MLB (fielders×runner×bola) como foi feito na NHL (min dist, % ticks sobrepostos) e corrigir só o que os números mostrarem; testes de velocidade alta (bola/disco atravessando goleiro/poste/muro).
+- [x] Etapa 3: colisão medida. MLB: 2B e SS iam para o mesmo ponto (a 2ª base) em quase toda bola rebatida → agora `spread()` em baseballEngine.js afasta quem chega depois 6 ft (ticks com fielders <2 ft: 17,2% → 7,2%; o resto é bola em jogo/batedor×receptor). NFL: 10% dos ticks com pares <0,5 jd, quase tudo contato legítimo de bloqueio/tackle; sem mudança. Falta: teste de velocidade alta (bola/disco atravessando goleiro/poste/muro).
 - [ ] Etapa 4: sprites — alinhamento/escala dos avatares por zoom, estados de animação (snap/handoff NFL; pickoff MLB; LINE_CHANGE NHL), teste de desempenho de quadros no celular (orçamento 16 ms).
 - [ ] Rodar `tests/browser/smoke.mjs` e `career.mjs` (não rodados nesta sessão).

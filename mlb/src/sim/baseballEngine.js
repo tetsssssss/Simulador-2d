@@ -451,12 +451,19 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
     plan.fielderMoves.push({ f: F, x: Q.x, y: Q.y, t: tF });
     // coverage: 1B → first, SS/2B → second, 3B → third, C → home; outfielders back up the play
     const cover = { '1B': 1, '2B': 2, SS: 2, '3B': 3, C: 4 };
+    // two fielders never share one spot: the second to claim a base (e.g. 2B and SS both → second) backs up 6 ft away, on his own side
+    const claimed = [{ x: Q.x, y: Q.y }];
+    const spread = (f, p) => {
+      if (!claimed.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 3.5)) { claimed.push(p); return p; }
+      let dx = f.x - p.x, dy = f.y - p.y, d = Math.hypot(dx, dy); if (d < 1e-3) { dx = f.pos === 'SS' ? -1 : 1; dy = 0.6; d = Math.hypot(dx, dy); }
+      const q = { x: p.x + dx / d * 6, y: p.y + dy / d * 6 }; claimed.push(q); return q;
+    };
     for (const f of S.fielders) if (f !== F) {
       let base = cover[f.pos];
       if (f.pos === '2B' && F.pos !== 'SS' && Q.x < 0) base = 2; else if (f.pos === 'SS' && (F.pos === '2B' || Q.x >= 0)) base = 2; else if (f.pos === '2B' && F.pos === '1B') base = 1;
       if (f.pos === 'P') { const p = F.pos === '1B' ? basePos(1) : { x: f.x, y: f.y + 6 }; plan.fielderMoves.push({ f, x: p.x, y: p.y }); continue; }
-      if (base) { const p = basePos(base); plan.fielderMoves.push({ f, x: p.x, y: p.y }); }
-      else plan.fielderMoves.push({ f, x: (f.x + Q.x) / 2, y: (f.y + Q.y) / 2 }); // back up
+      if (base) { const p = spread(f, basePos(base)); plan.fielderMoves.push({ f, x: p.x, y: p.y }); }
+      else { const p = spread(f, { x: (f.x + Q.x) / 2, y: (f.y + Q.y) / 2 }); plan.fielderMoves.push({ f, x: p.x, y: p.y }); } // back up
     }
     const err = !best.retrieve && rng.next() < (best.air ? 0.012 : 0.025) * (1.4 - F.R.hands) * (best.dive ? 3 : 1) * clamp(1 - 0.012 * (F._focus || 0), 0.6, 1.5);
     if (fl.foul && !(best.air && !err)) return foulPlay(fl, F, goer); // a foul that nobody catches: the ball flies, lands, the count moves

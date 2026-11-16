@@ -174,3 +174,17 @@ test('pitch defs: eight types with sane spin/break/velocity relations', () => {
   assert.equal(PITCH_CODES.length, 8);
   for (const d of Object.values(PITCH_DEFS)) assert.ok(d.rpm > 1000 && d.rpm < 3000 && d.M > 5 && d.dv <= 0);
 });
+
+// Collision/spacing: 2B and SS (and any two fielders) must not be sent to the same spot on a batted ball.
+test('MLB fielders: no two fielders stacked on the same spot during plays (2B/SS coverage)', () => {
+  const e = createBaseballEngine({ home: side('NYY', 'home'), away: side('BOS', 'away'), seed: 'stack-1' }), S = e.state;
+  let ticks = 0, stacked = 0, k = 0;
+  while (!S.over && k++ < 2e5) {
+    e.step(); if (S.phase !== 'PLAY') continue; ticks++;
+    const f = S.fielders; let bad = false;
+    for (let i = 0; i < f.length && !bad; i++) for (let j = i + 1; j < f.length; j++) if (Math.hypot(f[i].x - f[j].x, f[i].y - f[j].y) < 2) { bad = true; break; }
+    if (bad) stacked++;
+  }
+  assert.ok(ticks > 1000);
+  assert.ok(stacked / ticks < 0.03, `stacked fraction ${(stacked / ticks).toFixed(4)}`);
+});
