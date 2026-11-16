@@ -38,8 +38,8 @@ test('drawAvatar renders every option / kit / prop / pose without throwing', () 
   }
 });
 
-test('one-shot actions (swing/throw/shoot/catch/celebrate/dive/check) render across their whole timeline', () => {
+test('one-shot actions (swing/throw/shoot/catch/celebrate/dive/check/snap/handoff) render across their whole timeline', () => {
   const ctx = ctxStub();
-  for (const type of ['swing', 'throw', 'shoot', 'catch', 'celebrate', 'dive', 'check']) for (let k = 0; k <= 10; k++) for (const prop of ['bat', 'stick', 'glove', 'ball', 'none'])
+  for (const type of ['swing', 'throw', 'shoot', 'catch', 'celebrate', 'dive', 'check', 'snap', 'handoff']) for (let k = 0; k <= 10; k++) for (const prop of ['bat', 'stick', 'glove', 'ball', 'none'])
     A.drawAvatar(ctx, { x: 40.3, y: 70.7, h: 60, opts: A.defaultAvatar('z'), kit: 'baseball', prop, action: { type, t: k / 10 }, moving: k % 2 === 0, speed: k / 10, t: k * 0.3 });
 });

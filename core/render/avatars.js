@@ -48,7 +48,7 @@ function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arc
 function limb(ctx, x0, y0, x1, y1, w, color) { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
 
 // kit: 'baseball' | 'hockey' | 'football'. prop: 'bat' | 'stick' | 'glove' | 'ball' | 'none'. pose: 'stand' | 'crouch' | 'goalie'.
-// action (optional): { type: 'swing' | 'throw' | 'shoot' | 'catch' | 'celebrate' | 'dive' | 'check', t: 0..1 } — one-shot animations the sport
+// action (optional): { type: 'swing' | 'throw' | 'shoot' | 'catch' | 'celebrate' | 'dive' | 'check' | 'snap' | 'handoff', t: 0..1 } — one-shot animations the sport
 // renderer drives from engine events. Locomotion is a procedural cycle: two-bone legs (knee bend, foot lift), counter-swinging arms,
 // forward lean with speed, head bob; hockey skaters glide (stride + lean) instead of stepping. Sharpness: the feet anchor is snapped to
 // the device-pixel grid and strokes use round caps/joins, so small figures stay crisp instead of shimmering between pixels.
@@ -102,6 +102,8 @@ export function drawAvatar(ctx, o) {
   if (act?.type === 'swing') lean += dir * (-0.18 + 0.5 * ease(clamp01((act.p - 0.25) / 0.35)) - 0.22 * ease(clamp01((act.p - 0.7) / 0.3)));
   if (act?.type === 'throw') lean += dir * (-0.25 * ease(clamp01(act.p / 0.4)) + 0.55 * ease(clamp01((act.p - 0.4) / 0.25)) - 0.3 * ease(clamp01((act.p - 0.8) / 0.2)));
   if (act?.type === 'check') lean += dir * 0.35 * Math.sin(act.p * Math.PI);
+  if (act?.type === 'snap') lean += dir * 0.45 * Math.sin(act.p * Math.PI); // center folds over the ball and returns
+  if (act?.type === 'handoff') lean += dir * 0.2 * Math.sin(act.p * Math.PI);
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(lean); ctx.translate(0, -hipY);
   // back arm
   const armLen = 2.6 * u, aw = 0.95 * u;
@@ -141,12 +143,14 @@ export function drawAvatar(ctx, o) {
     let ang = 0.15 + (moving ? -swingA * 0.55 : 0);
     if (act?.type === 'throw') ang = -2.6 + 3.2 * ease(clamp01((act.p - 0.3) / 0.35)) - 0.5 * ease(clamp01((act.p - 0.75) / 0.25));
     else if (act?.type === 'catch') ang = -1.9 + 0.9 * Math.sin(act.p * Math.PI);
+    else if (act?.type === 'snap') ang = 0.5 + 1.0 * Math.sin(act.p * Math.PI); // arm sweeps the ball back
+    else if (act?.type === 'handoff') ang = 0.6 + 0.9 * Math.sin(act.p * Math.PI); // arm extends the ball to the runner
     else if (act?.type === 'celebrate') ang = -2.9 + Math.sin(act.p * 20 + 1) * 0.3;
     else if (prop === 'glove') ang = 0.55; else if (prop === 'ball') ang = moving ? 0.9 : 0.6;
     const hnd = handAt(F, ang);
     limb(ctx, F.x, F.y, hnd.x, hnd.y, aw, color);
     if (prop === 'glove' && act?.type !== 'throw') { ctx.fillStyle = '#8a5a2b'; ctx.beginPath(); ctx.arc(hnd.x + dir * 0.2 * u, hnd.y, 0.95 * u, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3d2610'; ctx.lineWidth = Math.max(1, u * 0.14); ctx.stroke(); }
-    else if (prop === 'ball' || (act?.type === 'throw' && act.p < 0.6)) { ctx.fillStyle = kit === 'football' ? '#7a4a22' : '#f4f1ea'; ctx.beginPath(); ctx.ellipse(hnd.x + dir * 0.35 * u, hnd.y - 0.35 * u, kit === 'football' ? 0.95 * u : 0.5 * u, kit === 'football' ? 0.6 * u : 0.5 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); }
+    else if (prop === 'ball' || (act?.type === 'throw' && act.p < 0.6) || (act?.type === 'snap' && act.p < 0.55) || (act?.type === 'handoff' && act.p < 0.65)) { ctx.fillStyle = kit === 'football' ? '#7a4a22' : '#f4f1ea'; ctx.beginPath(); ctx.ellipse(hnd.x + dir * 0.35 * u, hnd.y - 0.35 * u, kit === 'football' ? 0.95 * u : 0.5 * u, kit === 'football' ? 0.6 * u : 0.5 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); }
     else skinDot(hnd.x, hnd.y + 0.2 * u);
   }
   // ---- head ----

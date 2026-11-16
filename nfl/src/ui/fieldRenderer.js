@@ -247,6 +247,8 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
       switch (e.type) {
+        case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;
+        case 'HANDOFF': set(e.from, 'handoff', 0.6); set(e.to, 'catch', 0.5, 0.2); break;
         case 'PASS_COMPLETE': set(e.receiver, 'catch', 0.5); break;
         case 'INTERCEPTION': set(e.by, 'catch', 0.6); break;
         case 'PASS_BREAKUP': set(e.by, 'dive', 0.6); break;
