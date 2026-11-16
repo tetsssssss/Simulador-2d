@@ -30,3 +30,7 @@ Fase atual: fila v2 A→F concluída (ver checkpoints no CLAUDE_HANDOFF.md). Úl
 - [ ] Etapa 2: 25 receptores · [ ] Etapa 3: 25 corrida/contato · [ ] Etapa 4: 25 linhas/secundária/ST (nomes em docs/anim/plan.json).
 - [ ] Rodar Blender (ver README) e validar convenções; ligar clipes sem evento (kneel, spike, cadence, pump fake, play-action, under-center, read-option) quando o motor tiver os eventos.
 - NOTA DE DIVERGÊNCIA: o zip enviado (QA_CORRIGIDO 2026-10-26, checkpoints CP100–112, 331 testes) é outra linha de código que a deste repositório (fila A→F, 116 testes). O catálogo veio do zip; o código novo é modular (core/anim) para ser portado.
+- [x] Pacote "noite" (100 clipes novos: movimentação 20, gestos 20, faltas 20, agarrado 20, passe 20) + locomoção por clipes ligada ao NFL (velocidade real → mv_walk/jog/run/sprint/backpedal, variantes com bola), jogadores derrubados deitados (ag_pile_bottom), tackle/sack/broken tackle/fumble/block/recepções/INT/breakup/drop/TD ligados a eventos. 125 clipes no total, 120 testes (17 de clipes). Export 125 clipes (3585 quadros assados a 30 fps).
+- [ ] Faltas: o motor NFL não emite eventos de penalidade → 20 clipes de falta prontos sem gatilho. Decisão pendente do usuário: criar sistema de penalidades no motor (impacta equilíbrio/golden) ou só usar os clipes em replays/ilustração.
+- [ ] Árbitro: não há entidade de árbitro no campo; os 18 sinais ficam prontos para uma futura entidade OFFICIAL.
+- [ ] Rodar Blender (tools/blender/RUN_TONIGHT.md).

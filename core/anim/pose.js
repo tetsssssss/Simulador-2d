@@ -57,7 +57,7 @@ export function blendPose(a, b, w) {
 
 export function validateClip(c) {
   const errs = [];
-  if (!c.id || !c.name || !c.catalog || !c.group) errs.push('missing id/name/catalog/group');
+  if (!c.id || !c.name || !c.group || (!c.catalog && c.source !== 'extra')) errs.push('missing id/name/group, and catalog (or source: \'extra\' for rulebook/new entries)');
   if (!(c.dur > 0 && c.dur <= 12)) errs.push('dur out of range');
   if (!c.keys?.length || c.keys[0].t !== 0 || c.keys[c.keys.length - 1].t !== 1) errs.push('keys must span 0..1');
   c.keys?.forEach((k, i) => {

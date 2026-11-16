@@ -5,7 +5,8 @@
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
-import { actionsFor } from './animationMap.js';
+import { actionsFor, locomotionClipId } from './animationMap.js';
+const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { getAvatar } from '../../../core/render/avatars.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
@@ -248,19 +249,12 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
+      if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
-      if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id);
       switch (e.type) {
-        case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;
+        case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;                // legacy procedural actions kept where no clip exists yet
         case 'HANDOFF': set(e.to, 'catch', 0.5, 0.2); break;
-        case 'PASS_COMPLETE': set(e.receiver, 'catch', 0.5); break;
-        case 'INTERCEPTION': set(e.by, 'catch', 0.6); break;
-        case 'PASS_BREAKUP': set(e.by, 'dive', 0.6); break;
-        case 'TACKLE': set(e.by, 'check', 0.5); for (const a of e.assists || []) set(a, 'check', 0.45); break;
-        case 'SACK': case 'BROKEN_TACKLE': case 'SHED': set(e.by, 'check', 0.45); break;
-        case 'FUMBLE': set(e.forcedBy, 'check', 0.45); break;
-        case 'BLOCK_ENGAGE': set(e.by, 'check', 0.3); break;
-        case 'WHISTLE': if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) set(sim.carrier.id, 'celebrate', 2.4); break;
+        case 'WHISTLE': if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: t0, dur: 1.6, loop: true }); break;
       }
     }
   }
@@ -285,13 +279,18 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = off ? teamCols.off : teamCols.def;
-    const clipAct = av && lastSim ? actionOf(lastSim, e.id) : null;
+    let clipAct = av && lastSim ? actionOf(lastSim, e.id) : null;
+    const ph = stridePhase(e, p);
+    if (av && !clipAct && CLIP_LOCOMOTION) { // no event clip running: keyframed gait from real speed (stride phase = distance), or lying on the ground when tackled
+      if (e.down) clipAct = { type: 'clip:ag_pile_bottom', t: 1 };
+      else { const sp = Math.hypot(e.vel?.x || 0, e.vel?.y || 0), back = sp > 0.5 && ((e.vel.x * Math.cos(e.facing) + e.vel.y * Math.sin(e.facing)) / sp) < -0.35, id = locomotionClipId({ speed: sp, backwards: back, carrying: isCarrier }); if (id) clipAct = { type: 'clip:' + id, t: ph / (Math.PI * 2) }; }
+    }
     if (clipAct && clipPoseOf(clipAct)?.ball) handBall = true;
     const qb = e === lastSim?.qb;
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: stridePhase(e, p) } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
