@@ -19,6 +19,7 @@
 - MEDIDO (NHL, 3 jogos ≈340 mil ticks): patinadores <2 ft: 1,7% → 0,2% dos ticks; goleiro×patinador sobreposto: 0,3% → 0,0%.
 - TESTS: tests/labels.test.mjs (5), colisão em tests/nhl_engine2.test.mjs (+1). Raiz 98/98, NFL 44/44. Ações NFL verificadas no browser (eventos SNAP/HANDOFF/TACKLE/PASS_COMPLETE/SACK… disparam, 0 erros de página); animação em si só por captura estática — não há teste automatizado de pose.
 - ETAPA 3: MLB `spread()` (baseballEngine.js, cobertura de bases): dois fielders nunca mais no mesmo ponto (2B×SS empilhados em 36,7% dos ticks de jogada → <3%); teste em tests/mlb_engine2.test.mjs. NFL medida (10% dos ticks <0,5 jd, majoritariamente contato legítimo) e deixada como está.
+- BROWSER: tests/browser/smoke.mjs 33/33 e career.mjs 11/11 (o runner usa Chromium 1243: caminho ajustado nos dois scripts). Lição: a 1ª versão do `separate()` do NHL deixou a partida ~35% mais lenta e o career.mjs falhou ("Sim to end" espera 9 s fixos); corrigido com rejeição barata por d², só jogadores em gelo e 2ª passada só se a 1ª moveu alguém (tempo de jogo completo igual ao baseline, ~2 s em Node).
 - ISSUES: sem teste de túnel a alta velocidade (bola/disco × goleiro/poste/muro); faltam ações `snap`/`handoff` na NFL; tests/browser/* não reexecutados.
 
 # FILA AUTÔNOMA v2 (A→F) + bonecos animados / FINAL — sessão atual

@@ -4,7 +4,7 @@
 // no NaN in engine/render state, no JS errors (network failures of blocked hosts are ignored).
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 const PORT = process.argv[2] || 8200, OUT = process.argv[3] || null;
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
 const page = await browser.newPage({ viewport: { width: 1980, height: 1080 } });
 const errs = [];
 const ignore = /ERR_TUNNEL|CORS|ERR_FAILED|ERR_CONNECTION|Failed to load resource|net::/;

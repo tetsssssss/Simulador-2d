@@ -733,21 +733,26 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   // so the skater takes the whole correction. Exact overlaps (d = 0) get a deterministic push axis, closing speed is
   // removed (inelastic contact) and the result is clamped back inside the rink, so nobody is shoved through the boards.
   function separate() {
-    const L = S.players, R = 2.6;
-    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-      const a = L[i], b = L[j]; if (a.onBench || b.onBench || (a.goalie && b.goalie)) continue;
-      let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d >= R) continue;
-      if (d < 1e-4) { const ang = ((i * 7 + j * 13) % 16) * (Math.PI / 8); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
-      const nx = dx / d, ny = dy / d, over = R - (d === 1 && Math.hypot(b.x - a.x, b.y - a.y) < 1e-4 ? 0 : d);
-      const wa = a.goalie ? 0 : b.goalie ? 1 : 0.5, wb = 1 - wa;
-      a.x -= nx * over * wa; a.y -= ny * over * wa; b.x += nx * over * wb; b.y += ny * over * wb;
-      const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
-      if (rel < 0) { // closing: kill the approach component on the movable side(s)
-        if (!a.goalie) { a.vx += nx * rel * wa; a.vy += ny * rel * wa; }
-        if (!b.goalie) { b.vx -= nx * rel * wb; b.vy -= ny * rel * wb; }
+    const L = S.players.filter(p => !p.onBench), R = 2.6, R2 = R * R;
+    for (let pass = 0; pass < 2; pass++) {
+      let any = false;
+      for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+        const a = L[i], b = L[j]; if (a.goalie && b.goalie) continue;
+        let dx = b.x - a.x, dy = b.y - a.y; const d2 = dx * dx + dy * dy;
+        if (d2 >= R2) continue; // cheap reject: most pairs are far apart
+        any = true;
+        let d = Math.sqrt(d2), over;
+        if (d < 1e-4) { const ang = ((i * 7 + j * 13) % 16) * (Math.PI / 8); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; over = R; } else over = R - d;
+        const nx = dx / d, ny = dy / d, wa = a.goalie ? 0 : b.goalie ? 1 : 0.5, wb = 1 - wa;
+        a.x -= nx * over * wa; a.y -= ny * over * wa; b.x += nx * over * wb; b.y += ny * over * wb;
+        const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rel < 0) { // closing: kill the approach component on the movable side(s)
+          if (!a.goalie) { a.vx += nx * rel * wa; a.vy += ny * rel * wa; }
+          if (!b.goalie) { b.vx -= nx * rel * wb; b.vy -= ny * rel * wb; }
+        }
+        for (const q of [a, b]) if (!q.goalie) { const c = clampInside(q.x, q.y, 1.6); if (c.x !== q.x || c.y !== q.y) { q.x = c.x; q.y = c.y; } }
       }
-      for (const q of [a, b]) if (!q.goalie) { const c = clampInside(q.x, q.y, 1.6); if (c.x !== q.x || c.y !== q.y) { q.x = c.x; q.y = c.y; } }
+      if (!any) break; // second pass only when the first one moved somebody
     }
   }
 
