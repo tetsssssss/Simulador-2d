@@ -153,3 +153,20 @@ test('NHL puck cannot tunnel through the net cage at high speed (swept back-wall
     assert.ok((P.x - gx) * toIce <= 0.2, `puck at ${speed} ft/s passed through the cage (side ${side}, x=${P.x.toFixed(1)})`);
   }
 });
+
+test('NHL LINE_CHANGE: well formed, changes happen on the fly and at faceoffs', () => {
+  const B = batch(); let fly = 0, stop = 0, n = 0;
+  for (const g of B.games) {
+    const S = g.S, ev = S.events.filter(e => e.type === 'LINE_CHANGE');
+    for (const e of ev) {
+      n++; e.onTheFly ? fly++ : stop++;
+      assert.ok(['home', 'away'].includes(e.team));
+      assert.ok(e.in.length >= 1 && e.in.length <= 5 && e.out.length <= 5, `in/out ${e.in.length}/${e.out.length}`); // sizes differ when a penalty changes the strength (5 off, 4 on)
+      assert.equal(e.forwards + e.defense, e.in.length);
+      for (const id of e.in) assert.equal(S.roster[id].team, e.team);
+      for (const id of e.out) assert.ok(!e.in.includes(id));
+    }
+  }
+  assert.ok(n >= 40, `line changes over 12 games: ${n}`);
+  assert.ok(fly > 0 && stop > 0, `fly ${fly} / faceoff ${stop}`);
+});

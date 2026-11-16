@@ -4,8 +4,8 @@ Fase atual: fila v2 A→F concluída (ver checkpoints no CLAUDE_HANDOFF.md). Úl
 
 ## Próximos itens (em ordem)
 1. **Táticas da carreira → motores 2D**: NHL/MLB lerem `pending.engineConfig` completo (forecheck, neutral zone, PP/PK, line matching; defensive alignment, bunts, steals, pinch hitters); NFL coach (`coach:{home,away}`) no motor. Arquivos: nhl/src/game/matchView.js + engineHook.js, mlb/src/game/matchView.js + engineHook.js, nfl/src/game/match.js, core/career/API.md ("engine-config").
-2. **MLB**: alimentar `history/rest/consecutive` a partir de mlb/src/career/mlbSpec.js; pickoffs; efeito de Injury Risk.
-3. **NHL**: offside, LINE_CHANGE, reduzir TURNOVER "loose" e nº de passes (~1100/jogo).
+2. **MLB**: alimentar `history/rest/consecutive` a partir de mlb/src/career/mlbSpec.js; ~~pickoffs~~ (feito: evento PICKOFF_ATTEMPT; falta animar o arremesso à base e o mergulho de volta); efeito de Injury Risk.
+3. **NHL**: offside, ~~LINE_CHANGE~~ (feito: evento + narração; falta animar a saída do banco), reduzir TURNOVER "loose" e nº de passes (~1100/jogo).
 4. **NFL**: ~~ações de boneco por evento~~ (feito na etapa 2: throw/catch/check/dive/celebrate; falta `snap` e `handoff`), arquibancada nas câmeras QB/ENDZONE, rebalancear Cover 1 Blitz, stunts/COUNTER mais efetivos. (Cores distintas com mesma primária já existem em `sideColors`: defesa vira kit claro — só conferir contraste em mais pares.)
 5. **Carreira**: ação de API para editar aparência; shortlist do draft dentro do save; compressão de saves (0,7–4 MB); NFL 2D a partir do Hub.
 6. **Smoke**: checar `tests/browser/smoke.mjs` "audio settings popover" e o limiar de rAF do MLB (27–29 rAF/s headless).
@@ -21,3 +21,4 @@ Fase atual: fila v2 A→F concluída (ver checkpoints no CLAUDE_HANDOFF.md). Úl
 - [ ] Rodar `tests/browser/smoke.mjs` e `career.mjs` (não rodados nesta sessão).
 - [x] Túnel NHL: disco vindo de trás da rede a ≥150 ft/s (~100 mph, >3,33 ft/tick) atravessava a gaiola (80/80 casos); agora teste varrido do plano de fundo da rede em hockeyEngine.js `puckStep` (0/80). Teste: tests/nhl_engine2.test.mjs.
 - [x] Revisão visual (12 capturas: NFL Close/Full/QB/Endzone/Tática, NHL Tactical/Puck/Full, MLB Batter/Pitcher/Infield/Full): escala, pés/sombras e leitura de equipe OK. Achado real: o pop-up de resultado da NFL cobria ~190 px do campo (a jogada congelada). Agora compacto (título + jardas, 106 px); tackle/conceito/"Por que terminou" continuam no painel Em jogo e no log. Observação: no Modo 2D (painel fechado) a explicação só aparece abrindo ☰ Painel.
+- [x] Pickoff MLB + LINE_CHANGE NHL (gameplay novo, só nível de motor/eventos/narração; sem animação dedicada). Medido em 150 jogos MLB: ~4,2 tentativas/jogo, ~0,2 outs/jogo; runs/jogo 7,65 vs 7,55 sem pickoff, CS 0,25 vs 0,27 (sem efeito material no ambiente). NHL: LINE_CHANGE no gelo (troca em movimento) e nos faceoffs.

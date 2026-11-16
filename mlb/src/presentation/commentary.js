@@ -70,10 +70,16 @@ export const MLB_COMMENTARY = {
     (e, c) => e.kind === 'doublePlay' ? `DOUBLE PLAY! ${T(c, e.team)} sai do sufoco!` : null,
     (e, c) => e.kind === 'fieldersChoice' ? `Fielder's choice, out na base da frente.` : null,
     (e, c) => e.kind === 'caughtStealing' ? `Pego roubando base!` : null,
+    (e, c) => e.kind === 'pickoff' ? `Pickoff! Out ${c.outs}.` : null,
     (e, c) => `Out ${c.outs}.`,
   ],
   RUN_SCORES: [(e, c) => `${L(c, e.runner)} cruza o home! ${T(c, e.team)} ${c.score[e.team]}.`, (e, c) => `Corrida anotada por ${L(c, e.runner)}.`],
   ERROR: [(e, c) => e.kind === 'throw' ? `Arremesso ruim de ${L(c, e.fielder)}! Erro, o corredor avança.` : null, (e, c) => `Erro de ${L(c, e.fielder)}!`, (e, c) => `${L(c, e.fielder)} falha na jogada. Erro.`],
+  // every variant must produce text for both results (the engine avoids recently used variants; a null-only leftover would silence the line)
+  PICKOFF_ATTEMPT: [
+    (e, c) => e.result === 'OUT' ? `PICKOFF! ${L(c, e.pitcher)} pega ${L(c, e.runner)} fora da base!` : `${L(c, e.pitcher)} tenta o pickoff. ${L(c, e.runner)} volta a tempo.`,
+    (e, c) => e.result === 'OUT' ? `${L(c, e.runner)} se distrai e é pego no pickoff!` : e.attempt > 1 ? `Segunda tentativa de pickoff de ${L(c, e.pitcher)}.` : `${L(c, e.pitcher)} olha para a base e tenta segurar ${L(c, e.runner)}.`,
+  ],
   STOLEN_BASE: [(e, c) => `${L(c, e.runner)} rouba a ${e.base === 3 ? 'terceira' : 'segunda'}!`, (e, c) => `Base roubada! ${L(c, e.runner)} chega antes do arremesso.`],
   RUNNER_DECISION: [
     (e, c) => e.decision === 'STEAL' ? `${L(c, e.runner)} sai correndo para a próxima base!` : null,
@@ -108,6 +114,7 @@ const FALLBACK = {
   OUT: [(e, c) => `Out.`, (e, c) => `É out para ${T(c, e.team)}.`, (e, c) => `Mais um out. ${c.outs ?? ''}`.trim()],
   RUN_SCORES: [(e, c) => `Corrida anotada.`, (e, c) => `${T(c, e.team)} marca.`, (e, c) => `${L(c, e.runner)} pisa no home.`],
   ERROR: [(e, c) => `Erro da defesa.`, (e, c) => `A defesa falha.`, (e, c) => `Erro anotado para ${T(c, e.team)}.`],
+  PICKOFF_ATTEMPT: [(e, c) => e.result === 'OUT' ? `Pickoff! O corredor é pego.` : `Tentativa de pickoff. O corredor volta.`],
   STOLEN_BASE: [(e, c) => `Base roubada.`, (e, c) => `${L(c, e.runner)} avança correndo.`, (e, c) => `O receptor não consegue evitar.`],
   RUNNER_DECISION: [(e, c) => `${L(c, e.runner)} decide: ${e.decision}.`, (e, c) => `Decisão de corrida de ${L(c, e.runner)}.`, (e, c) => `${L(c, e.runner)} lê a jogada.`],
   INNING_START: [(e, c) => `Começa o ${e.inning}º inning.`, (e, c) => `${e.half === 'top' ? 'Topo' : 'Fim'} da entrada ${e.inning}.`, (e, c) => `Nova meia-entrada.`],

@@ -88,6 +88,9 @@ export const NHL_COMMENTARY = {
     (e, c) => `GOOOL! ${N(c, e.by)} marca para ${T(c, e.team)}${e.assists?.length ? `, assistência de ${e.assists.map(a => L(c, a)).join(' e ')}` : ''}!`,
     (e, c) => `${L(c, e.by)} balança a rede! Gol de ${T(c, e.team)}!`,
   ],
+  LINE_CHANGE: [
+    (e, c) => e.onTheFly ? (e.defense && !e.forwards ? `${T(c, e.team)} troca a dupla de defesa em movimento.` : e.forwards && !e.defense ? `${T(c, e.team)} troca a linha de ataque em movimento.` : `${T(c, e.team)} muda a linha em movimento.`) : null,
+  ],
   ICING: [(e, c) => `Icing. Faceoff na zona de ${T(c, e.team)}.`],
   OFFSIDE: [(e, c) => `Impedimento. Jogo parado.`],
   LINE_CHANGE: [(e, c) => e.team ? `${T(c, e.team)} troca a linha.` : null],

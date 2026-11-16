@@ -74,7 +74,9 @@ test('mlb v2: arsenals derive from ratings (not everyone throws all 8) and the p
   assert.ok(ace.length > junk.length && junk.length >= 3 && ace.length <= 6 && (ace.includes('FF') || ace.includes('FT') || ace.includes('SI')));
   const S = play('pipe').state; // the last pitch of a game ends in an out/hit: pipeline lists the stages in order
   const order = ['PITCH', 'BATTER_READ', 'DECISION', 'CONTACT', 'BALL_FLIGHT', 'FIELDING', 'THROW', 'BASERUNNING', 'RESULT'];
-  assert.ok(S.lastPitch.pipeline.every((s, i, a) => !i || order.indexOf(s) > order.indexOf(a[i - 1])), S.lastPitch.pipeline.join('>'));
+  const stealOrder = ['PITCH', 'BATTER_READ', 'DECISION', 'THROW', 'FIELDING', 'BASERUNNING', 'RESULT']; // a steal starts with the throw to the base
+  const inOrder = ord => S.lastPitch.pipeline.every((s, i, a) => !i || ord.indexOf(s) > ord.indexOf(a[i - 1]));
+  assert.ok(inOrder(order) || inOrder(stealOrder), S.lastPitch.pipeline.join('>'));
   assert.deepEqual(S.lastPitch.pipeline.slice(0, 3), ['PITCH', 'BATTER_READ', 'DECISION']);
 });
 
@@ -187,4 +189,26 @@ test('MLB fielders: no two fielders stacked on the same spot during plays (2B/SS
   }
   assert.ok(ticks > 1000);
   assert.ok(stacked / ticks < 0.03, `stacked fraction ${(stacked / ticks).toFixed(4)}`);
+});
+
+// Pickoffs: attempts happen before pitches with a runner on 1st/2nd, are rate-limited per plate appearance and a caught runner is a real out.
+test('MLB pickoffs: attempts are well formed, limited to 2 per PA, outs are real and rates plausible', () => {
+  const games = season(); let att = 0, out = 0;
+  for (const e of games) {
+    let perPA = 0, outs = 0;
+    for (const ev of e.state.events) {
+      if (ev.type === 'AT_BAT') perPA = 0;
+      if (ev.type === 'PICKOFF_ATTEMPT') {
+        att++; perPA++;
+        assert.ok(perPA <= 2, 'max 2 pickoff attempts per plate appearance');
+        assert.ok([1, 2].includes(ev.base) && ['SAFE', 'OUT'].includes(ev.result) && ev.pitcher && ev.runner && ev.fielder, JSON.stringify(ev));
+        if (ev.result === 'OUT') out++;
+      }
+      if (ev.type === 'OUT' && ev.kind === 'pickoff') outs++;
+    }
+    assert.equal(e.state.stats.pickoffs?.out || 0, outs, 'pickoff outs in stats match OUT events');
+  }
+  const pg = att / games.length;
+  assert.ok(pg > 1.5 && pg < 9, `attempts per game ${pg.toFixed(2)}`);
+  assert.ok(out / games.length < 0.8, `pickoff outs per game ${(out / games.length).toFixed(2)}`);
 });

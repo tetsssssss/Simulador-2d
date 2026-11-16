@@ -14,7 +14,7 @@ import { simRatings } from './ratings.js';
 export const DT = 1 / 30;
 const POSTS = 3, CENTER = RINK.center, BLUE_U = RINK.center - RINK.blueLine, GOAL_U = RINK.center - RINK.goalLine;
 // Stable event vocabulary (state.events[].type). PASS carries `kind`, SHOT `shotType`, SAVE `save` (goalie state).
-export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
+export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'LINE_CHANGE', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
 export const PASS_KINDS = ['short', 'cross', 'saucer', 'stretch', 'drop', 'bank'];
 export const SHOT_TYPES = ['wrist', 'snap', 'slap', 'backhand', 'one-timer'];
 export const GOALIE_STATES = ['READY', 'BUTTERFLY', 'SLIDE', 'GLOVE', 'BLOCKER', 'PAD_SAVE', 'RECOVER'];
@@ -112,11 +112,21 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (force || t.dShift > 50) { t.pair = (t.pair + 1) % 3; t.dShift = 0; }
   }
 
+  // Line change = rotate lines/pairs, put the new five on the ice and announce who came on / went off (LINE_CHANGE event).
+  function shiftChange(side, entering, onTheFly) {
+    const before = skaters(side).map(p => p.id);
+    changeLines(side, false); setOnIce(entering);
+    const after = skaters(side).map(p => p.id), out = before.filter(id => !after.includes(id)), inn = after.filter(id => !before.includes(id));
+    if (inn.length && !S.over) emit('LINE_CHANGE', { team: side, onTheFly, out, in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length });
+  }
+
   // ---------- faceoffs / stoppages ----------
   function setFaceoff(dot) {
     faceoffDot = dot; S.phase = 'FACEOFF'; phaseT = 1.2;
     for (const side of ['home', 'away']) changeLines(side, false);
+    const onIceBefore = { home: skaters('home').map(p => p.id), away: skaters('away').map(p => p.id) };
     setOnIce(false);
+    for (const side of ['home', 'away']) { const after = skaters(side).map(p => p.id), inn = after.filter(id => !onIceBefore[side].includes(id)); if (inn.length && S.t > 0) emit('LINE_CHANGE', { team: side, onTheFly: false, out: onIceBefore[side].filter(id => !after.includes(id)), in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length }); }
     for (const side of ['home', 'away']) {
       const spots = faceoffSpots(T[side].dir, dot.x, dot.y);
       const sk = skaters(side), order = ['C', 'LW', 'RW', 'LD', 'RD'];
@@ -785,7 +795,9 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // change on the fly when tired and the puck is not in our defensive zone
       const pu = uOf(side, P.x);
-      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) { changeLines(side, false); setOnIce(true); }
+      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) {
+        shiftChange(side, true, true);
+      }
     }
     if (slow) for (const r of rosterList) if (r.onBench) r.energy = Math.min(1, r.energy + 0.02 * bdt);
   }
