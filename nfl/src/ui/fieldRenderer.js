@@ -5,6 +5,8 @@
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
+import { actionsFor } from './animationMap.js';
+import { clipPoseOf } from '../../../core/anim/registry.js';
 import { getAvatar } from '../../../core/render/avatars.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
@@ -246,9 +248,11 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
+      for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
+      if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id);
       switch (e.type) {
         case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;
-        case 'HANDOFF': set(e.from, 'handoff', 0.6); set(e.to, 'catch', 0.5, 0.2); break;
+        case 'HANDOFF': set(e.to, 'catch', 0.5, 0.2); break;
         case 'PASS_COMPLETE': set(e.receiver, 'catch', 0.5); break;
         case 'INTERCEPTION': set(e.by, 'catch', 0.6); break;
         case 'PASS_BREAKUP': set(e.by, 'dive', 0.6); break;
@@ -259,12 +263,19 @@ export function createRenderer(canvas, { crowd = null } = {}) {
         case 'WHISTLE': if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) set(sim.carrier.id, 'celebrate', 2.4); break;
       }
     }
-    const inAir = !!sim.ball; // ball entity appears at release → passer throws
-    if (inAir && !ballWas && sim.ball.passer) set(sim.ball.passer.id, 'throw', 0.55);
-    ballWas = inAir;
   }
-  const actionOf = (sim, id) => { const A = acts.get(id); if (!A) return null; const k = ((sim.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const actionOf = (sim, id) => { const A = acts.get(id); if (!A) return null; const k = ((sim.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1 && !A.loop) { acts.delete(id); return null; } return { type: A.type, t: k }; };
   const labelLayer = createLabelLayer();
+  // Stride phase follows DISTANCE covered (not wall-clock time) so feet never skate over the grass: rad per yard falls with speed.
+  const strides = new Map();
+  function stridePhase(e, p) {
+    const now = performance.now(); let st = strides.get(e.id);
+    if (!st) { st = { x: p.x, y: p.y, ph: (e.jersey || 0) * 0.7, t: now }; strides.set(e.id, st); }
+    const d = Math.hypot(p.x - st.x, p.y - st.y), dt = Math.max(1e-3, (now - st.t) / 1000), v = Math.min(11, d / dt);
+    if (d < 3) st.ph += d * (2.5 - 0.11 * v); // d >= 3 yd in one frame = teleport (new play): keep the phase
+    st.x = p.x; st.y = p.y; st.t = now; return st.ph;
+  }
+  let handBall = false; // a keyframed clip is drawing the ball in the athlete's hands → skip the separate carried-ball sprite
   function drawPlayer(e, a, isCarrier) {
     const s = ppy();
     const p = lerpPos(e, a);
@@ -274,11 +285,13 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = off ? teamCols.off : teamCols.def;
+    const clipAct = av && lastSim ? actionOf(lastSim, e.id) : null;
+    if (clipAct && clipPoseOf(clipAct)?.ball) handBall = true;
     const qb = e === lastSim?.qb;
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: lastSim ? actionOf(lastSim, e.id) : null } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: stridePhase(e, p) } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
@@ -292,6 +305,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const pv = b.prev || { x: b.pos.x, y: b.pos.y, z: b.z };
       x = pv.x + (b.pos.x - pv.x) * a; y = pv.y + (b.pos.y - pv.y) * a; z = Math.max(0, pv.z + (b.z - pv.z) * a);
     } else {
+      if (handBall) return;
       const h = sim.carrier || (sim.phase === 'PRE_THROW' || sim.phase === 'SCRAMBLE' || sim.phase === 'HANDOFF' ? sim.qb : null);
       if (!h) return;
       const p = lerpPos(h, a); x = p.x + 0.35; y = p.y + 0.2; z = 1.1;
@@ -449,7 +463,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const y = sc.Y - sc.r - 7;
       ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(sc.X, y + 5); ctx.lineTo(sc.X - 4.5, y - 3); ctx.lineTo(sc.X + 4.5, y - 3); ctx.closePath(); ctx.fill();
     };
-    pumpActions(sim);
+    pumpActions(sim); handBall = false;
     const holder = sim.carrier;
     const qb = sim.qb;
     if (qb && !qb.down) ring(qb, 'rgba(150,205,255,.85)', [], 3, 1.4);

@@ -1,0 +1,9 @@
+{
+  "total": 100,
+  "stages": {
+    "1-qb-passe": ["Overhand Throw","Three-Quarter Throw","Sidearm Throw","Quick Release","Bullet Pass","Touch Pass","Lob Pass","Back-Shoulder Throw","Throw on the Run","Jump Throw","Under-Pressure Throw","Throwaway","Pump Fake","Play-Action Fake","Scramble","QB Slide","Kneel Down","Spike","Cadence Call","Under-Center Snap","Shotgun Snap","Handoff","Read-Option Mesh","Pocket Escape","Off-Platform Throw"],
+    "2-receptores": ["Chest Catch","Hands Catch","Overhead Catch","Low Catch","Diving Catch","One-Handed Catch","Contested Catch","Jump Ball Catch","High-Point Catch","Sideline Catch","Toe-Tap Catch","Toe-Drag Catch","Back-Shoulder Catch","Over-the-Shoulder Catch","Basket Catch","Body Adjustment Catch","Falling Catch","Sliding Catch","Catch Through Contact","Bobbled Catch","Drop Animation","Tipped Ball Catch","Back-Shoulder Adjustment","Catch and Run","Interception Prevention"],
+    "3-corrida-contato": ["Stutter Step","Hesitation Move","Juke Move","Double Juke","Spin Move","Stiff Arm","Truck Move","Shoulder Lowering","Hurdle","Lateral Leap","Dead Leg","High Step","Explosive Burst","Ball Security","Two-Hand Ball Cover","Goal-Line Dive","Pylon Dive","Lateral Pitch","Stumble Animation","Trip Animation","Forward Fall","Backward Fall","Side Fall","Get-Up Animation","Injury Reaction"],
+    "4-linhas-secundaria-st": ["Three-Point Stance","Two-Point Stance","Pass Set","Kick Slide","Drive Block","Pancake Block","Hand Punch","Anchor Technique","Swim Move","Rip Move","Spin Rush","Bull Rush","Sack","Strip Sack","Backpedal","Hip Flip","Press Coverage","Break on Ball","Diving Interception","Pass Breakup","Form Tackle","Wrap-Up Tackle","Pick-Six Celebration","Field Goal Kick","Punt"]
+  }
+}
