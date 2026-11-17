@@ -6,6 +6,7 @@ import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 const PORT = process.argv[2] || 8200, OUT = process.argv[3] || null;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
 const page = await browser.newPage({ viewport: { width: 1980, height: 1080 } });
+if (process.env.ASU_LOCALE) await page.addInitScript(l => localStorage.setItem('asu_locale', l), process.env.ASU_LOCALE);   // e.g. ASU_LOCALE=en-US
 const errs = [];
 const ignore = /ERR_TUNNEL|CORS|ERR_FAILED|ERR_CONNECTION|Failed to load resource|net::/;
 page.on('console', m => { if (m.type() === 'error' && !ignore.test(m.text())) errs.push(m.text().slice(0, 240)); });

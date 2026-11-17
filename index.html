@@ -27,6 +27,7 @@
   .su-audio{position:relative}
   .su-audio>button{background:#0f1824;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
   .su-audio>button:hover{background:#162233}
+  .su-lang{background:#0f1824;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px 6px;font:inherit;margin-right:8px}
   .su-pop{position:absolute;right:0;top:36px;width:270px;background:#0c131d;border:1px solid var(--line2);border-radius:10px;padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:none}
   .su-pop.show{display:block}
   .su-pop h4{margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -44,6 +45,7 @@
   <nav class="su-seg" aria-label="Esporte"><a href="#nfl" data-sport="nfl">NFL</a><a href="#nhl" data-sport="nhl">NHL</a><a href="#mlb" data-sport="mlb">MLB</a></nav>
   <a class="su-car" href="#career" data-sport="career" title="Carreiras de NFL, NHL e MLB (Técnico, Dirigente, Jogador)">★ Carreiras</a>
   <span class="su-grow"></span><span class="su-hint" id="suHint"></span>
+  <select class="su-lang" id="suLang" aria-label="Idioma / Language" title="Idioma da narração e da interface (vale a partir da próxima partida)"></select>
   <div class="su-audio"><button id="suAudioBtn" title="Áudio: volumes por categoria">🔊</button><div class="su-pop" id="suAudioPop"></div></div>
 </header>
 <iframe id="sportFrame" title="Universo do esporte" allow="fullscreen; autoplay"></iframe>
@@ -82,6 +84,10 @@
 </script>
 <script type="module">
   // Audio settings (shared by the three sports through localStorage + storage events). No sound plays here.
+  import { LOCALES, getLocale, setLocale } from './core/i18n/i18n.js';
+  const langSel = document.getElementById('suLang');
+  langSel.innerHTML = Object.entries(LOCALES).map(([k, v]) => `<option value="${k}">${v}</option>`).join(''); langSel.value = getLocale();
+  langSel.onchange = () => setLocale(langSel.value);
   import { CATEGORIES, CATEGORY_LABELS, loadAudioSettings, saveAudioSettings, getAudio } from './core/audio/audioEngine.js';
   const btn = document.getElementById('suAudioBtn'), pop = document.getElementById('suAudioPop');
   const draw = () => {

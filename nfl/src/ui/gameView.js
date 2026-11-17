@@ -17,7 +17,8 @@ import {
 import { createPresentation } from '../../../core/presentation/presentationEngine.js';
 import { createCommentary } from '../../../core/commentary/commentaryEngine.js';
 import { mountCommentaryPanel } from '../../../core/commentary/commentaryPanel.js';
-import { NFL_COMMENTARY } from '../presentation/commentary.js';
+import { commentaryPack } from '../../../core/commentary/packs.js';
+import { getLocale } from '../../../core/i18n/i18n.js';
 import { NFL_ATMOSPHERE, nflStands } from '../presentation/atmosphere.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
@@ -102,7 +103,7 @@ export function mountGame(root, deps) {
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
 
   // ---------- presentation: live commentary (CommentaryEvent → text → optional voice) ----------
-  const commentary = createCommentary({ pack: NFL_COMMENTARY, seed: `${g.away}@${g.home}` });
+  const commentary = createCommentary({ pack: commentaryPack('nfl', getLocale()), seed: `${g.away}@${g.home}` });
   const atmosphere = createAtmosphere({ rules: NFL_ATMOSPHERE, audio, crowd });
   const presentation = createPresentation({ sport: 'nfl', listeners: [commentary, atmosphere] });
   try { atmosphere.refreshBaseline(commCtx(null)); } catch { /* roster not loaded yet */ }

@@ -21,7 +21,8 @@ import { nhlLinesFromState } from '../career/nhlSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
-import { NHL_COMMENTARY } from '../presentation/commentary.js';
+import { commentaryPack } from '../../../core/commentary/packs.js';
+import { getLocale } from '../../../core/i18n/i18n.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
@@ -152,7 +153,7 @@ export function mountMatch(root, deps = {}) {
     const s0 = view.state;
     stands.cur = s0 ? nhlStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
     pres.atmosphere = createAtmosphere({ rules: NHL_ATMOSPHERE, audio, crowd: stands });
-    pres.comm = createCommentary({ pack: NHL_COMMENTARY, seed });
+    pres.comm = createCommentary({ pack: commentaryPack('nhl', getLocale()), seed });
     pres.engine = createPresentation({ sport: 'nhl', listeners: [pres.comm, pres.atmosphere] });
     if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
     pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => audio.volume('COMMENTARY') });
