@@ -94,9 +94,10 @@
     const st = loadAudioSettings();
     btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
     pop.innerHTML = '<h4>Áudio</h4>' + ['master', ...CATEGORIES].map(k => `<label>${CATEGORY_LABELS[k]}<input type="range" min="0" max="100" data-k="${k}" value="${Math.round(st[k] * 100)}"><span>${Math.round(st[k] * 100)}</span></label>`).join('')
-      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
+      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><label class="su-mute" title="Mostra FPS e tempo de quadro no canto (diagnóstico, para medir no celular)"><input type="checkbox" id="suPerf" ${(() => { try { return localStorage.getItem('asu_perf') === '1'; } catch { return false; } })() ? 'checked' : ''}> Mostrar FPS (diagnóstico)</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
   };
   pop.addEventListener('input', e => {
+    if (e.target.id === 'suPerf') { try { localStorage.setItem('asu_perf', e.target.checked ? '1' : '0'); } catch { /* private mode */ } return; }
     const k = e.target.dataset.k; const st = loadAudioSettings();
     if (k) { st[k] = +e.target.value / 100; e.target.nextElementSibling.textContent = e.target.value; }
     if (e.target.id === 'suMute') st.muted = e.target.checked;
