@@ -117,5 +117,13 @@ const FALLBACK = {
   PITCHING_CHANGE: [(e, c) => `Bullpen move: ${N(c, e.pitcher)}.`, (e, c) => `${L(c, e.pitcher)} takes the mound.`, () => 'New pitcher on the field.'],
   FINAL: [() => 'Game over.', (e, c) => `Final: ${c.score.away}-${c.score.home}.`, () => 'That’s the ballgame.'],
 };
-export const MLB_COMMENTARY_EN = { ...PT, $lang: 'en-US' };
+export const MLB_COMMENTARY_EN = {
+  ...PT, $lang: 'en-US',
+  $story(e, c, h) {
+    if (e.type === 'HOME_RUN') { const n = h.bump(`hr:${e.by}`); return n === 2 ? `Second homer of the game for ${L(c, e.by)}!` : n > 2 ? `Home run number ${n} tonight for him!` : null; }
+    if (e.type === 'HIT') { const n = h.bump(`ht:${e.by}`); return n === 2 ? `${L(c, e.by)}'s second hit tonight.` : n === 3 ? `That's three hits for ${L(c, e.by)}!` : null; }
+    if (e.type === 'STRIKEOUT') { const n = h.bump(`ks:${e.pitcher}`); return n === 5 || n === 10 ? `${L(c, e.pitcher)} reaches ${n} strikeouts.` : null; }
+    return null;
+  },
+};
 for (const t of Object.keys(FALLBACK)) MLB_COMMENTARY_EN[t] = [...(MAIN[t] || []), ...FALLBACK[t]];

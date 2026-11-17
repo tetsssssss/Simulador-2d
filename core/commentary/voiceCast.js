@@ -42,7 +42,7 @@ export function prosodyFor(line, role = 'play', baseRate = 1.05) {
 }
 
 export function createVoiceCast({
-  lang = 'pt-BR', minPriority = 2, volume = () => 1, baseRate = 1.05, prefs = {},
+  lang = 'pt-BR', minPriority = 2, volume = () => 1, pronounce = s => s, baseRate = 1.05, prefs = {},
   synth = typeof window !== 'undefined' ? window.speechSynthesis : null,
   Utterance = typeof window !== 'undefined' ? window.SpeechSynthesisUtterance : null,
   audio = () => (typeof window !== 'undefined' ? window.__asuAudio : null),
@@ -58,7 +58,7 @@ export function createVoiceCast({
       if (!text) return;
       if (line && line.priority >= 3) synth.cancel();                 // big moments interrupt
       else if (synth.pending || synth.speaking) return;               // never queue a backlog
-      const role = roleFor(line), pr = prosodyFor(line, role, baseRate), u = new Utterance(text);
+      const role = roleFor(line), pr = prosodyFor(line, role, baseRate), u = new Utterance(pronounce(text));
       const v = cast[role]; if (v) u.voice = v;
       u.lang = (v && v.lang) || lang; u.rate = pr.rate; u.pitch = pr.pitch; u.volume = Math.max(0, Math.min(1, pr.volume * volume()));
       const a = audio();
@@ -69,6 +69,7 @@ export function createVoiceCast({
     voices: () => cast.all,
     cast: () => ({ play: cast.play?.name || null, color: cast.color?.name || null }),
     setLang(l) { lang = l; refresh(); },
+    setMinPriority(n) { this.minPriority = n; },
     setPrefs(p) { prefs = { ...prefs, ...p }; refresh(); },
   };
 }

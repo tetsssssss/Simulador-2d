@@ -112,6 +112,12 @@ export const NFL_COMMENTARY = {
   PUNT: [(e, c) => `${c.off} vai para o punt.`],
   KICKOFF: [(e, c) => 'Kickoff.'],
   // streaks / sequence memory
+  $story(e, c, h) {
+    if (e.type === 'TOUCHDOWN' && e.by) { const n = h.bump(`td:${e.by}`); return n === 2 ? `Segundo touchdown de ${L(c, e.by)} hoje!` : n > 2 ? `${n}º touchdown dele na partida!` : null; }
+    if (e.type === 'PASS_COMPLETE') { const n = h.bump(`rc:${e.receiver}`); return n === 5 || n === 8 ? `${L(c, e.receiver)} já tem ${n} recepções.` : null; }
+    if (e.type === 'SACK' && e.by) { const n = h.bump(`sk:${e.by}`); return n === 2 ? `Segundo sack de ${L(c, e.by)}.` : null; }
+    return null;
+  },
   $after(e, c, h) {
     if (e.type === 'PASS_COMPLETE') { h.bump(`rec:${e.receiver}`); h.reset('inc'); }
     if (e.type === 'INCOMPLETE') h.bump('inc');

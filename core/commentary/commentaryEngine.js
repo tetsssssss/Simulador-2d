@@ -13,6 +13,13 @@ export function createCommentary({ pack, seed = 'commentary', speech = null, max
   const subs = new Set();
   let speaking = speech;
 
+  // First time a player is called by last name in this game he is introduced with the full name; afterwards the last name only.
+  const introduced = new Set();
+  const introNames = ctx => {
+    if (!ctx || !ctx.last || !ctx.name || ctx.__intro) return ctx;
+    return { ...ctx, __intro: true, last: id => { const n = ctx.name(id), l = ctx.last(id); if (!id || !n || n === l || introduced.has(id)) return l; introduced.add(id); return n; } };
+  };
+
   const h = {
     pick: arr => arr[Math.floor(rng.next() * arr.length)],
     chance: p => rng.next() < p,
@@ -38,13 +45,20 @@ export function createCommentary({ pack, seed = 'commentary', speech = null, max
         return text;
       }
     }
+    // every non-recent variant was conditional and returned null: retry with all variants so the line is never silent
+    for (const idx of variants.map((_, i) => i).filter(i => !pool.includes(i))) {
+      const text = variants[idx](ev, ctx, h);
+      if (text) { used.push(idx); while (used.length > Math.min(avoidRecent, variants.length - 1)) used.shift(); recent.set(type, used); return text; }
+    }
     return null;
   }
 
   const api = {
     // Returns the CommentaryLine produced (or null when the pack is silent for this event).
     describe(ev, ctx = {}) {
-      const text = choose(ev.type, ev, ctx);
+      ctx = introNames(ctx);
+      let text = choose(ev.type, ev, ctx);
+      if (text && pack.$story) { const extra = pack.$story(ev, ctx, h); if (extra) text = `${text} ${extra}`; }   // milestone sentence ("second goal tonight")
       if (pack.$after) pack.$after(ev, ctx, h);
       if (!text) return null;
       const line = { id: lines.length + 1, type: ev.type, text, clock: ctx.clockLabel || '', tone: (pack.$tone && pack.$tone(ev, ctx)) || 'normal', priority: (pack.$priority && pack.$priority(ev, ctx)) || 1 };

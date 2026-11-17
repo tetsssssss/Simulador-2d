@@ -92,6 +92,12 @@ export const MLB_COMMENTARY = {
   INNING_END: [(e, c) => e.lob ? `Fim da metade. ${e.lob} corredor${e.lob > 1 ? 'es deixados' : ' deixado'} em base.` : 'Três outs. Troca de lado.'],
   PITCHING_CHANGE: [(e, c) => `Troca de arremessador: entra ${N(c, e.pitcher)}.`],
   FINAL: [(e, c) => `FIM DE JOGO! ${T(c, c.score.home > c.score.away ? 'home' : 'away')} vence por ${Math.max(c.score.home, c.score.away)} a ${Math.min(c.score.home, c.score.away)}.`],
+  $story(e, c, h) {
+    if (e.type === 'HOME_RUN') { const n = h.bump(`hr:${e.by}`); return n === 2 ? `Segundo home run de ${L(c, e.by)} no jogo!` : n > 2 ? `${n}º home run dele hoje!` : null; }
+    if (e.type === 'HIT') { const n = h.bump(`ht:${e.by}`); return n === 2 ? `Segundo hit de ${L(c, e.by)} hoje.` : n === 3 ? `Já são três hits de ${L(c, e.by)}!` : null; }
+    if (e.type === 'STRIKEOUT') { const n = h.bump(`ks:${e.pitcher}`); return n === 5 || n === 10 ? `${L(c, e.pitcher)} chega a ${n} strikeouts.` : null; }
+    return null;
+  },
   $after(e, c, h) { if (e.type === 'STRIKEOUT') h.bump(`k:${e.pitcher}`); },
   $priority(e) { if (e.type === 'RUNNER_DECISION') return e.decision === 'STEAL' || e.decision === 'TAG_UP' ? 2 : 0; return ['HOME_RUN', 'FINAL'].includes(e.type) || (e.type === 'OUT' && e.kind === 'doublePlay') ? 3 : ['HIT', 'STRIKEOUT', 'RUN_SCORES', 'WALK', 'ERROR', 'INNING_START'].includes(e.type) ? 2 : 1; },
   $tone(e) { return ['HOME_RUN', 'RUN_SCORES'].includes(e.type) ? 'score' : e.type === 'ERROR' ? 'turnover' : e.type === 'STRIKEOUT' ? 'save' : e.type === 'HIT' ? 'good' : 'normal'; },

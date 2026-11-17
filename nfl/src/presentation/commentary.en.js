@@ -10,6 +10,12 @@ const late = ctx => ctx.quarter >= 4 && ctx.clock <= 300;
 
 export const NFL_COMMENTARY_EN = {
   ...PT, $lang: 'en-US',
+  $story(e, c, h) {
+    if (e.type === 'TOUCHDOWN' && e.by) { const n = h.bump(`td:${e.by}`); return n === 2 ? `Second touchdown of the day for ${L(c, e.by)}!` : n > 2 ? `Touchdown number ${n} for him today!` : null; }
+    if (e.type === 'PASS_COMPLETE') { const n = h.bump(`rc:${e.receiver}`); return n === 5 || n === 8 ? `${L(c, e.receiver)} already has ${n} catches.` : null; }
+    if (e.type === 'SACK' && e.by) { const n = h.bump(`sk:${e.by}`); return n === 2 ? `Second sack for ${L(c, e.by)}.` : null; }
+    return null;
+  },
   SNAP: [
     (e, c) => c.down === 3 ? `${ord(3)} and ${c.distance}. Big moment for ${c.off}.` : null,
     (e, c) => c.down === 4 ? `Fourth down! ${c.off} is going for it.` : null,

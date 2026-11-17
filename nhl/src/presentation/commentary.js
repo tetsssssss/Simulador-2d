@@ -97,6 +97,13 @@ export const NHL_COMMENTARY = {
   PERIOD_START: [(e, c) => `Começa o ${['1º', '2º', '3º'][e.period - 1] || 'prolongamento'} período. ${c.team('away')} ${c.score.away} x ${c.score.home} ${c.team('home')}.`],
   PERIOD_END: [(e, c) => `Fim do ${['1º', '2º', '3º'][e.period - 1] || ''} período.`],
   FINAL: [(e, c) => c.score.home === c.score.away ? `Fim de jogo, empate.` : `FIM DE JOGO! ${T(c, c.score.home > c.score.away ? 'home' : 'away')} vence por ${Math.max(c.score.home, c.score.away)} a ${Math.min(c.score.home, c.score.away)}.`],
+  // milestone sentences appended to the line (counters live in the commentary memory = one game)
+  $story(e, c, h) {
+    if (e.type === 'GOAL') { const n = h.bump(`g:${e.by}`); return n === 2 ? `Segundo gol de ${L(c, e.by)} na partida!` : n === 3 ? 'HAT TRICK!' : n > 3 ? `${n}º gol dele hoje!` : null; }
+    if (e.type === 'SAVE') { const n = h.bump(`sv:${e.goalie}`); return n > 0 && n % 10 === 0 ? `${L(c, e.goalie)} chega a ${n} defesas.` : null; }
+    if (e.type === 'PENALTY') { const n = h.bump(`pen:${e.on}`); return n === 2 ? `Segunda penalidade de ${L(c, e.on)} hoje.` : null; }
+    return null;
+  },
   $after(e, c, h) { if (e.type === 'SHOT') h.bump(`shots:${e.team}`); if (e.type === 'GOAL') h.reset(`shots:${e.team}`); },
   $priority(e) { return ['GOAL', 'FINAL', 'BREAKAWAY'].includes(e.type) || (e.type === 'SAVE' && e.big) ? 3 : ['PENALTY', 'POWER_PLAY', 'SAVE', 'PERIOD_START', 'PERIOD_END'].includes(e.type) || (e.type === 'HIT' && e.big) ? 2 : 1; },
   $tone(e) { return e.type === 'GOAL' ? 'score' : ['TAKEAWAY', 'INTERCEPTION', 'TURNOVER'].includes(e.type) ? 'turnover' : e.type === 'SAVE' ? 'save' : e.type === 'PENALTY' ? 'bad' : e.type === 'POWER_PLAY' ? 'good' : 'normal'; },

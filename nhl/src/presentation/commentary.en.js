@@ -9,6 +9,12 @@ const periodName = n => ['first', 'second', 'third'][n - 1] || 'overtime';
 
 export const NHL_COMMENTARY_EN = {
   ...PT, $lang: 'en-US',
+  $story(e, c, h) {
+    if (e.type === 'GOAL') { const n = h.bump(`g:${e.by}`); return n === 2 ? `Second goal of the night for ${L(c, e.by)}!` : n === 3 ? 'HAT TRICK!' : n > 3 ? `Goal number ${n} for him tonight!` : null; }
+    if (e.type === 'SAVE') { const n = h.bump(`sv:${e.goalie}`); return n > 0 && n % 10 === 0 ? `${L(c, e.goalie)} reaches ${n} saves.` : null; }
+    if (e.type === 'PENALTY') { const n = h.bump(`pen:${e.on}`); return n === 2 ? `Second penalty on ${L(c, e.on)} tonight.` : null; }
+    return null;
+  },
   FACEOFF: [
     (e, c) => `${L(c, e.winner)} wins the faceoff for ${T(c, e.team)}.`,
     (e, c) => `Faceoff won by ${L(c, e.winner)} over ${L(c, e.loser)}.`,

@@ -36,3 +36,13 @@ test('commentaryPack: unknown locale falls back to pt-BR, es-* maps to its base,
   assert.deepEqual(packLocales('mlb').sort(), ['en-US', 'pt-BR']);
   assert.throws(() => commentaryPack('nba'));
 });
+
+test('story hook: milestones are appended (2nd goal, hat trick) in both languages; names are introduced in full once', () => {
+  for (const [loc, second, hat] of [['pt-BR', /Segundo gol/, /HAT TRICK/], ['en-US', /Second goal/, /HAT TRICK/]]) {
+    const c = createCommentary({ pack: commentaryPack('nhl', loc), seed: 3 });
+    const out = [1, 2, 3].map(() => c.describe({ type: 'GOAL', by: 's1', team: 'home', assists: [] }, ctx).text);
+    assert.ok(second.test(out[1]) && hat.test(out[2]), out.join(' | ')); assert.ok(!/Segundo|Second|HAT/.test(out[0]));
+  }
+  const c = createCommentary({ pack: commentaryPack('nhl', 'en-US'), seed: 5 }), a = c.describe({ type: 'SHOT', by: 's1', team: 'home' }, ctx).text, b = c.describe({ type: 'SHOT', by: 's1', team: 'home' }, ctx).text;
+  assert.ok(a.includes('Alex Stone') && !b.includes('Alex Stone') && b.includes('Stone'), `${a} | ${b}`);
+});

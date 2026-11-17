@@ -2,25 +2,30 @@
 // mount(container, commentary, { sport }) → dispose(). No global listeners; state remembered per sport.
 import { NullSpeech } from './commentaryEngine.js';
 import { createVoiceCast } from './voiceCast.js';
+import { speakable } from './pronounce.js';
 import { t, onLocale } from '../i18n/i18n.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
 
+const MODES = { brief: 3, normal: 2, full: 1 };
 export function mountCommentaryPanel(container, commentary, { sport = 'sport', voiceVolume = () => 1 } = {}) {
   const key = `asu_${sport}_commentary`;
   let collapsed = store.get(key + '_collapsed') === '1';
   let voice = store.get(key + '_voice') === '1';
+  let mode = ['brief', 'normal', 'full'].includes(store.get(key + '_mode')) ? store.get(key + '_mode') : 'normal';   // how much the voice reads: only big moments / most plays / everything
   container.classList.add('panel', 'live-comm');
   container.innerHTML = `<div class="panel-h lc-head"><b data-i="comm.title">${t('comm.title')}</b><span class="grow"></span>
     <label class="chk lc-voice" title="${t('comm.voiceTip')}"><input type="checkbox" ${voice ? 'checked' : ''}> <span data-i="comm.voice">${t('comm.voice')}</span></label>
+    <select class="lc-mode" title="${t('comm.modeTip')}">${Object.keys(MODES).map(m => `<option value="${m}" ${m === mode ? 'selected' : ''}>${t('comm.mode.' + m)}</option>`).join('')}</select>
     <button class="ghost lc-toggle" title="${t('comm.toggleTip')}">${collapsed ? '▸' : '▾'}</button></div><div class="lc-list"></div>`;
   const list = container.querySelector('.lc-list');
   const apply = () => { container.classList.toggle('collapsed', collapsed); container.querySelector('.lc-toggle').textContent = collapsed ? '▸' : '▾'; };
   const row = l => `<div class="lc-line tone-${esc(l.tone)} p${l.priority}">${l.clock ? `<span class="lc-t">${esc(l.clock)}</span>` : ''}<span class="lc-x">${esc(l.text)}</span></div>`;
   const redraw = () => { list.innerHTML = commentary.lines.slice(0, 60).map(row).join('') || `<p class="muted small">${t('comm.empty')}</p>`; };
   container.querySelector('.lc-toggle').onclick = () => { collapsed = !collapsed; store.set(key + '_collapsed', collapsed ? '1' : '0'); apply(); };
-  const setVoice = on => { voice = on; store.set(key + '_voice', on ? '1' : '0'); commentary.setSpeech(on ? createVoiceCast({ lang: commentary.lang || 'pt-BR', volume: voiceVolume }) : NullSpeech); };
+  const setVoice = on => { voice = on; store.set(key + '_voice', on ? '1' : '0'); commentary.setSpeech(on ? createVoiceCast({ lang: commentary.lang || 'pt-BR', volume: voiceVolume, minPriority: MODES[mode], pronounce: s => speakable(s, commentary.lang || 'pt-BR') }) : NullSpeech); };
+  container.querySelector('.lc-mode').onchange = e => { mode = e.target.value; store.set(key + '_mode', mode); if (voice) setVoice(true); };
   container.querySelector('.lc-voice input').onchange = e => setVoice(e.target.checked);
   setVoice(voice);
   const offLoc = onLocale(() => { container.querySelector('[data-i="comm.title"]').textContent = t('comm.title'); container.querySelector('[data-i="comm.voice"]').textContent = t('comm.voice'); if (voice) setVoice(true); redraw(); });
