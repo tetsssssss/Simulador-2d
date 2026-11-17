@@ -58,6 +58,7 @@ export function createCommentary({ pack, seed = 'commentary', speech = null, max
     onEvent(ev, ctx) { api.describe(ev, ctx); },
     subscribe(fn) { subs.add(fn); return () => subs.delete(fn); },
     get lines() { return lines; },
+    get lang() { return pack.$lang || 'pt-BR'; },     // language of the generated text (the voice must follow it)
     setSpeech(adapter) { speaking?.cancel?.(); speaking = adapter; },
     dispose() { speaking?.cancel?.(); subs.clear(); },
   };

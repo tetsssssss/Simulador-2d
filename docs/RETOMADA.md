@@ -13,6 +13,8 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - Pré-decode/preload dos atlas commitado (3dc464c); npm test 136/0. MLB sheet ainda max ~133 ms (perf MLB segue aberto).
 - Etapa 2: docs/anim/style_ps1_vs_ps2.png (bpy 5.1). DECISÃO: PS2 (96 px, suavizado) é o padrão; PS1 (48 px, sem AA, cor reduzida) fica como filtro opcional futuro no runtime (quantizar no tintedFrame). PS1 em 48 px perde o rosto/braços; não vale como padrão.
 - Usuário tem Blender 5.2 no PC (repo lab.blender.org adicionado) mas sem Remote Control; seguimos com bpy 5.1 na nuvem.
+- Pedido do usuário: "um tradutor de jogos e um dublador de jogos" (interpretado como localização + dublagem/voz). FEITO lote 1: core/commentary/voiceCast.js (2 locutores play/color, prosódia por tom/prioridade, melhor voz do idioma, sem backlog, testes), core/i18n/{i18n,strings}.js (pt-BR fonte; en-US/es-ES com fallback chave a chave), painel de narração traduzido e voz segue `commentary.lang` (pack.$lang). Smoke 33/33.
+- PRÓXIMO (lote 2 tradutor): traduzir packs de narração NFL/NHL/MLB para en-US (pack.$lang='en-US', registry por locale) + seletor de idioma no shell; depois UI dos jogos (extrair strings), depois es-ES. Lote 3 dublador: preferências de voz (escolher play/color), teste de voz, pausas/entonação por esporte, "frases-bordão" por tom.
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
 ## Ferramentas
