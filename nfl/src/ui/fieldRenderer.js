@@ -9,7 +9,7 @@ import { actionsFor, locomotionClipId } from './animationMap.js';
 import { buildPenalty, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
-import { avatarFor } from '../../../core/render/avatars.js';
+import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { TEAM_COLORS } from './teamColors.js';
@@ -292,7 +292,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const p = lerpPos(e, a);
     const [X, Y] = pt(p.x, p.y);
     const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
-    const av = prefs.visual === 'avatar';
+    const av = isAvatarMode(prefs.visual);
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = override?.colors || (off ? teamCols.off : teamCols.def);
@@ -307,7 +307,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };

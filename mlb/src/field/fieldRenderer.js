@@ -12,7 +12,7 @@ import { createLabelLayer } from '../../../core/render/labels.js';
 import { StridePhase, runGait } from '../../../core/anim/locomotion.js';
 import { BASES, MOUND, FENCE, fenceDist, fencePoint } from './geometry.js';
 import { photoImage } from '../photos.js';
-import { getAvatar } from '../../../core/render/avatars.js';
+import { getAvatar, isAvatarMode } from '../../../core/render/avatars.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', cx: 0, cy: 160, view: 450, viewH: 345 },
@@ -164,7 +164,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     screen = new Map();
     const s = S();
     // Athletes are drawn larger than their physical size so photos/numbers stay readable on wide shots.
-    const base = Math.max(8.5, Math.min(24, 2.6 * s)) * (opts.visual === 'avatar' ? 1.55 : 1);
+    const base = Math.max(8.5, Math.min(24, 2.6 * s)) * (isAvatarMode(opts.visual) ? 1.55 : 1);
     const items = [];
     for (const f of state.fielders || []) items.push({ e: f, role: f.pos === 'P' ? 'pitcher' : 'circle', scale: f.pos === 'P' ? 1.22 : 1 });
     if (state.batter) items.push({ e: state.batter, role: 'batter', scale: 1.28 });
@@ -175,13 +175,13 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
       const img = mode === 'photo' ? photoImage(e.p) : null;
       const X0 = X(p.x), Y0 = Y(p.y);
       let avatar = null;
-      if (mode === 'avatar') {
+      if (isAvatarMode(mode)) {
         const moving = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) > 0.02, isC = e.pos === 'C', rl = e.role || (role === 'batter' ? 'batter' : role === 'pitcher' ? 'pitcher' : e.base != null || e.runner ? 'runner' : isC ? 'catcher' : 'fielder');
         const hasBall = state.ball?.holder === e.id;
         // keyframed gait (same mv_* clips as the NFL) from the real speed; swing/throw/dive actions take priority
         let action = actionOf(state, e.id); const phase = strides.update(e.id, p, performance.now(), e.pid ?? 0);
         if (!action && moving) { const sp = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) * 30 / 3, id = runGait({ speed: sp, carrying: !!hasBall }); if (id) action = { type: 'clip:' + id, t: phase / (Math.PI * 2) }; }
-        avatar = { opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1, action, phase };
+        avatar = { sheet: mode === 'sheet', opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1, action, phase };
       }
       drawSprite(ctx, {
         x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,

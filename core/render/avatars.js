@@ -48,8 +48,9 @@ export function positionBuild(sport, slot) {
   return null;
 }
 export function avatarFor(sport, id, slot) { const base = getAvatar(sport, id), b = positionBuild(sport, slot); return !hasCustomAvatar(sport, id) && b != null ? { ...base, build: b } : base; }
-export const VISUAL_MODES = [['avatar', 'Bonecos'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
-export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain') return v; return 'avatar'; } catch { return 'avatar'; } }
+export const VISUAL_MODES = [['avatar', 'Bonecos'], ['sheet', 'Sprites 3D'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
+export const isAvatarMode = m => m === 'avatar' || m === 'sheet';   // both draw athletes (procedural or Blender sprite sheet)
+export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain' || v === 'sheet') return v; return 'avatar'; } catch { return 'avatar'; } }
 export function setVisualMode(v) { try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ } }
 
 const shade = (hex, f) => { const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16); const c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; };

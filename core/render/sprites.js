@@ -7,6 +7,7 @@
 // target/receiving (cyan). `shape: 'goalie'` / 'pitcher' / 'batter' give role-specific silhouettes.
 import { drawCirclePhoto } from './images.js';
 import { drawAvatar } from './avatars.js';
+import { drawSheet, clipTimeFor, pantsColorFor, hasClip } from './spriteSheet.js';
 
 export function zoomLevel(pxRadius) { return pxRadius >= 15 ? 'close' : pxRadius >= 9 ? 'mid' : 'far'; }
 
@@ -166,9 +167,14 @@ function drawAvatarSprite(ctx, o, level) {
   if (carrier) ring(r * 1.45, `rgba(246,196,83,${0.6 + 0.35 * Math.sin(t * 6)})`, 2.4);
   if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
   if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
-  drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, phase: avatar.phase, seed: avatar.seed, dir: avatar.dir,
+  let usedSheet = false;
+  if (avatar.sheet && avatar.role !== 'ref' && avatar.role !== 'goalie' && (avatar.pose || 'stand') === 'stand') { // Blender sprite sheet: only for clips present in the atlas; anything else falls back to the procedural avatar below
+    const ct = clipTimeFor(avatar.action, o.t ?? 0, avatar.seed || 0);
+    if (ct) { const dir = facing != null && Math.abs(Math.cos(facing)) > 0.2 ? Math.sign(Math.cos(facing)) : (avatar.dir || 1); usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: avatar.kit, clip: ct.clip, t: ct.t, dir, jersey: color, pants: pantsColorFor(avatar.kit, color, color2) }); }
+  }
+  if (!usedSheet) drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, phase: avatar.phase, seed: avatar.seed, dir: avatar.dir,
     color, color2, number, facing, t, showNumber: true });
-  if (h / 10 < 3.3 && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
+  if ((h / 10 < 3.3 || usedSheet) && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
     const bw = Math.max(13, r * 0.95), bh = Math.max(10, r * 0.62), fg = textColorOn(color);
     ctx.fillStyle = color; roundRect(ctx, x + r * 0.45, fy - bh * 0.5, bw, bh, bh * 0.35); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = fg; ctx.font = `800 ${Math.max(8, bh * 0.78)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(number), x + r * 0.45 + bw / 2, fy + 0.5);

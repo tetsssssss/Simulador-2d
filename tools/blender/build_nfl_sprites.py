@@ -31,19 +31,21 @@ LEG_SCALE = 1.3      # same stride exaggeration as the 2D "athlete" style (legS)
 def parse_args():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     a = {'clips': 'exports/anim/nfl_clips.json', 'out': 'exports/anim/frames', 'size': 128, 'only': None, 'step': 1, 'render': True, 'kit': 'football',
-         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None}
+         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True}
     i = 0
     while i < len(argv):
         k = argv[i]
         if k == '--no-render': a['render'] = False; i += 1; continue
+        if k == '--no-prop': a['prop'] = False; i += 1; continue
         v = argv[i + 1] if i + 1 < len(argv) else None
         if k == '--only': a['only'] = set(v.split(','))
         elif k == '--size': a['size'] = int(v)
         elif k == '--step': a['step'] = max(1, int(v))
         elif k == '--azimuth': a['azimuth'] = float(v)
         elif k == '--jersey': a['jersey'] = tuple(float(x) for x in v.split(','))
+        elif k == '--pants': a['pants'] = tuple(float(x) for x in v.split(','))
         elif k in ('--build', '--skin'): a[k[2:]] = int(v)
-        elif k in ('--clips', '--out', '--kit', '--engine', '--glb'): a[k[2:]] = v
+        elif k in ('--clips', '--out', '--kit', '--engine', '--glb', '--layer'): a[k[2:]] = v
         i += 2
     return a
 
@@ -74,6 +76,7 @@ def apply_frame(rig, fr, i):
 def setup_scene(size, azimuth, engine):
     sc = bpy.context.scene; sc.render.resolution_x = sc.render.resolution_y = size; sc.render.film_transparent = True
     sc.render.image_settings.file_format = 'PNG'; sc.render.image_settings.color_mode = 'RGBA'
+    sc.view_settings.view_transform = 'Standard'; sc.view_settings.look = 'None'   # no tone mapping: white stays white and the mask channels stay 0/1 (the game tints by multiplying)
     eng = {'workbench': 'BLENDER_WORKBENCH', 'cycles': 'CYCLES', 'eevee': 'BLENDER_EEVEE'}[engine]
     try: sc.render.engine = eng
     except TypeError: sc.render.engine = 'BLENDER_EEVEE_NEXT' if engine == 'eevee' else eng
@@ -93,10 +96,22 @@ def setup_scene(size, azimuth, engine):
 def main():
     a = parse_args(); doc = json.load(open(a['clips']))
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    colors = {'jersey': a['jersey']} if a['jersey'] else None
-    obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'])
-    print(f"[asu] athlete kit={a['kit']} tris={triangle_count(obj)}")
+    colors = {}
+    if a['jersey']: colors['jersey'] = a['jersey']
+    if a['pants']: colors['pants'] = a['pants']
+    colors = colors or None
+    obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
+    print(f"[asu] athlete kit={a['kit']} tris={triangle_count(obj)} layer={a['layer']}")
+    if a['layer'] == 'mask':   # team-colour mask pass: R = jersey (+ helmet/cap), G = pants, everything else black; flat light, no outline
+        for m in bpy.data.materials:
+            rgb = (1, 0, 0) if m.name in ('asu_jersey', 'asu_helmet') else (0, 1, 0) if m.name == 'asu_pants' else (0, 0, 0)
+            m.diffuse_color = (*rgb, 1.0)
+    elif a['layer'] == 'color':  # team-tintable base: jersey, helmet and pants white (the game multiplies them by the team colours)
+        for n in ('asu_jersey', 'asu_helmet', 'asu_pants'):
+            if n in bpy.data.materials: bpy.data.materials[n].diffuse_color = (1, 1, 1, 1)
     setup_scene(a['size'], a['azimuth'], a['engine']); bpy.context.scene.render.fps = doc['fps']
+    if a['layer'] == 'mask' and a['engine'] == 'workbench':
+        sh = bpy.context.scene.display.shading; sh.light = 'FLAT'; sh.show_object_outline = False
     bpy.context.view_layer.objects.active = rig; bpy.ops.object.mode_set(mode='POSE')
     done = []
     for c in doc['clips']:

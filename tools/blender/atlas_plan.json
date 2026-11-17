@@ -1,0 +1,10 @@
+{
+  "frame": 96,
+  "step": 2,
+  "azimuth": 30,
+  "kits": {
+    "football": ["mv_idle","mv_walk","mv_jog","mv_run","mv_sprint","mv_run_ball","mv_sprint_ball","mv_backpedal","mv_jump_cut","mv_stumble_recover","qb_throwaway","qb_lob","qb_touch","qb_overhand","qb_quick_release","qb_bullet","qb_three_quarter","qb_sidearm","qb_under_pressure","qb_throw_on_run","qb_off_platform","qb_shotgun_snap","qb_under_center","qb_handoff","qb_slide","qb_scramble","qb_pocket_escape","ag_wrap_tackle","ag_wrap_victim","ag_arm_tackle","ag_pile_top","ag_pile_bottom","ag_tackle_drag","ag_escape_grip","ag_ball_rip","ag_lock_hands","ps_catch_chest","ps_catch_hands","ps_catch_over_shoulder","ps_catch_diving","ps_catch_high_point","ps_catch_basket","ps_catch_toe_tap","ps_contested_catch","ps_drop","ps_swat","ps_interception","gs_arms_up"],
+    "hockey": ["mv_idle","hk_glide","hk_skate","hk_skate_back","hk_crossover","gs_arms_up","ag_wrap_tackle","ag_pile_bottom","qb_quick_release"],
+    "baseball": ["mv_idle","mv_walk","mv_jog","mv_run","mv_sprint","mv_run_ball","mv_sprint_ball","ps_catch_diving","gs_arms_up","qb_overhand","ag_pile_bottom"]
+  }
+}

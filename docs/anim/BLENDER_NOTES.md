@@ -39,3 +39,13 @@ blender --background --python tools/blender/verify_glb.py -- exports/anim/athlet
   É um rig utilizável e correto em escala, não arte final. Cores de time: `--jersey r,g,b` (só camisa).
 * Pernas: conversão planar dos deslocamentos de pé do clipe para ângulos (aproximação).
 * Desempenho em celular/engine: **não medido** (só contagem de triângulos).
+
+## Sprite sheet no jogo (modo "Sprites 3D")
+Seletor **Visual → Sprites 3D** (NFL, NHL, MLB; salvo em `asu_visual_mode`). Pipeline: `tools/blender/make_atlas.sh [kit…]` renderiza 2 camadas por kit
+(cor com camisa/capacete/calça brancos + máscara R=camisa/capacete, G=calça), `pack_atlas.py` monta `assets/sprites/<kit>_color.png`, `_mask.png` e `<kit>.json`
+(96 px, 15 fps, 1 linha por clipe). Em tempo de execução `core/render/spriteSheet.js` escolhe o quadro pelo mesmo clipe/tempo do boneco (corrida por fase de
+distância), **tinge por time** multiplicando pela máscara (cache LRU de 900 quadros) e espelha pela direção. Tamanhos: football 3,9 MB (48 clipes), hockey 0,7 MB (9), baseball 0,7 MB (11).
+* O que usa o sheet: gaits (andar/trotar/correr/sprint/patinar/backpedal), idle, e na NFL os clipes de evento do atlas (arremessos, recepções, tackles…).
+* **Cai para o boneco procedural** quando: o clipe não está no atlas (ações legadas: swing, chute, check, mergulho do MLB), goleiro, agachado (receptor/catcher), árbitro, ou enquanto o atlas carrega/falha.
+* Medido (Chromium headless): custo de quadro a 1× NFL p95 2,4 ms · NHL 2,0 · MLB 3,5; a 4× CPU a NFL fica em 60 fps (238 quadros/4 s; o boneco procedural 204).
+* Limites: visão fixa (3/4 frontal, espelhada), sem rosto/textura, cores só em camisa/capacete/calça, hockey: camisa preta fica quase preta, atlas congela em 15 fps.

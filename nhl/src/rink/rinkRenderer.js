@@ -9,7 +9,7 @@ import { createLabelLayer } from '../../../core/render/labels.js';
 import { StridePhase, skateGait } from '../../../core/anim/locomotion.js';
 import { RINK, MIDY, FACEOFF_DOTS } from './geometry.js';
 import { photoImage } from '../photos.js';
-import { avatarFor } from '../../../core/render/avatars.js';
+import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', view: 128 },
@@ -178,7 +178,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
   function drawPlayers(state, a, opts) {
     screen = new Map(); pumpActions(state);
     const s = S();
-    const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (opts.visual === 'avatar' ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
+    const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (isAvatarMode(opts.visual) ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
     const list = [...state.players, ...ghostPlayers(state)].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
@@ -189,11 +189,11 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
       const low = !p.goalie && (p.cross || p.wind || p.skate === 'brake');
       // keyframed skating gait (core/anim hk_* loops) from the real speed; event actions (shoot/check/celebrate) take priority
       let action = actionOf(state, p.id), phase = null;
-      if (mode === 'avatar' && !p.goalie) {
+      if (isAvatarMode(mode) && !p.goalie) {
         phase = strides.update(p.id, pos, performance.now(), p.num || 0);
         if (!action) { const sp = Math.hypot(p.vx || 0, p.vy || 0) / 3, id = skateGait({ speed: sp, backwards: !!p.back, turning: !!p.cross }); if (id) action = { type: 'clip:' + id, t: phase / (Math.PI * 2) }; }
       }
-      const avatar = mode === 'avatar' ? { opts: avatarFor('nhl', p.p?.id ?? p.pid ?? p.id, p.slot), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
+      const avatar = isAvatarMode(mode) ? { sheet: mode === 'sheet', opts: avatarFor('nhl', p.p?.id ?? p.pid ?? p.id, p.slot), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
         moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: Math.cos(p.facing || 0) >= 0 ? 1 : -1,
         crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null, action, phase, speed: Math.min(1, Math.hypot(p.vx || 0, p.vy || 0) / 26) } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
