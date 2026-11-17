@@ -50,10 +50,14 @@ export function loadKit(kit, base = BASE) {
   k = { meta: null, pages: [], state: 'loading' }; kits.set(kit, k);
   fetch(`${base}${kit}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then(meta => Promise.all(meta.pages.flatMap(pg => [loadImage(`${base}${kit}_${pg.name}_color.png`), loadImage(`${base}${kit}_${pg.name}_mask.png`)])).then(imgs => ({ meta, imgs })))
+    .then(({ meta, imgs }) => Promise.all(imgs.map(im => (im.decode ? im.decode().catch(() => {}) : null))).then(() => ({ meta, imgs })))   // decode now, not on the first drawImage (that was a 116 ms hitch)
     .then(({ meta, imgs }) => { k.meta = meta; k.pages = meta.pages.map((pg, i) => ({ color: imgs[i * 2], mask: imgs[i * 2 + 1] })); k.state = 'ready'; })
     .catch(() => { k.state = 'error'; });
   return k;
 }
+// Start loading every kit of a sport as soon as the sheet mode is on (idempotent); until ready the avatar fallback is drawn.
+export const SPORT_KITS = { nfl: ['football', 'ref'], nhl: ['hockey', 'hockey_goalie'], mlb: ['baseball', 'baseball_bat'] };
+export function preloadKits(sport) { for (const k of SPORT_KITS[sport] || []) loadKit(k); }
 export function sheetReady(kit) { const k = loadKit(kit); return k.state === 'ready'; }
 export function hasClip(kit, clip) { const k = kits.get(kit); return !!(k && k.state === 'ready' && k.meta.clips[clip]); }
 

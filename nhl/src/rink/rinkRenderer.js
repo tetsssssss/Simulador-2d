@@ -10,6 +10,7 @@ import { StridePhase, skateGait } from '../../../core/anim/locomotion.js';
 import { RINK, MIDY, FACEOFF_DOTS } from './geometry.js';
 import { photoImage } from '../photos.js';
 import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
+import { preloadKits } from '../../../core/render/spriteSheet.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', view: 128 },
@@ -180,6 +181,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     const s = S();
     const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (isAvatarMode(opts.visual) ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
+    if (opts.visual === 'sheet') preloadKits('nhl');
     const list = [...state.players, ...ghostPlayers(state)].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
       const pos = lerp(p, a), team = state[p.team] || {};

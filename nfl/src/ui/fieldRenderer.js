@@ -10,6 +10,7 @@ import { buildPenalty, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
+import { preloadKits } from '../../../core/render/spriteSheet.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { TEAM_COLORS } from './teamColors.js';
@@ -292,7 +293,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const p = lerpPos(e, a);
     const [X, Y] = pt(p.x, p.y);
     const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
-    const av = isAvatarMode(prefs.visual);
+    const av = isAvatarMode(prefs.visual); if (prefs.visual === 'sheet') preloadKits('nfl');
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = override?.colors || (off ? teamCols.off : teamCols.def);

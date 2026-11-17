@@ -13,6 +13,7 @@ import { StridePhase, runGait } from '../../../core/anim/locomotion.js';
 import { BASES, MOUND, FENCE, fenceDist, fencePoint } from './geometry.js';
 import { photoImage } from '../photos.js';
 import { getAvatar, isAvatarMode } from '../../../core/render/avatars.js';
+import { preloadKits } from '../../../core/render/spriteSheet.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', cx: 0, cy: 160, view: 450, viewH: 345 },
@@ -164,6 +165,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     screen = new Map();
     const s = S();
     // Athletes are drawn larger than their physical size so photos/numbers stay readable on wide shots.
+    if (opts.visual === 'sheet') preloadKits('mlb');
     const base = Math.max(8.5, Math.min(24, 2.6 * s)) * (isAvatarMode(opts.visual) ? 1.55 : 1);
     const items = [];
     for (const f of state.fielders || []) items.push({ e: f, role: f.pos === 'P' ? 'pitcher' : 'circle', scale: f.pos === 'P' ? 1.22 : 1 });
