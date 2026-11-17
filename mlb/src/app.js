@@ -5,7 +5,8 @@ import { D, teamBy, photo, fallback, pos, positionalOvr, fixedRatings, adaptiveR
 import { mountMatch } from './game/matchView.js';
 import { demoRoster } from './game/lineup.js';
 import { baseballHook } from './game/engineHook.js';
-import { initPerfHud } from '../../core/ui/perfHud.js'; initPerfHud();   // diagnostic FPS overlay (off unless asu_perf=1)
+import { initMobileNav } from '../../core/ui/mobileNav.js';
+import { initPerfHud } from '../../core/ui/perfHud.js'; initMobileNav(); initPerfHud();   // diagnostic FPS overlay (off unless asu_perf=1)
 
 const $ = s => document.querySelector(s);
 const content = $('#content');

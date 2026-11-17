@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>American Sports Universe 2D</title>
 <style>
   /* SportsUniverse shell: one always-visible sport switcher. Each sport is its own app in its own document
@@ -36,7 +36,15 @@
   .su-pop .su-mute{display:flex;gap:8px;align-items:center;margin-top:8px;grid-template-columns:none}
   .su-pop small{color:var(--muted);display:block;margin-top:8px;font-size:10.5px;line-height:1.35}
   .su-test{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;align-items:center}.su-test b{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}.su-test button{background:#142130;border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:3px 8px;font:inherit;font-size:11px;cursor:pointer}.su-test button:hover{background:#1c2f45}
-  @media (max-width:560px){.su-brand span,.su-hint{display:none}.su-seg a{padding:6px 12px}}
+  /* phone: the bar wraps instead of overflowing, respects the Android/iOS status bar, and the audio panel becomes a full-width sheet */
+  @media (max-width:700px){
+    .su-bar{height:auto;flex-wrap:wrap;gap:6px 8px;padding:calc(6px + env(safe-area-inset-top,0)) 10px 6px}
+    .su-brand,.su-hint,.su-grow{display:none}
+    .su-seg a{padding:8px 14px}.su-car{padding:8px 12px}
+    .su-lang{margin-right:0;max-width:34vw}
+    .su-audio{margin-left:auto}
+    .su-pop{position:fixed;left:8px;right:8px;top:auto;width:auto;max-height:70vh;overflow:auto}
+  }
 </style>
 </head>
 <body>
