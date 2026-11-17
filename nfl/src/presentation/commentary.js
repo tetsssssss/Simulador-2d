@@ -2,6 +2,7 @@
 // QUARTER_START, FINAL) are derived by the game view from the game state after each play. Every template reads the
 // real context (player names from the play's `who` map, score, quarter/clock, down & distance, field position).
 // FIELD_GOAL / PUNT / KICKOFF templates are ready but special teams are NOT IMPLEMENTED in the engine yet.
+import { FOUL_LABEL } from '../sim/fouls.js';
 const yd = n => `${Math.abs(n)} jarda${Math.abs(n) === 1 ? '' : 's'}`;
 const ord = n => `${n}ª`;
 const N = (ctx, id) => ctx.name?.(id) || 'o jogador';
@@ -108,6 +109,15 @@ export const NFL_COMMENTARY = {
   FINAL: [
     (e, c) => c.homeScore === c.awayScore ? `Fim de jogo: empate em ${c.homeScore}.` : `FIM DE JOGO! ${c.homeScore > c.awayScore ? c.home : c.away} vence por ${Math.max(c.homeScore, c.awayScore)} a ${Math.min(c.homeScore, c.awayScore)}.`,
   ],
+  PENALTY: [
+    (e, c) => e.phase === 'pre' ? `BANDEIRA! ${FOUL_LABEL[e.foul] || e.foul || 'uma falta'}${e.by ? ` em ${L(c, e.by)}` : ''}. Jogada parada antes do snap.` : null,
+    (e, c) => `Bandeira no campo! ${FOUL_LABEL[e.foul] || e.foul || 'uma falta'}${e.by ? `, ${L(c, e.by)}` : ''}.`,
+    (e, c) => `Flag amarela! ${FOUL_LABEL[e.foul] || e.foul || 'uma falta'} contra ${e.side === 'off' ? c.off : c.def}.`,
+  ],
+  PENALTY_RESULT: [
+    (e, c) => e.accepted ? `Falta aceita: ${e.yards} jardas contra ${e.side === 'off' ? c.off : c.def}${e.playOutcome && e.playOutcome !== 'PENALTY' ? '. A jogada é anulada' : ''}.` : null,
+    (e, c) => !e.accepted ? `${e.side === 'off' ? c.def : c.off} recusa a penalidade e fica com o resultado da jogada.` : null,
+  ],
   FIELD_GOAL: [(e, c) => `Field goal ${e.good ? 'convertido' : 'errado'}.`],
   PUNT: [(e, c) => `${c.off} vai para o punt.`],
   KICKOFF: [(e, c) => 'Kickoff.'],
@@ -136,6 +146,6 @@ export const NFL_COMMENTARY = {
     if (e.type === 'INCOMPLETE') h.bump('inc');
     if (e.type === 'SACK') h.bump('sack'); else if (e.type === 'SNAP') { /* keep */ } else if (['PASS_COMPLETE', 'HANDOFF'].includes(e.type)) h.reset('sack');
   },
-  $priority(e) { return ['TOUCHDOWN', 'INTERCEPTION', 'FUMBLE_RECOVERY', 'FINAL', 'SAFETY'].includes(e.type) ? 3 : ['SACK', 'FIRST_DOWN', 'TURNOVER_ON_DOWNS', 'SCRAMBLE'].includes(e.type) || (e.type === 'PASS_ATTEMPT' && e.airYards >= 25) ? 2 : 1; },
-  $tone(e) { return ['TOUCHDOWN', 'SAFETY'].includes(e.type) ? 'score' : ['INTERCEPTION', 'FUMBLE_RECOVERY', 'TURNOVER_ON_DOWNS'].includes(e.type) ? 'turnover' : e.type === 'SACK' ? 'bad' : e.type === 'FIRST_DOWN' ? 'good' : 'normal'; },
+  $priority(e) { return ['TOUCHDOWN', 'INTERCEPTION', 'FUMBLE_RECOVERY', 'FINAL', 'SAFETY'].includes(e.type) ? 3 : ['PENALTY', 'PENALTY_RESULT'].includes(e.type) ? 2 : ['SACK', 'FIRST_DOWN', 'TURNOVER_ON_DOWNS', 'SCRAMBLE'].includes(e.type) || (e.type === 'PASS_ATTEMPT' && e.airYards >= 25) ? 2 : 1; },
+  $tone(e) { return ['TOUCHDOWN', 'SAFETY'].includes(e.type) ? 'score' : ['INTERCEPTION', 'FUMBLE_RECOVERY', 'TURNOVER_ON_DOWNS'].includes(e.type) ? 'turnover' : e.type === 'SACK' || e.type === 'PENALTY' ? 'bad' : e.type === 'FIRST_DOWN' ? 'good' : 'normal'; },
 };

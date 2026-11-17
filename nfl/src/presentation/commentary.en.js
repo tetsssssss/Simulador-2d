@@ -1,5 +1,6 @@
 // NFL commentary pack (en-US). Same events/ctx as the pt-BR pack; priority/tone/streak rules are inherited from it.
 import { NFL_COMMENTARY as PT } from './commentary.js';
+const FOUL_EN = { FALSE_START: 'false start', OFFSIDE: 'offside', ENCROACHMENT: 'encroachment', HOLDING_OFFENSE: 'offensive holding', HOLDING_DEFENSE: 'defensive holding', DPI: 'defensive pass interference', OPI: 'offensive pass interference', FACEMASK: 'facemask', ROUGHING_PASSER: 'roughing the passer', INTENTIONAL_GROUNDING: 'intentional grounding' };
 const yd = n => `${Math.abs(n)} yard${Math.abs(n) === 1 ? '' : 's'}`;
 const ord = n => ({ 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' }[n] || `${n}th`);
 const ordq = n => ({ 1: 'first', 2: 'second', 3: 'third', 4: 'fourth' }[n] || `${n}th`);
@@ -125,6 +126,15 @@ export const NFL_COMMENTARY_EN = {
   QUARTER_START: [(e, c) => `The ${ordq(e.quarter)} quarter begins. ${c.home} ${c.homeScore}, ${c.away} ${c.awayScore}.`],
   FINAL: [
     (e, c) => c.homeScore === c.awayScore ? `Final: tied at ${c.homeScore}.` : `FINAL! ${c.homeScore > c.awayScore ? c.home : c.away} wins ${Math.max(c.homeScore, c.awayScore)}-${Math.min(c.homeScore, c.awayScore)}.`,
+  ],
+  PENALTY: [
+    (e, c) => e.phase === 'pre' ? `FLAG! ${FOUL_EN[e.foul] || e.foul || 'a foul'}${e.by ? ` on ${L(c, e.by)}` : ''}. Dead ball before the snap.` : null,
+    (e, c) => `Flag on the field! ${FOUL_EN[e.foul] || e.foul || 'a foul'}${e.by ? `, ${L(c, e.by)}` : ''}.`,
+    (e, c) => `Yellow flag! ${FOUL_EN[e.foul] || e.foul || 'a foul'} against ${e.side === 'off' ? c.off : c.def}.`,
+  ],
+  PENALTY_RESULT: [
+    (e, c) => e.accepted ? `Penalty accepted: ${e.yards} yards against ${e.side === 'off' ? c.off : c.def}${e.playOutcome && e.playOutcome !== 'PENALTY' ? '. The play is nullified' : ''}.` : null,
+    (e, c) => !e.accepted ? `${e.side === 'off' ? c.def : c.off} declines the penalty and takes the result of the play.` : null,
   ],
   FIELD_GOAL: [(e) => `Field goal ${e.good ? 'is good' : 'no good'}.`],
   PUNT: [(e, c) => `${c.off} sends out the punt team.`],
