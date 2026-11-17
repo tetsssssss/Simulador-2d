@@ -4,7 +4,7 @@
 //   lead  how much clip time (0..1) before `at` the clip starts, so the wind-up is visible (0.18 ≈ 0.15 s on a 0.8 s throw)
 //   loop  repeat until the play ends (WHISTLE) or another QB clip replaces it
 // Clips that exist but are not wired yet (no engine event to hang them on): qb_kneel, qb_spike, qb_cadence, qb_pump_fake,
-// qb_play_action, qb_under_center (the engine always lines the QB up in the gun), qb_read_option.
+// qb_play_action, qb_read_option (the engine has no kneel/spike/play-action/option concepts).
 import { getClip } from '../../../core/anim/registry.js';
 import { runGait } from '../../../core/anim/locomotion.js';
 
@@ -13,6 +13,10 @@ export function throwClipId(sim, ev) {
   const qb = sim.qb, s = sim.qbState || {}, col = s.pocket?.collapse ?? 0, spd = qb ? Math.hypot(qb.vel?.x || 0, qb.vel?.y || 0) : 0;
   if (ev.throwAway) return 'qb_throwaway';
   if (spd > 3.2) return col > 0.55 ? 'qb_off_platform' : 'qb_throw_on_run';
+  const tgt = sim.ents?.find(e => e.id === ev.target), air = ev.airYards ?? 0;
+  if ((ev.airYards ?? 0) >= 45) return 'ps_hail_mary';        // desperation heave
+  if (tgt && /^(RB|HB|FB)$/.test(String(tgt.slot)) && air <= 4) return air <= 0 ? 'ps_screen_toss' : 'ps_checkdown';   // swing / screen to the back, check-down
+  if (ev.hurried && col <= 0.6 && air < 12) return 'qb_jump_throw';                         // hurried short throw: hops and releases
   if (col > 0.6 || ev.hurried) return 'qb_under_pressure';
   if (ev.ballType === 'LOB') return 'qb_lob';
   if (ev.ballType === 'TOUCH') return (ev.airYards ?? 0) < 18 ? 'qb_touch' : 'qb_overhand';
@@ -34,6 +38,8 @@ export const WIRED_CLIPS = Object.freeze([
   'ps_catch_chest', 'ps_catch_hands', 'ps_catch_over_shoulder', 'ps_catch_diving', 'ps_catch_high_point', 'ps_catch_basket', 'ps_catch_toe_tap', 'ps_contested_catch', 'ps_drop', 'ps_swat', 'ps_interception',
   // celebration
   'gs_arms_up',
+  // v2: chosen from real engine data (target slot / air yards / pressure / lateral velocity / pre-snap stance)
+  'ps_screen_toss', 'ps_checkdown', 'ps_hail_mary', 'qb_jump_throw', 'mv_shuffle', 'mv_carioca', 'mv_athletic_ready',
 ]);
 // Locomotion clip from the athlete's real velocity (yd/s). One loop = one full stride cycle, driven by distance (stride phase).
 export function locomotionClipId(o) { return runGait(o); }

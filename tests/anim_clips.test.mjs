@@ -97,6 +97,8 @@ test('WIRED_CLIPS lists only real clips and covers every clip the mapping can em
     for (const type of ['BULLET', 'TOUCH', 'LOB']) for (const z of [0.5, 1.6, 3]) for (const y of [1, 26, 52]) for (const contested of [false, true]) for (const rec of ['r', 'abc', 'x9', 'p7', 'm3', 'k', 'w2', 'abcd', 'T.Kelce', 'J.Jefferson']) used.add(catchClipId(sim({ type, z, y }), { type: 'PASS_COMPLETE', receiver: rec, contested }));
   }
   for (const speed of [0.1, 1, 3, 5, 7, 9]) for (const backwards of [false, true]) for (const carrying of [false, true]) { const id = locomotionClipId({ speed, backwards, carrying }); if (id) used.add(id); }
+  for (const [slot, ay] of [['RB', -2], ['RB', 3], ['WR', 50], ['WR', 8]]) for (const hurried of [false, true]) used.add(throwClipId({ ...sim(), ents: [{ id: 't', slot }] }, { type: 'PASS_ATTEMPT', passer: 'q', target: 't', airYards: ay, ballType: 'TOUCH', hurried }));
+  for (const lateral of [false, true]) for (const ready of [false, true]) for (const speed of [0.1, 1.5, 4]) { const id = locomotionClipId({ speed, lateral, ready }); if (id) used.add(id); }
   for (const id of used) assert.ok(WIRED_CLIPS.includes(id), `${id} is emitted but not listed in WIRED_CLIPS`);
   for (const id of WIRED_CLIPS.filter(i => !['gs_arms_up', 'mv_stumble_recover'].includes(i))) assert.ok(used.has(id) || id === 'ag_pile_bottom', `${id} is listed as wired but nothing emits it`);
 });
@@ -154,4 +156,35 @@ test('contactPull: closes the tackle gap smoothly, never overshoots, bounded, no
   assert.ok(Math.hypot(contactPull({ x: 0, y: 0 }, { x: 30, y: 0 }, 0.75, 1).x, 0) <= 2.2 + 1e-9);   // far away = bounded (no teleport)
   assert.ok(smooth01(0) === 0 && smooth01(1) === 1 && smooth01(0.5) === 0.5 && smooth01(2) === 1);
   assert.ok(CONTACT_CLIPS.has('clip:ag_wrap_tackle'));
+});
+
+test('NFL contact: tackles register within a bounded distance (the visual contact pull assumes ≤ ~3.5 yd; measured p50 1.3, p90 2.5)', async () => {
+  const { lineups } = await import('../nfl/tests/fixtures.mjs');
+  const { createPlay, runToEnd } = await import('../nfl/src/sim/playSim.js');
+  const ls = lineups('SEA', 'NE'), ds = [];
+  for (let i = 0; i < 90; i++) {
+    const sim = createPlay({ offense: ls.offense, defense: ls.defense, ballOn: 20 + (i * 7) % 55, down: 1 + (i % 3), distance: [10, 6, 3][i % 3], playType: ['pass', 'run', 'deep'][i % 3], seed: `T-${i}` });
+    const emit = sim.emit.bind(sim);
+    sim.emit = (type, ev) => { if (type === 'TACKLE') { const by = sim.ents.find(x => x.id === ev.by), c = sim.ents.find(x => x.id === ev.carrier); if (by && c) ds.push(Math.hypot(by.pos.x - c.pos.x, by.pos.y - c.pos.y)); } return emit(type, ev); };
+    runToEnd(sim);
+  }
+  ds.sort((a, b) => a - b);
+  assert.ok(ds.length > 40, `${ds.length} tackles`); assert.ok(ds[Math.floor(ds.length * 0.5)] < 2, 'median'); assert.ok(ds.at(-1) < 4, `max ${ds.at(-1)}`);
+});
+
+test('wiring v2: throw variants come from real engine data; lateral / stance gaits exist', async () => {
+  const { throwClipId, WIRED_CLIPS } = await import('../nfl/src/ui/animationMap.js');
+  const { runGait } = await import('../core/anim/locomotion.js');
+  const sim = (slot, col = 0.1) => ({ qb: { vel: { x: 0, y: 0 } }, qbState: { pocket: { collapse: col } }, ents: [{ id: 'r1', slot }] });
+  const ev = (o = {}) => ({ passer: 'q', target: 'r1', airYards: 12, ballType: 'TOUCH', hurried: false, throwAway: false, ...o });
+  assert.equal(throwClipId(sim('RB'), ev({ airYards: -1 })), 'ps_screen_toss');
+  assert.equal(throwClipId(sim('RB'), ev({ airYards: 3 })), 'ps_checkdown');
+  assert.equal(throwClipId(sim('WR'), ev({ airYards: 52, ballType: 'LOB' })), 'ps_hail_mary');
+  assert.equal(throwClipId(sim('WR', 0.4), ev({ airYards: 8, hurried: true })), 'qb_jump_throw');
+  assert.equal(throwClipId(sim('WR', 0.95), ev({ airYards: 20, hurried: true })), 'qb_under_pressure');
+  assert.equal(throwClipId(sim('WR'), ev({ throwAway: true })), 'qb_throwaway');
+  assert.equal(runGait({ speed: 1.5, lateral: true }), 'mv_shuffle'); assert.equal(runGait({ speed: 4, lateral: true }), 'mv_carioca');
+  assert.equal(runGait({ speed: 0.1, ready: true }), 'mv_athletic_ready'); assert.equal(runGait({ speed: 0.1 }), null);
+  assert.equal(runGait({ speed: 4, lateral: true, carrying: true }), 'mv_jog');                     // ball carriers never shuffle
+  for (const id of ['ps_screen_toss', 'ps_checkdown', 'ps_hail_mary', 'qb_jump_throw', 'mv_shuffle', 'mv_carioca', 'mv_athletic_ready']) assert.ok(WIRED_CLIPS.includes(id), id);
 });

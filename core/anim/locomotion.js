@@ -17,9 +17,12 @@ export class StridePhase {
 }
 
 // speed in yd/s -> running gait (football/baseball): same thresholds the NFL renderer has always used
-export function runGait({ speed, backwards = false, carrying = false }) {
-  if (speed < 0.45) return null;
+//   lateral: moving mostly sideways relative to where the body faces (defensive backs mirroring a receiver) → shuffle / carioca
+//   ready:   standing still in a stance (defenders before the snap) → athletic-ready crouch
+export function runGait({ speed, backwards = false, carrying = false, lateral = false, ready = false }) {
+  if (speed < 0.45) return ready ? 'mv_athletic_ready' : null;
   if (backwards && speed > 0.8) return 'mv_backpedal';
+  if (lateral && !carrying && speed > 0.8 && speed < 5) return speed < 3.2 ? 'mv_shuffle' : 'mv_carioca';
   if (speed < 2.3) return 'mv_walk';
   if (speed < 4.3) return 'mv_jog';
   if (speed < 6.6) return carrying ? 'mv_run_ball' : 'mv_run';

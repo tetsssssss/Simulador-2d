@@ -308,7 +308,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     const ph = stridePhase(e, p);
     if (av && !clipAct && CLIP_LOCOMOTION) { // no event clip running: keyframed gait from real speed (stride phase = distance), or lying on the ground when tackled
       if (e.down) clipAct = { type: 'clip:ag_pile_bottom', t: 1 };
-      else { const sp = Math.hypot(e.vel?.x || 0, e.vel?.y || 0), back = sp > 0.5 && ((e.vel.x * Math.cos(e.facing) + e.vel.y * Math.sin(e.facing)) / sp) < -0.35, id = locomotionClipId({ speed: sp, backwards: back, carrying: isCarrier }); if (id) clipAct = { type: 'clip:' + id, t: ph / (Math.PI * 2) }; }
+      else { const sp = Math.hypot(e.vel?.x || 0, e.vel?.y || 0), back = sp > 0.5 && ((e.vel.x * Math.cos(e.facing) + e.vel.y * Math.sin(e.facing)) / sp) < -0.35, lat = sp > 0.8 && Math.abs((-(e.vel.x || 0) * Math.sin(e.facing) + (e.vel.y || 0) * Math.cos(e.facing)) / sp) > 0.8, id = locomotionClipId({ lateral: lat && e.side === 'def', ready: e.side === 'def' && !isCarrier && !(lastSim?.t > 0.2), speed: sp, backwards: back, carrying: isCarrier }); if (id) clipAct = { type: 'clip:' + id, t: ph / (Math.PI * 2) }; }
     }
     if (clipAct && clipPoseOf(clipAct)?.ball) handBall = true;
     const qb = e === lastSim?.qb;

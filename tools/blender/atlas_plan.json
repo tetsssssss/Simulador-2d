@@ -37,6 +37,15 @@
      ]
     },
     {
+     "name": "move2",
+     "dirs": 5,
+     "clips": [
+      "mv_shuffle",
+      "mv_carioca",
+      "mv_athletic_ready"
+     ]
+    },
+    {
      "name": "events",
      "dirs": 1,
      "clips": [
@@ -80,6 +89,16 @@
       "ps_swat",
       "ps_interception",
       "gs_arms_up"
+     ]
+    },
+    {
+     "name": "events2",
+     "dirs": 1,
+     "clips": [
+      "ps_screen_toss",
+      "ps_checkdown",
+      "ps_hail_mary",
+      "qb_jump_throw"
      ]
     }
    ]
