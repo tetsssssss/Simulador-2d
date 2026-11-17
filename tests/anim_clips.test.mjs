@@ -143,3 +143,15 @@ test('shared locomotion: skating gaits by speed/direction, running gait parity w
   const a = new StridePhase(1), b = new StridePhase(1); a.update('x', { x: 0, y: 0 }, 0); b.update('x', { x: 0, y: 0 }, 0);
   const slow = a.update('x', { x: 0.05, y: 0 }, 100), fast = b.update('x', { x: 0.05, y: 0 }, 5); assert.ok(fast <= slow + 1e-9, 'same distance, higher speed = no more phase than slow gait');
 });
+
+test('contactPull: closes the tackle gap smoothly, never overshoots, bounded, no-op when already touching', async () => {
+  const { contactPull, smooth01, CONTACT_CLIPS } = await import('../nfl/src/ui/animationMap.js');
+  const p = { x: 0, y: 0 }, q = { x: 2, y: 0 };
+  assert.deepEqual(contactPull(p, q, 0.75, 1), { x: 1.25, y: 0 });                    // stops 0.75 yd from the carrier
+  assert.deepEqual(contactPull(p, q, 0.75, 0), p);                                    // k = 0: untouched
+  const half = contactPull(p, q, 0.75, 0.5); assert.ok(half.x > 0 && half.x < 1.25);
+  assert.deepEqual(contactPull({ x: 0, y: 0 }, { x: 0.5, y: 0 }, 0.75, 1), { x: 0, y: 0 });   // already inside the gap
+  assert.ok(Math.hypot(contactPull({ x: 0, y: 0 }, { x: 30, y: 0 }, 0.75, 1).x, 0) <= 2.2 + 1e-9);   // far away = bounded (no teleport)
+  assert.ok(smooth01(0) === 0 && smooth01(1) === 1 && smooth01(0.5) === 0.5 && smooth01(2) === 1);
+  assert.ok(CONTACT_CLIPS.has('clip:ag_wrap_tackle'));
+});

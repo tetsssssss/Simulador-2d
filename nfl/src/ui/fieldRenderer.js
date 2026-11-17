@@ -5,7 +5,7 @@
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
-import { actionsFor, locomotionClipId } from './animationMap.js';
+import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01 } from './animationMap.js';
 import { buildPenalty, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
@@ -253,12 +253,14 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     for (const a of pn.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true, next: a.next });
     penalty = pn; return pn;
   }
+  const contacts = new Map();   // tackler/assist id -> carrier id (visual contact pull while the tackle clip runs)
   function pumpActions(sim) {
-    if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); }
+    if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); contacts.clear(); }
     const t0 = sim.t ?? 0, set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
+      if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
       if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
       if (e.type === 'PENALTY') startPenalty(e.foul, sim, { by: e.by, on: e.on }); // future engine event
@@ -290,10 +292,15 @@ export function createRenderer(canvas, { crowd = null } = {}) {
   let handBall = false; // a keyframed clip is drawing the ball in the athlete's hands → skip the separate carried-ball sprite
   function drawPlayer(e, a, isCarrier, override = null) {
     const s = ppy();
-    const p = lerpPos(e, a);
-    const [X, Y] = pt(p.x, p.y);
     const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
     const av = isAvatarMode(prefs.visual); if (prefs.visual === 'sheet') preloadKits('nfl');
+    let p = lerpPos(e, a);
+    const ct = contacts.get(e.id);
+    if (ct && av && lastSim) {   // render-only: close the gap to the carrier while the two-body tackle clip plays so the bodies touch
+      const ca = actionOf(lastSim, e.id), ce = lastSim.ents?.find(x => x.id === ct.c);
+      if (ca && ce && CONTACT_CLIPS.has(ca.type)) p = contactPull(p, lerpPos(ce, a), ct.gap, smooth01(ca.t / 0.45));
+    }
+    const [X, Y] = pt(p.x, p.y);
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
     const c = override?.colors || (off ? teamCols.off : teamCols.def);

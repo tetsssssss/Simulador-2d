@@ -84,3 +84,14 @@ export function actionsFor(ev, sim) {
   }
   return out;
 }
+
+// Contact sync (render-only): the engine registers a tackle within ~2 yd, but a two-body clip must TOUCH. Pull the tackler p toward the carrier q
+// until a gap of `gap` yd remains, scaled by k (0..1, eased by the caller). Never moves more than `max` yd and never past the gap.
+export function contactPull(p, q, gap = 0.75, k = 1, max = 2.2) {
+  const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy);
+  if (!(d > gap) || d < 1e-6 || !(k > 0)) return { x: p.x, y: p.y };
+  const move = Math.min(max, (d - gap)) * Math.min(1, k);
+  return { x: p.x + dx / d * move, y: p.y + dy / d * move };
+}
+export const CONTACT_CLIPS = new Set(['clip:ag_wrap_tackle', 'clip:ag_arm_tackle', 'clip:ag_pile_top']);
+export const smooth01 = x => { const k = Math.max(0, Math.min(1, x)); return k * k * (3 - 2 * k); };
