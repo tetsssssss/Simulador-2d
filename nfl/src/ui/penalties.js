@@ -23,6 +23,20 @@ export const FOULS = {
 };
 export const FOUL_KEYS = Object.keys(FOULS);
 
+// Game-state SIGNALS (not fouls): the referee signals what the engine already decided. Same wall-clock presentation as a penalty.
+export const SIGNALS = {
+  TOUCHDOWN: { clip: 'rf_touchdown', label: 'TOUCHDOWN' },
+  SAFETY: { clip: 'rf_safety', label: 'SAFETY' },
+  INCOMPLETE: { clip: 'rf_incomplete', label: null },
+};
+export function buildSignal(type, sim, { now = 0, fieldW = 53.33 } = {}) {
+  const S = SIGNALS[type], c = S && getClip(S.clip); if (!c || !sim) return null;
+  const bx = sim.ball?.pos?.x ?? sim.ball?.x ?? sim.losX ?? 30, by = sim.ball?.pos?.y ?? sim.ball?.y ?? fieldW / 2;
+  const toLow = by < fieldW / 2, y = clamp(by + (toLow ? -7 : 7), 3, fieldW - 3);   // a few yards to the nearer side of the ball (inside the camera frame), facing the field
+  const ref = { pos: { x: bx - 3, y }, facing: toLow ? Math.PI / 2 : -Math.PI / 2 };
+  return { signal: type, label: S.label, ref, actions: [{ who: REF_ID, type: 'clip:' + S.clip, t0: now + 0.2, dur: c.dur, wall: true }], until: now + 0.2 + c.dur + 0.8 };
+}
+
 const near = (list, to) => list.reduce((best, e) => (!best || Math.hypot(e.pos.x - to.x, e.pos.y - to.y) < Math.hypot(best.pos.x - to.x, best.pos.y - to.y) ? e : best), null);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 

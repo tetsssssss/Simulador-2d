@@ -6,7 +6,7 @@ import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
 import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01 } from './animationMap.js';
-import { buildPenalty, REF_ID } from './penalties.js';
+import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
@@ -264,6 +264,11 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
       if (e.type === 'PENALTY') startPenalty(e.foul, sim, { by: e.by, on: e.on }); // future engine event
+      else if (SIGNALS[e.type] && !(penalty && wallNow() < penalty.until)) {   // referee signals what the engine decided (touchdown, safety, incomplete)
+        const sg = buildSignal(e.type, sim, { now: wallNow() });
+        if (sg) { if (typeof window !== 'undefined') (window.__asuSignals ||= []).push(e.type);   // test hook: signals shown
+          for (const a of sg.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true }); penalty = sg; }
+      }
       switch (e.type) {
         case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;                // legacy procedural actions kept where no clip exists yet
         case 'HANDOFF': set(e.to, 'catch', 0.5, 0.2); break;
@@ -532,7 +537,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const pos = penalty.ref.pos, ref = { id: REF_ID, slot: 'REF', side: 'off', jersey: '', name: 'Árbitro', p: null, pos, prev: pos, vel: { x: 0, y: 0 }, facing: penalty.ref.facing, down: false };
       const rs = drawPlayer(ref, 1, false, { colors: ['#15181d', '#ffffff'], role: 'ref' });
       labelLayer.flush(ctx);
-      label(penalty.label, rs.X, rs.Y - rs.r * 3.4 - 6, '#111', '#ffd24a');
+      if (penalty.label) label(penalty.label, rs.X, rs.Y - rs.r * 3.4 - 6, '#111', '#ffd24a');
     } else { penalty = null; labelLayer.flush(ctx); }
     if (prefs.highlights) drawHighlights(sim, alpha, screen);
     if (opts.debug) drawDebug(sim, alpha, screen);

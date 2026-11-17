@@ -33,3 +33,15 @@ test('named offender/victim from a PENALTY event are respected; unknown foul or 
   const pn = buildPenalty('HOLDING_OFFENSE', sim, { by: 'offRT', on: 'defLDE', now: 0 }); assert.equal(pn.offender, 'offRT'); assert.equal(pn.victim, 'defLDE');
   assert.equal(buildPenalty('NOPE', sim), null); assert.equal(buildPenalty('DPI', { ents: [] }), null);
 });
+
+test('buildSignal: referee signals touchdown / safety / incomplete from engine state, near the ball on the nearer sideline; unknown types give null', async () => {
+  const { buildSignal, SIGNALS, REF_ID } = await import('../nfl/src/ui/penalties.js');
+  const sim = { ball: { pos: { x: 60, y: 12 } }, losX: 40 };
+  for (const t of Object.keys(SIGNALS)) {
+    const s = buildSignal(t, sim, { now: 100 }); assert.ok(s, t);
+    assert.equal(s.actions[0].who, REF_ID); assert.ok(s.actions[0].type.startsWith('clip:rf_')); assert.ok(s.until > 100 && s.ref.pos.y < 26.7 && s.ref.facing > 0);
+  }
+  assert.equal(buildSignal('INCOMPLETE', sim).label, null); assert.equal(buildSignal('TOUCHDOWN', sim).label, 'TOUCHDOWN');
+  assert.equal(buildSignal('NOPE', sim), null); assert.equal(buildSignal('TOUCHDOWN', null), null);
+  assert.ok(buildSignal('TOUCHDOWN', { losX: 30 }).ref.pos.y > 0);   // no ball: falls back to LOS / mid-field
+});
