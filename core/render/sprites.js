@@ -41,6 +41,15 @@ function namePlate(ctx, o, label, font, hh, color, below, above, cx, bodyRect) {
   } else draw(ctx, { x: cx - w / 2, y: below });
 }
 
+// Fatigue pip (career / game state feeding the picture): a thin bar under the athlete's feet that appears once energy drops below 50 % and goes
+// amber -> red; nothing is drawn for fresh players, so the field stays readable. energy: 0..1 (null / undefined = unknown, draws nothing).
+export function fatigueLevel(energy) { return typeof energy === 'number' && energy < 0.5 ? Math.max(0, Math.min(1, energy / 0.5)) : null; }
+export function drawFatigue(ctx, x, y, r, energy) {
+  const k = fatigueLevel(energy); if (k === null) return false;
+  const w = r * 1.5, h = Math.max(2, r * 0.16), g = Math.round(200 * k + 40), red = k < 0.5 ? 235 : 235 - Math.round((k - 0.5) * 200);
+  ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = `rgb(${red},${g},50)`; ctx.fillRect(x - w / 2, y, Math.max(1, w * k), h); ctx.restore(); return true;
+}
 export function drawSprite(ctx, o) {
   const { x, y, r, color = '#1d4ed8', color2 = '#ffffff', number = '', pos = '', name = '', img = null,
     shape = 'circle', facing = null, carrier = false, selected = false, target = false, dim = false, level = zoomLevel(r), t = 0 } = o;
@@ -167,6 +176,7 @@ function drawAvatarSprite(ctx, o, level) {
   if (carrier) ring(r * 1.45, `rgba(246,196,83,${0.6 + 0.35 * Math.sin(t * 6)})`, 2.4);
   if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
   if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
+  drawFatigue(ctx, x, fy + r * 0.28, r, o.energy);
   let usedSheet = false;
   if (avatar.sheet) { // Blender sprite sheet (5 directions on locomotion, mirrored left/right); anything without a clip falls back to the procedural avatar below
     const r = resolveSheet(avatar, t);

@@ -334,7 +334,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
       avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: (hFacing ?? e.facing) + cam.rot,
-      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down || !!override?.dim, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
+      carrier: isCarrier, selected: prefs.selected === e.id, energy: override?.bench ? null : e.energy, dim: e.down || !!override?.dim, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
   }

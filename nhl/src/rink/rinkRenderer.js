@@ -216,7 +216,7 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
       drawSprite(ctx, {
         x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false && !p.ghost ? p.last : '',
         img, avatar, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
-        selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0, labels: labelLayer, labelId: p.id,
+        selected: opts.selected === p.id, energy: p.bench || p.ghost ? null : p.energy, dim: p.onBench, level, t: state.t || 0, labels: labelLayer, labelId: p.id,
       });
       screen.set(p.id, { X: X0, Y: Y0, r: rr, p });
       if (p.goalie) drawGoalieState(p, X0, Y0, rr, state);

@@ -31,3 +31,7 @@
   .main{padding:8px 8px 20px!important}
   .controls{flex-wrap:wrap;gap:6px}
 }
+
+.mn-rotate{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0));z-index:70;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:10px;background:#1a2a3d;color:#e9f0f7;border:1px solid #35506f;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.mn-rotate[hidden]{display:none}
+.mn-rotate button{flex:none;background:transparent;border:0;color:#9db4cc;font-size:16px;min-height:0;padding:2px 6px}

@@ -9,7 +9,15 @@ const { VISUAL_MODES, isAvatarMode, getVisualMode, setVisualMode } = await impor
 const { getClip } = await import('../core/anim/registry.js');
 const { WIRED_CLIPS } = await import('../nfl/src/ui/animationMap.js');
 const plan = JSON.parse(readFileSync(new URL('../tools/blender/atlas_plan.json', import.meta.url), 'utf8'));
-const png = f => { const b = readFileSync(new URL('../assets/sprites/' + f, import.meta.url)); return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) }; };
+// WebP header: RIFF....WEBP then VP8X (24-bit w-1 / h-1), VP8L (14-bit packed) or VP8 (14-bit at 26 / 28)
+const png = f => {
+  const b = readFileSync(new URL('../assets/sprites/' + f.replace(/\.png$/, '.webp'), import.meta.url));
+  assert.equal(b.toString('ascii', 0, 4), 'RIFF'); assert.equal(b.toString('ascii', 8, 12), 'WEBP', f);
+  const kind = b.toString('ascii', 12, 16);
+  if (kind === 'VP8X') return { w: 1 + (b[24] | b[25] << 8 | b[26] << 16), h: 1 + (b[27] | b[28] << 8 | b[29] << 16) };
+  if (kind === 'VP8L') { const v = b.readUInt32LE(21); return { w: 1 + (v & 0x3fff), h: 1 + ((v >> 14) & 0x3fff) }; }
+  return { w: b.readUInt16LE(26) & 0x3fff, h: b.readUInt16LE(28) & 0x3fff };
+};
 const atlas = k => JSON.parse(readFileSync(new URL(`../assets/sprites/${k}.json`, import.meta.url), 'utf8'));
 
 test('frameFor: loops wrap (phase may exceed 1), one-shots clamp, missing clip → -1', () => {

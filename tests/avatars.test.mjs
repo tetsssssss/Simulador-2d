@@ -61,3 +61,13 @@ test('positional physique: linemen heavy, receivers/DBs slim, QB medium; custom 
   assert.equal(A.avatarFor('nfl', 'pos-test-1', 'LT').build, 2); assert.equal(A.avatarFor('nfl', 'pos-test-2', 'X').build, 0);
   A.setAvatar('nfl', 'pos-custom', { ...A.defaultAvatar('nfl|pos-custom'), build: 1 }); assert.equal(A.avatarFor('nfl', 'pos-custom', 'LT').build, 1, 'user choice wins');
 });
+
+test('fatigue pip: only below 50 % energy, scales with energy, amber to red, and never for unknown energy', async () => {
+  const { fatigueLevel, drawFatigue } = await import('../core/render/sprites.js');
+  assert.equal(fatigueLevel(1), null); assert.equal(fatigueLevel(0.5), null); assert.equal(fatigueLevel(undefined), null); assert.equal(fatigueLevel(null), null); assert.equal(fatigueLevel('x'), null);
+  assert.equal(fatigueLevel(0.25), 0.5); assert.equal(fatigueLevel(0), 0); assert.equal(fatigueLevel(-3), 0);
+  const calls = []; const ctx = new Proxy({}, { get: (_, k) => (...a) => { calls.push([k, a]); }, set: (_, k, v) => { calls.push(['set:' + k, v]); return true; } });
+  assert.equal(drawFatigue(ctx, 10, 10, 12, 0.9), false); assert.equal(calls.length, 0);
+  assert.equal(drawFatigue(ctx, 10, 10, 12, 0.1), true); const rects = calls.filter(c => c[0] === 'fillRect'); assert.equal(rects.length, 2);
+  assert.ok(rects[1][1][2] < rects[0][1][2], 'bar shorter than its track');
+});

@@ -4,6 +4,11 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>American Sports Universe 2D</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#070b11" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="assets/icons/icon-192.png" />
 <style>
   /* SportsUniverse shell: one always-visible sport switcher. Each sport is its own app in its own document
      (iframe), so engines, globals and requestAnimationFrame loops never mix; switching unloads the previous sport. */
@@ -102,7 +107,7 @@
     const st = loadAudioSettings();
     btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
     pop.innerHTML = '<h4>Áudio</h4>' + ['master', ...CATEGORIES].map(k => `<label>${CATEGORY_LABELS[k]}<input type="range" min="0" max="100" data-k="${k}" value="${Math.round(st[k] * 100)}"><span>${Math.round(st[k] * 100)}</span></label>`).join('')
-      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><label class="su-mute" title="Clima visual do estádio (NFL e MLB); Auto sorteia pela partida">Clima <select id="suWx">${['auto', 'clear', 'rain', 'snow', 'fog'].map(k => `<option value="${k}" ${(() => { try { return (localStorage.getItem('asu_weather') || 'auto') === k; } catch { return k === 'auto'; } })() ? 'selected' : ''}>${{ auto: 'Auto', clear: 'Limpo', rain: 'Chuva', snow: 'Neve', fog: 'Neblina' }[k]}</option>`).join('')}</select></label><label class="su-mute" title="Usa os atletas HD (modelos 3D importados) no modo Sprites 3D; desligue se o celular ficar pesado"><input type="checkbox" id="suHd" ${(() => { try { return localStorage.getItem('asu_sheet_hd') !== '0'; } catch { return true; } })() ? 'checked' : ''}> Sprites HD (NFL e NHL)</label><label class="su-mute" title="Mostra FPS e tempo de quadro no canto (diagnóstico, para medir no celular)"><input type="checkbox" id="suPerf" ${(() => { try { return localStorage.getItem('asu_perf') === '1'; } catch { return false; } })() ? 'checked' : ''}> Mostrar FPS (diagnóstico)</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
+      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><label class="su-mute" title="Clima visual do estádio (NFL e MLB); Auto sorteia pela partida">Clima <select id="suWx">${['auto', 'clear', 'rain', 'snow', 'fog'].map(k => `<option value="${k}" ${(() => { try { return (localStorage.getItem('asu_weather') || 'auto') === k; } catch { return k === 'auto'; } })() ? 'selected' : ''}>${{ auto: 'Auto', clear: 'Limpo', rain: 'Chuva', snow: 'Neve', fog: 'Neblina' }[k]}</option>`).join('')}</select></label><label class="su-mute" title="Usa os atletas HD (modelos 3D importados) no modo Sprites 3D; desligue se o celular ficar pesado"><input type="checkbox" id="suHd" ${(() => { try { return localStorage.getItem('asu_sheet_hd') !== '0'; } catch { return true; } })() ? 'checked' : ''}> Sprites HD (NFL e NHL)</label><label class="su-mute" title="Mostra FPS e tempo de quadro no canto (diagnóstico, para medir no celular)"><input type="checkbox" id="suPerf" ${(() => { try { return localStorage.getItem('asu_perf') === '1'; } catch { return false; } })() ? 'checked' : ''}> Mostrar FPS (diagnóstico)</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><div class="su-test"><b>Dados</b><button data-bk="export" title="Baixa um arquivo com todas as carreiras, saves e ajustes">Exportar tudo</button><button data-bk="import" title="Restaura um backup (não sobrescreve o que já existe)">Importar</button></div><small id="suStore"></small><input type="file" id="suBkFile" accept="application/json,.json" hidden><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
   };
   pop.addEventListener('input', e => {
     if (e.target.id === 'suHd') { try { localStorage.setItem('asu_sheet_hd', e.target.checked ? '1' : '0'); } catch { /* private mode */ } return; }
@@ -113,10 +118,39 @@
     if (e.target.id === 'suMute') st.muted = e.target.checked;
     saveAudioSettings(st); btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
   });
+  // ---- backup of every save / setting in one file + storage protection ----
+  import { collectBackup, restoreBackup, validateBackup, protectStorage } from './core/saves/backup.js';
+  const note = msg => { const s = document.getElementById('suStore'); if (s) s.textContent = msg; };
+  const storeInfo = async () => {
+    const p = await protectStorage(); let used = 0; try { const b = collectBackup(localStorage); used = Math.round(b.bytes / 1024); } catch { /* private mode */ }
+    note(`Dados do jogo: ${used} KB · armazenamento ${p === true ? 'protegido contra limpeza automática' : p === false ? 'pode ser limpo pelo navegador (instale o app / permita notificações de armazenamento)' : 'sem informação'}.`);
+  };
+  pop.addEventListener('click', async e => {
+    const bk = e.target.closest('[data-bk]'); if (!bk) return;
+    if (bk.dataset.bk === 'export') {
+      const b = collectBackup(localStorage), blob = new Blob([JSON.stringify(b)], { type: 'application/json' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `asu-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      note(`Backup baixado: ${b.count} itens (${Math.round(b.bytes / 1024)} KB).`);
+    } else document.getElementById('suBkFile').click();
+  });
+  pop.addEventListener('change', async ev => {
+    if (ev.target.id !== 'suBkFile') return;
+    const f = ev.target.files?.[0]; ev.target.value = ''; if (!f) return;
+    let doc; try { doc = JSON.parse(await f.text()); } catch { return note('Arquivo inválido (não é JSON).'); }
+    const v = validateBackup(doc); if (!v.ok) return note(v.error);
+    const r = restoreBackup(localStorage, doc, { overwrite: false });
+    if (!r.ok) return note(r.error);
+    note(`Importado: ${r.written.length} novo(s)${r.conflicts.length ? `, ${r.conflicts.length} já existiam e foram mantidos (para substituir, apague o item local antes)` : ''}. Recarregue o jogo para ver.`);
+    document.getElementById('sportFrame')?.contentWindow?.location.reload();
+  });
   pop.addEventListener('click', e => { const b = e.target.closest('[data-snd]'); if (!b) return; const a = getAudio(); a.unlock(); setTimeout(() => a.play(b.dataset.snd, { category: b.dataset.cat, power: 0.9 }), 60); });
-  btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); });
+  btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); storeInfo(); });
   document.addEventListener('click', e => { if (!e.target.closest('.su-audio')) pop.classList.remove('show'); });
   draw();
+</script>
+<script>
+  // Offline / installable: the service worker caches the app shell on first visit (sports assets are cached when first used).
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
 </html>

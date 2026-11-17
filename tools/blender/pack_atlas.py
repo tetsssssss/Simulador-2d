@@ -1,6 +1,6 @@
 """Pack the rendered frames of one kit into paged atlases + a JSON index.
     python3 tools/blender/pack_atlas.py <kit> exports/anim/atlas_frames assets/sprites        (needs Pillow)
-Per page: <kit>_<page>_color.png / _mask.png. One ROW per (clip, direction): row = clip_index * dirs + direction, frames left to right.
+Per page: <kit>_<page>_color.webp / _mask.webp (WebP: ~57 % smaller than PNG). One ROW per (clip, direction): row = clip_index * dirs + direction, frames left to right.
 Pages keep every PNG <= 4096 px tall (older mobile GPUs). The index (<kit>.json) lists pages, per-clip {page,row,n,dur,loop,dirs} and the body box."""
 import json, os, sys
 from PIL import Image
@@ -33,7 +33,8 @@ def main(kit, src, dst):
             if d == 0:
                 c = clips[cid]; index[cid] = {'page': len(pages), 'row': r, 'n': len(cf), 'dur': c['duration'], 'loop': c['loop'], 'dirs': dirs}
                 if body is None: bb = cf[0].getchannel('A').getbbox(); body = {'feet': bb[3], 'top': bb[1], 'body': bb[3] - bb[1]}
-        color.save(os.path.join(dst, f"{kit}_{page['name']}_color.png"), optimize=True); mask.save(os.path.join(dst, f"{kit}_{page['name']}_mask.png"), optimize=True)
+        color.save(os.path.join(dst, f"{kit}_{page['name']}_color.webp"), 'WEBP', quality=88, alpha_quality=100, method=4)   # lossy colour, lossless alpha
+        mask.save(os.path.join(dst, f"{kit}_{page['name']}_mask.webp"), 'WEBP', lossless=True, method=4)                   # mask channels must stay exact (team tint)
         pages.append({'name': page['name'], 'dirs': dirs, 'w': W, 'h': H})
     ref = os.path.join(dst, 'football.json')   # one scale for every kit (same camera): body height comes from the football athlete, so hockey/ref/goalie keep their real relative size
     if kit != 'football' and os.path.exists(ref): body['body'] = json.load(open(ref))['body']

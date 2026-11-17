@@ -21,6 +21,7 @@ import { nhlLinesFromState } from '../career/nhlSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
+import { attachPinchZoom, ladderStep } from '../../../core/ui/touchZoom.js';
 import { createInstantReplay, mountReplayControls } from '../../../core/ui/instantReplay.js';
 import { commentaryPack } from '../../../core/commentary/packs.js';
 import { getLocale } from '../../../core/i18n/i18n.js';
@@ -112,6 +113,8 @@ export function mountMatch(root, deps = {}) {
   // ---------- instant replay (goals; or the button for the last ~8 s): the engine is paused and a COPY of the state is rendered ----------
   const replay = createInstantReplay({ adapter: { snap: S => ({ t: S.t, lists: { players: S.players }, objs: { puck: S.puck } }), build: (S, l, o, t) => ({ ...S, players: l.players, puck: o.puck, t }) } });
   const replayUi = mountReplayControls(root.querySelector('.nhl-ice-wrap'), { onReplay: () => view.state && !view.simming && replay.now(view.state), onSkip: () => replay.skip() });
+  // two-finger pinch = next camera on the ladder (closest -> widest), through the same buttons the user taps
+  const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['PUCK', 'BROADCAST', 'TACTICAL', 'FULL'], pref.camera, s); root.querySelector(`#camSeg [data-cam="${next}"]`)?.click(); });
   // ---------- frame loop ----------
   function frame(ts) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
@@ -209,7 +212,7 @@ export function mountMatch(root, deps = {}) {
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; replayUi.dispose(); audio.setBedLevel('skates', 0); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; unPinch?.(); replayUi.dispose(); audio.setBedLevel('skates', 0); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;

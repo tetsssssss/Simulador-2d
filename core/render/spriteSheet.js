@@ -1,4 +1,4 @@
-// Sprite-sheet athletes rendered in Blender (tools/blender/make_atlas.sh → assets/sprites/<kit>_{color,mask}.png + <kit>.json).
+// Sprite-sheet athletes rendered in Blender (tools/blender/make_atlas.sh → assets/sprites/<kit>_<page>_{color,mask}.webp + <kit>.json).
 //  * colour atlas: the athlete with white jersey/helmet/pants (shaded), one ROW per clip, frames left→right;
 //  * mask atlas:   R = jersey+helmet, G = pants, alpha = silhouette → the game tints per team: out = base × lerp(1, team, mask);
 //  * paged atlases (<kit>_<page>_{color,mask}.png): locomotion pages carry 5 facing directions (E, SE, S, NE, N; the other three are mirrors),
@@ -49,7 +49,7 @@ export function loadKit(kit, base = BASE) {
   let k = kits.get(kit); if (k) return k;
   k = { meta: null, pages: [], state: 'loading' }; kits.set(kit, k);
   fetch(`${base}${kit}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(meta => Promise.all(meta.pages.flatMap(pg => [loadImage(`${base}${kit}_${pg.name}_color.png`), loadImage(`${base}${kit}_${pg.name}_mask.png`)])).then(imgs => ({ meta, imgs })))
+    .then(meta => Promise.all(meta.pages.flatMap(pg => [loadImage(`${base}${kit}_${pg.name}_color.webp`), loadImage(`${base}${kit}_${pg.name}_mask.webp`)])).then(imgs => ({ meta, imgs })))
     .then(({ meta, imgs }) => Promise.all(imgs.map(im => (im.decode ? im.decode().catch(() => {}) : null))).then(() => ({ meta, imgs })))   // decode now, not on the first drawImage (that was a 116 ms hitch)
     .then(({ meta, imgs }) => { k.meta = meta; k.pages = meta.pages.map((pg, i) => ({ color: imgs[i * 2], mask: imgs[i * 2 + 1] })); k.state = 'ready'; })
     .catch(() => { k.state = 'error'; });
