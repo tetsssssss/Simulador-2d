@@ -28,7 +28,7 @@ Teste no celular **sem** hospedar: `python3 -m http.server 8300` no PC + `adb re
 ## 3. O que falta e depende de aparelho/decisão 👤
 
 * **Medir FPS e toque em celular real** (menu 🔊 → Mostrar FPS) e me passar os números por esporte. O MLB está em ~45–52 fps no ambiente de teste *sem GPU*; no aparelho pode ser melhor ou pior. Se ficar pesado: desligar "Sprites HD" e/ou a torcida.
-* **Ícone/identidade:** o ícone atual (`assets/icons/`) é provisório (texto "ASU" sobre verde). Troque pelo definitivo.
+* **Ícone:** o ícone atual (`assets/icons/`: bola de futebol americano, bola de beisebol e disco no anel verde, com "ASU") foi desenhado para o projeto; para usar outro, substitua os 4 PNGs e rode `node tools/build_sw_manifest.mjs`.
 * **App de loja (Play Store):** não foi feito (precisa de Android Studio/Bubblewrap e conta de desenvolvedor). Caminho recomendado: empacotar o PWA como *Trusted Web Activity* (Bubblewrap) ou Capacitor. Exige política de privacidade e assinatura da app. Não testei aqui.
 * **Segunda tela / gestos extras:** arrastar para mover a câmera e toque duplo ainda não existem; a partida em pé funciona mas é a tela de PC reorganizada.
 
