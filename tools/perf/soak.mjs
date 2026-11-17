@@ -4,7 +4,7 @@ import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 const SECS = +(process.env.SECS || 30);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome', args: ['--enable-precise-memory-info'] });
 const out = [];
-for (const mode of ['avatar', 'sheet']) for (const sport of ['nfl', 'nhl', 'mlb']) {
+for (const mode of (process.env.MODES || 'avatar,sheet').split(',')) for (const sport of ['nfl', 'nhl', 'mlb']) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   await ctx.addInitScript(m => { try { localStorage.setItem('asu_visual_mode', m); } catch {} }, mode);
   const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message));

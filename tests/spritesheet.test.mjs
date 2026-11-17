@@ -97,3 +97,13 @@ test('atlas coverage: every clip the renderers can ask for exists in the right k
   for (const [kit, role, type] of combos) { const r = SS.resolveSheet({ kit, role, action: { type, t: 0.5 } }); if (r) assert.ok(has(r.kit, r.clip), `${kit}/${role}/${type} → ${r.kit}:${r.clip} not in atlas`); }
   for (const shot of ['wrist', 'snap', 'slap', 'backhand', 'one-timer']) { const r = SS.resolveSheet({ kit: 'hockey', role: 'skater', action: { type: 'shoot', t: 0.5, shot } }); assert.ok(has(r.kit, r.clip), shot); }
 });
+
+test('fadeStep: cross-fades only when the clip changes, over FADE seconds, then settles', () => {
+  const st = {}, A = { kit: 'football', clip: 'idle', img: 'A' }, B = { kit: 'football', clip: 'run', img: 'B' };
+  assert.deepEqual(SS.fadeStep(st, A, 10), { from: null, k: 1 });                 // first draw: nothing to fade from
+  assert.deepEqual(SS.fadeStep(st, { ...A, img: 'A2' }, 10.1), { from: null, k: 1 }); // same clip: no fade
+  const r1 = SS.fadeStep(st, B, 10.2); assert.equal(r1.k, 0); assert.equal(r1.from.img, 'A2');
+  const r2 = SS.fadeStep(st, B, 10.2 + SS.FADE / 2); assert.ok(r2.k > 0.45 && r2.k < 0.55); assert.ok(r2.from);
+  const r3 = SS.fadeStep(st, B, 10.2 + SS.FADE + 0.01); assert.equal(r3.k, 1); assert.equal(r3.from, null);
+  const r4 = SS.fadeStep(st, A, 11); assert.equal(r4.k, 0); assert.equal(r4.from.clip, 'run');   // switching back fades again
+});

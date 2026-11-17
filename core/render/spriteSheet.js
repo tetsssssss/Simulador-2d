@@ -82,13 +82,38 @@ function tintedFrame(k, kit, clip, row, col, jersey, pants, accent = '#ffffff') 
 
 // o: { x, feetY, h, kit, clip, t, phi (screen facing, optional), dir (±1 fallback), jersey, pants } → true when drawn.
 // h = the avatar height in pixels (the sprite body is scaled to it, feet anchored at feetY).
+// Cross-fade when an athlete switches clip (idle → run, run → tackle…): the last frame of the old clip stays under the new clip, which fades in
+// over FADE seconds (wall clock). Pure state machine so it is unit-tested: step(state, cur, now) → { from, k } (from = frame to keep drawing under, or null).
+export const FADE = 0.14;
+export function fadeStep(st, cur, now, fade = FADE) {
+  if (st.last && (st.last.kit !== cur.kit || st.last.clip !== cur.clip)) { st.from = st.last; st.at = now; }
+  let k = 1;
+  if (st.from) { k = Math.max(0, Math.min(1, (now - st.at) / fade)); if (k >= 1) st.from = null; }
+  st.last = cur;
+  return { from: st.from || null, k };
+}
+const fades = new Map();       // athlete key -> fade state (bounded)
+let clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+export function setSheetClock(f) { clock = f; }
+function drawFrame(ctx, img, flip, x, feetY, s, F, feet, alpha) {
+  ctx.save(); ctx.translate(x, feetY); if (flip) ctx.scale(-1, 1); ctx.globalAlpha *= alpha;
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(img, -F / 2 * s, -feet * s, F * s, F * s); ctx.restore();
+}
+
+// o: { x, feetY, h, kit, clip, t, phi (screen facing, optional), dir (±1 fallback), jersey, pants, accent, key } → true when drawn.
+// h = the avatar height in pixels (the sprite body is scaled to it, feet anchored at feetY). key = stable athlete id (enables the cross-fade).
 export function drawSheet(ctx, o) {
   const k = loadKit(o.kit); if (k.state !== 'ready') return false;
   const e = k.meta.clips[o.clip]; if (!e) return false;
   const { d, flip } = o.phi != null ? dirFor(o.phi, e.dirs) : { d: 0, flip: (o.dir || 1) < 0 };
   const col = frameFor(e, o.t), F = k.meta.frame, s = o.h / k.meta.body, img = tintedFrame(k, o.kit, o.clip, e.row + d, col, o.jersey, o.pants, o.accent);
-  ctx.save(); ctx.translate(o.x, o.feetY); if (flip) ctx.scale(-1, 1);
-  ctx.imageSmoothingEnabled = true; ctx.drawImage(img, -F / 2 * s, -k.meta.feet * s, F * s, F * s); ctx.restore();
+  let from = null, a = 1;
+  if (o.key != null) {
+    let st = fades.get(o.key); if (!st) { st = {}; fades.set(o.key, st); if (fades.size > 600) fades.delete(fades.keys().next().value); }
+    const r = fadeStep(st, { kit: o.kit, clip: o.clip, img, flip }, clock()); from = r.from; a = r.k;
+  }
+  if (from && from.img) drawFrame(ctx, from.img, from.flip, o.x, o.feetY, s, F, k.meta.feet, 1);
+  drawFrame(ctx, img, flip, o.x, o.feetY, s, F, k.meta.feet, a);
   return true;
 }
 
