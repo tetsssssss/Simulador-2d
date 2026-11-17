@@ -340,6 +340,8 @@ div.preset{display:flex}
 .live-comm .lc-line.p3 .lc-x { font-weight: 800; }
 .live-comm .tone-score { border-left-color: #f5c542; }
 .live-comm .tone-color { border-left-color: #5aa9ff; font-style: italic; opacity: .92; }
+.live-comm .lc-head { flex-wrap: wrap; gap: 6px; }
+.live-comm .lc-mode { min-width: 92px; width: auto; padding: 2px 6px; font-size: 12px; background: #0f1824; color: var(--text, #e8eef7); border: 1px solid var(--line2, #2a3a4e); border-radius: 6px; }
 .live-comm .tone-turnover { border-left-color: #ff5d5d; }
 .live-comm .tone-bad { border-left-color: #ff8f5d; }
 .live-comm .tone-good { border-left-color: #4fd18b; }

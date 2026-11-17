@@ -138,7 +138,7 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
     M = lambda n, rgb, rough=0.7: _material(f'asu_{n}', rgb, rough)
     jersey, pants, skinm, boots = 'jersey', 'pants', 'skin', 'boots'
     for n, rgb in (('jersey', c['jersey']), ('pants', c['pants']), ('skin', sk), ('boots', c['boots']), ('helmet', c['helmet']), ('trim', c['trim'])): M(n, rgb)
-    M('dark', (0.05, 0.05, 0.06)); M('metal', (0.65, 0.68, 0.72), 0.35)
+    M('dark', (0.05, 0.05, 0.06)); M('metal', (0.65, 0.68, 0.72), 0.35); M('accent', c.get('accent', (0.95, 0.95, 0.95)))   # accent = team secondary colour (mask channel B)
 
     # ---- torso, neck, head ----
     sw, ww = 0.5 * k, 0.34 * k
@@ -173,6 +173,20 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
         P.add(_Parts.box((0.07, y, 0.04), (0.28, 0.1, 0.08)), f'shin_{s}', 'boots')                              # boot
         if kit == 'hockey':
             P.add(_Parts.box((0.07, y, -0.0), (0.3, 0.012, 0.035)), f'shin_{s}', 'metal')                       # skate blade
+    # ---- team accents (mask channel B = secondary colour): sleeve bands, pants stripe / sock bands, helmet stripe ----
+    if kit != 'ref':
+        for s, y in (('F', -SH_HALF), ('B', SH_HALF)):
+            zb = SH_Z - 0.04 - UPPER * (0.62 if kit != 'baseball' else 0.9)
+            P.add(_Parts.limb((0, y, zb), (0, y, zb - 0.045), 0.067 * k, 0.065 * k, 8), f'upper_{s}', 'accent')                 # sleeve / cuff band
+        for s, y in (('F', -HIP_HALF), ('B', HIP_HALF)):
+            side = -1 if s == 'F' else 1
+            if kit == 'football':
+                P.add(_Parts.box((0, y + side * 0.1 * k, HIP_Z - THIGH * 0.5), (0.035, 0.012, THIGH * 0.86)), f'thigh_{s}', 'jersey')   # pants stripe in the jersey colour
+            else:
+                zs = 0.30 if kit != 'baseball' else 0.34
+                P.add(_Parts.limb((0, y, zs), (0, y, zs - 0.05), 0.079 * k, 0.074 * k, 8), f'shin_{s}', 'accent')               # sock band
+        if kit in ('hockey', 'goalie'):
+            P.add(_Parts.torso(HIP_Z - 0.125, HIP_Z - 0.07, ww * 1.25, ww * 1.25, 0.29 * k, 0.29 * k), 'spine', 'accent')    # sweater hem band
     # ---- kit ----
     if kit == 'ref':
         P.add(_Parts.ball((0, 0, HEAD_Z + 0.04), 0.122, 1.0, 0.95, 0.7, 1), 'head', 'helmet'); P.add(_Parts.box((0.13, 0, HEAD_Z + 0.03), (0.1, 0.17, 0.012)), 'head', 'helmet')
@@ -183,6 +197,7 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
         for dz in (-0.045, -0.005, 0.035):                                                                        # facemask bars
             P.add(_Parts.box((0.13, 0, HEAD_Z + dz), (0.015, 0.2, 0.012)), 'head', 'metal')
         P.add(_Parts.box((0.135, 0, HEAD_Z - 0.01), (0.015, 0.012, 0.1)), 'head', 'metal')
+        P.add(_Parts.box((0.0, 0, HEAD_Z + 0.128), (0.24, 0.035, 0.026)), 'head', 'accent')                          # helmet centre stripe
     elif kit in ('hockey', 'goalie'):
         P.add(_Parts.torso(HIP_Z - 0.12, SH_Z + 0.01, sw * 1.12, ww * 1.2, 0.3 * k, 0.28 * k), 'spine', 'jersey')   # loose sweater
         P.add(_Parts.ball((0, 0, HEAD_Z + 0.02), 0.128, 1.0, 0.95, 0.95, 1), 'head', 'helmet')

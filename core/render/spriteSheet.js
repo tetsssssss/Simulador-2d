@@ -26,12 +26,12 @@ export function frameFor(entry, t) {
   t = Number.isFinite(t) ? t : 0;
   return entry.loop ? Math.floor((t - Math.floor(t)) * n) % n : Math.max(0, Math.min(n - 1, Math.floor(t * n)));
 }
-// out = base × lerp(1, tint, mask): jersey(R) and pants(G) channels of the mask pick the team colour, the rest keeps its own colour.
-export function tintPixels(base, mask, jersey, pants) {
+// out = base × lerp(1, tint, mask): jersey(R), pants(G) and accent(B) channels of the mask pick the team colours, the rest keeps its own colour.
+export function tintPixels(base, mask, jersey, pants, accent = [255, 255, 255]) {
   const out = new Uint8ClampedArray(base.length);
   for (let i = 0; i < base.length; i += 4) {
-    const r = mask[i] / 255, g = mask[i + 1] / 255, keep = Math.max(0, 1 - r - g);
-    for (let k = 0; k < 3; k++) out[i + k] = base[i + k] * (keep + r * jersey[k] / 255 + g * pants[k] / 255);
+    const r = mask[i] / 255, g = mask[i + 1] / 255, b = mask[i + 2] / 255, keep = Math.max(0, 1 - r - g - b);
+    for (let k = 0; k < 3; k++) out[i + k] = base[i + k] * (keep + r * jersey[k] / 255 + g * pants[k] / 255 + b * accent[k] / 255);
     out[i + 3] = base[i + 3];
   }
   return out;
@@ -71,12 +71,12 @@ export function dirFor(phi, dirs) {
   return { d, flip };
 }
 
-function tintedFrame(k, kit, clip, row, col, jersey, pants) {
-  const key = `${kit}|${clip}|${row}|${col}|${jersey}|${pants}`; let c = cache.get(key); if (c) return c;
+function tintedFrame(k, kit, clip, row, col, jersey, pants, accent = '#ffffff') {
+  const key = `${kit}|${clip}|${row}|${col}|${jersey}|${pants}|${accent}`; let c = cache.get(key); if (c) return c;
   const F = k.meta.frame, e = k.meta.clips[clip], pg = k.pages[e.page], sx = col * F, sy = row * F;
   const a = canvasFactory(F, F), actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(pg.color, sx, sy, F, F, 0, 0, F, F);
   const b = canvasFactory(F, F), bctx = b.getContext('2d', { willReadFrequently: true }); bctx.drawImage(pg.mask, sx, sy, F, F, 0, 0, F, F);
-  const base = actx.getImageData(0, 0, F, F), mk = bctx.getImageData(0, 0, F, F), tinted = tintPixels(base.data, mk.data, parseColor(jersey), parseColor(pants));
+  const base = actx.getImageData(0, 0, F, F), mk = bctx.getImageData(0, 0, F, F), tinted = tintPixels(base.data, mk.data, parseColor(jersey), parseColor(pants), parseColor(accent));
   base.data.set(tinted); actx.putImageData(base, 0, 0); cache.set(key, a); return a;
 }
 
@@ -86,7 +86,7 @@ export function drawSheet(ctx, o) {
   const k = loadKit(o.kit); if (k.state !== 'ready') return false;
   const e = k.meta.clips[o.clip]; if (!e) return false;
   const { d, flip } = o.phi != null ? dirFor(o.phi, e.dirs) : { d: 0, flip: (o.dir || 1) < 0 };
-  const col = frameFor(e, o.t), F = k.meta.frame, s = o.h / k.meta.body, img = tintedFrame(k, o.kit, o.clip, e.row + d, col, o.jersey, o.pants);
+  const col = frameFor(e, o.t), F = k.meta.frame, s = o.h / k.meta.body, img = tintedFrame(k, o.kit, o.clip, e.row + d, col, o.jersey, o.pants, o.accent);
   ctx.save(); ctx.translate(o.x, o.feetY); if (flip) ctx.scale(-1, 1);
   ctx.imageSmoothingEnabled = true; ctx.drawImage(img, -F / 2 * s, -k.meta.feet * s, F * s, F * s); ctx.restore();
   return true;

@@ -25,6 +25,12 @@ test('tintPixels: jersey(R) and pants(G) take the team colour, unmasked pixels k
   assert.deepEqual([...out.slice(0, 4)], [Math.round(200 * 10 / 255), Math.round(200 * 40 / 255), Math.round(200 * 110 / 255), 255].map((v, i) => i < 3 ? out[i] : 255));
   assert.ok(out[0] < 10 && out[2] > out[0], 'navy jersey'); assert.deepEqual([...out.slice(4, 7)], [200, 200, 200]); assert.deepEqual([...out.slice(8, 12)], [200, 200, 200, 255]); assert.deepEqual([...out.slice(12, 16)], [90, 60, 40, 128]);
 });
+test('tintPixels: accent(B) channel takes the secondary colour; old masks without B still tint as before', () => {
+  const base = new Uint8ClampedArray([200, 200, 200, 255, 200, 200, 200, 255]), mask = new Uint8ClampedArray([0, 0, 255, 255, 255, 0, 0, 255]);
+  const out = SS.tintPixels(base, mask, [10, 40, 110], [255, 255, 255], [255, 0, 0]);
+  assert.deepEqual([...out.slice(0, 3)], [200, 0, 0]); assert.ok(out[4] < 10 && out[6] > out[4]);
+  assert.deepEqual([...SS.tintPixels(base, new Uint8ClampedArray([0, 0, 0, 255, 0, 0, 0, 255]), [1, 2, 3], [4, 5, 6]).slice(0, 3)], [200, 200, 200]);
+});
 test('LRU keeps the most recently used entries', () => {
   const c = new SS.LRU(3); c.set('a', 1); c.set('b', 2); c.set('c', 3); c.get('a'); c.set('d', 4);
   assert.equal(c.get('b'), undefined); assert.equal(c.get('a'), 1); assert.equal(c.size, 3);

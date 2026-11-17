@@ -107,12 +107,12 @@ def main():
     if a['kit'] == 'ref':       # referee: fixed black/white stripes, never tinted (mask pass = all black)
         if a['layer'] == 'mask':
             for m in bpy.data.materials: m.diffuse_color = (0, 0, 0, 1)
-    elif a['layer'] == 'mask':   # team-colour mask pass: R = jersey (+ helmet/cap), G = pants, everything else black; flat light, no outline
+    elif a['layer'] == 'mask':   # team-colour mask pass: R = jersey (+ helmet/cap), G = pants, B = accent (team secondary colour), everything else black; flat light, no outline
         for m in bpy.data.materials:
-            rgb = (1, 0, 0) if m.name in ('asu_jersey', 'asu_helmet') else (0, 1, 0) if m.name == 'asu_pants' else (0, 0, 0)
+            rgb = (1, 0, 0) if m.name in ('asu_jersey', 'asu_helmet') else (0, 1, 0) if m.name == 'asu_pants' else (0, 0, 1) if m.name == 'asu_accent' else (0, 0, 0)
             m.diffuse_color = (*rgb, 1.0)
     elif a['layer'] == 'color':  # team-tintable base: jersey, helmet and pants white (the game multiplies them by the team colours)
-        for n in ('asu_jersey', 'asu_helmet', 'asu_pants'):
+        for n in ('asu_jersey', 'asu_helmet', 'asu_pants', 'asu_accent'):
             if n in bpy.data.materials: bpy.data.materials[n].diffuse_color = (1, 1, 1, 1)
     setup_scene(a['size'], a['azimuth'], a['engine'], a['elevation']); bpy.context.scene.render.fps = doc['fps']
     if a['layer'] == 'mask' and a['engine'] == 'workbench':

@@ -173,7 +173,7 @@ function drawAvatarSprite(ctx, o, level) {
     if (r) {
       const phi = facing != null ? Math.atan2(Math.sin(facing), Math.cos(facing)) : null;
       const pal = r.kit === 'ref' ? ['#ffffff', '#ffffff'] : [color, pantsColorFor(avatar.kit, color, color2)];
-      usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: r.kit, clip: r.clip, t: r.t, phi, dir: avatar.dir || 1, jersey: pal[0], pants: pal[1] });
+      usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: r.kit, clip: r.clip, t: r.t, phi, dir: avatar.dir || 1, jersey: pal[0], pants: pal[1], accent: r.kit === 'ref' ? '#ffffff' : color2 });
     }
   }
   if (!usedSheet) drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, phase: avatar.phase, seed: avatar.seed, dir: avatar.dir,
