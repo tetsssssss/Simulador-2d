@@ -102,12 +102,25 @@ export function mountGame(root, deps) {
   const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
   const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, huddle: huddleK(), camera: view.director ? view.dirShot : view.camera, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, bench: benchRows(), huddle: huddleK(), camera: view.director ? view.dirShot : view.camera, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   // Pre-snap huddle: the offense gathers behind the ball for ~1.4 s (shorter at higher speeds), then breaks to its formation. The sim does not step meanwhile.
   const huddleOn = () => view.huddle && performance.now() - view.huddle.t0 < view.huddle.dur;
   const huddleK = () => (huddleOn() ? (performance.now() - view.huddle.t0) / view.huddle.dur : null);
   // Instant replay of the last play (touchdowns / turnovers automatically, any play with the Replay button): the recorder stores every tick, the
   // finished sim object is replayed at half speed from the recording and then restored to its final state.
+  // Sideline reserves: the non-starters of both teams (render-only), cached per matchup / roster size.
+  let benchKey = '', benchCache = null;
+  function benchRows() {
+    const roster = m.roster ? m.roster(state.roster) : state.roster, key = `${g.home}|${g.away}|${offAbbr(g)}|${roster?.length}`;
+    if (key === benchKey) return benchCache;
+    benchKey = key; benchCache = null;
+    try {
+      const ls = lineups(), starters = new Set([...ls.offense, ...ls.defense].map(p => p.gsis_id || p.full_name)), out = {};
+      for (const abbr of [g.home, g.away]) out[abbr] = roster.filter(p => p.team === abbr && !starters.has(p.gsis_id || p.full_name) && p.position && !['K', 'P', 'LS'].includes(p.position)).sort((a, b) => (+a.jersey_number || 99) - (+b.jersey_number || 99)).slice(0, 14).filter((_, i) => i % 2 === 0);
+      benchCache = out;
+    } catch { benchCache = null; }
+    return benchCache;
+  }
   const rec = createRecorder();
   const director = createDirector();   // 🎬 auto camera (off by default; any manual camera choice turns it off)
   function startReplay() {

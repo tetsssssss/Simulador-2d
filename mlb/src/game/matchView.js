@@ -22,6 +22,7 @@ import { mlbLinesFromState } from '../career/mlbSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { MLB_ATMOSPHERE, mlbStands } from '../presentation/atmosphere.js';
+import { createInstantReplay, mountReplayControls } from '../../../core/ui/instantReplay.js';
 import { commentaryPack } from '../../../core/commentary/packs.js';
 import { getLocale } from '../../../core/i18n/i18n.js';
 
@@ -135,13 +136,17 @@ export function mountMatch(root, deps = {}) {
     fillThumbs($('#side'));
   }
 
+  // ---------- instant replay (home runs; or the button for the last ~8 s): the engine is paused and a COPY of the state is rendered ----------
+  const replay = createInstantReplay({ seconds: 7, after: 2.2, adapter: { snap: S => ({ t: S.t, lists: { fielders: S.fielders || [], runners: S.runners || [] }, objs: { batter: S.batter, ball: S.ball } }), build: (S, l, o, t) => ({ ...S, fielders: l.fielders, runners: l.runners, batter: o.batter, ball: o.ball, t }) } });
+  const replayUi = mountReplayControls(root.querySelector('.mlb-field-wrap2'), { onReplay: () => view.state && !view.simming && replay.now(view.state), onSkip: () => replay.skip() });
   function frame(ts) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
     const dt = view.last ? Math.min(0.1, (ts - view.last) / 1000) : 0; view.last = ts;
     let alpha = 1;
-    if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && !view.paused && !view.simming && !replay.active) { alpha = view.engine.advance(dt); view.state = view.engine.state; replay.record(view.state); }
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); drawPitchInfo(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
-    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    const rp = view.state && !view.simming ? replay.step(dt, view.state) : null; replayUi.sync(!!rp, !!view.state && !view.simming);
+    if (view.state) renderer.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
     drainEvents();
     pres.engine?.tick(dt);
     if (view.engine?.state.over && !view.finalShown && !view.simming) showFinalCard();
@@ -211,7 +216,7 @@ export function mountMatch(root, deps = {}) {
     if (pres.idx > ev.length) pres.idx = 0;
     if (pres.idx === ev.length) return;
     const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
-    while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
+    while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); if (e.type === 'HOME_RUN' && !view.simming) replay.trigger(s); }
   }
   function showFinalCard() {
     view.finalShown = true; const wrap = root.querySelector('.mlb-field-wrap2'); if (!wrap) return;
@@ -234,7 +239,7 @@ export function mountMatch(root, deps = {}) {
   function restart() { view.finalShown = false; hideFinal(root.querySelector('.mlb-field-wrap2') || root); view.engine?.dispose?.(); view.engine = null; view.state = null; setup().catch(err => { $('#bug').innerHTML = `<div class="mlb-notice bad">${esc(err.message)}</div>`; }); }
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; replayUi.dispose(); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__mlbLoops = Math.max(0, (window.__mlbLoops || 1) - 1);
   }
   window.__mlbLoops = (window.__mlbLoops || 0) + 1;

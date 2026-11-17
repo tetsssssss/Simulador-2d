@@ -184,7 +184,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
   const labelLayer = createLabelLayer();
   const strides = new StridePhase(1 / 3); // field units are feet
   function drawAthletes(state, a, opts) {
-    pumpActions(state);
+    if (!opts.replay) pumpActions(state);
     screen = new Map();
     const s = S();
     // Athletes are drawn larger than their physical size so photos/numbers stay readable on wide shots.

@@ -191,12 +191,12 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
   const labelLayer = createLabelLayer();
   const strides = new StridePhase(1 / 3); // rink units are feet; the gait thresholds are in yards/s
   function drawPlayers(state, a, opts) {
-    screen = new Map(); pumpActions(state);
+    screen = new Map(); if (!opts.replay) pumpActions(state);
     const s = S();
     const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (isAvatarMode(opts.visual) ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
     if (opts.visual === 'sheet') preloadKits('nhl');
-    const list = [...benchPlayers(state), ...state.players, ...ghostPlayers(state)].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
+    const list = [...benchPlayers(state), ...state.players, ...(opts.replay ? [] : ghostPlayers(state))].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
       const pos = lerp(p, a), team = state[p.team] || {};
       const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');

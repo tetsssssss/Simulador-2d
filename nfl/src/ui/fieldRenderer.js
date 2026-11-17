@@ -254,6 +254,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     for (const a of pn.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true, next: a.next });
     penalty = pn; return pn;
   }
+  let cheer = null, curTeams = {}, benchEnts = new Map();   // sideline reserves cheer for 3 s after their team scores
   let replaying = false;   // gameView drives an instant replay of the finished sim (see ui/replay.js)
   const contacts = new Map();   // tackler/assist id -> carrier id (visual contact pull while the tackle clip runs)
   function pumpActions(sim) {
@@ -263,6 +264,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
       if (replaying) { if (e.t > (sim.t ?? 0)) break; t0 = e.t; }   // replay: events fire at their own recorded time
+      if (e.type === 'TOUCHDOWN') cheer = { team: e.side === 'def' ? curTeams.def : curTeams.off, t0: replaying ? e.t : (sim.t ?? 0) };
       if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
       if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
@@ -332,11 +334,28 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
       avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: (hFacing ?? e.facing) + cam.rot,
-      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
+      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down || !!override?.dim, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
   }
 
+  // Sideline reserves (presentation only): up to 7 non-starters per team stand on their own sideline near the ball (home team below the field,
+  // away team above), face the field, and throw their arms up for 3 s when their team scores. Rows come from the game view (opts.bench[abbr]).
+  const BENCH_N = 7;
+  function drawBench(sim, a, opts) {
+    const rows = opts.bench, T = opts.teams; if (!rows || !T?.home) return;
+    const bx = sim.ball?.pos?.x ?? sim.losX ?? 60, t = sim.t ?? 0;
+    for (const [abbr, y, facing] of [[T.home, -2.6, Math.PI / 2], [T.away, FIELD_W + 2.6, -Math.PI / 2]]) {
+      const list = (rows[abbr] || []).slice(0, BENCH_N), side = abbr === T.off ? 'off' : 'def';
+      list.forEach((p, i) => {
+        const id = `bench:${abbr}:${p.gsis_id || p.full_name}`, x = Math.max(14, Math.min(106, bx - 6 + i * 2.1)), pos = { x, y };
+        let ent = benchEnts.get(id); if (!ent) { ent = { id, slot: p.position, jersey: p.jersey_number, name: p.full_name, p, vel: { x: 0, y: 0 }, down: false }; benchEnts.set(id, ent); }
+        ent.side = side; ent.pos = pos; ent.prev = pos; ent.facing = facing;
+        if (cheer && cheer.team === abbr && t - cheer.t0 >= 0 && t - cheer.t0 < 3) acts.set(id, { type: 'clip:gs_arms_up', t0: cheer.t0, dur: 3, loop: false });
+        drawPlayer(ent, 1, false, { colors: side === 'off' ? teamCols.off : teamCols.def, dim: true, bench: true });
+      });
+    }
+  }
   function drawBall(sim, a) {
     const b = sim.ball;
     const s = ppy();
@@ -537,12 +556,13 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     if (opts.zoom) cam.zoom = opts.zoom;
     prefs = { photos: opts.photos !== false, visual: opts.visual || (opts.photos === false ? 'plain' : 'photo'), follow: opts.follow !== false, selected: opts.selected || null, camera: CAMERAS[opts.camera] ? opts.camera : null, highlights: opts.highlights !== false };
     cam.preset = prefs.camera;
-    lastSim = sim; huddleK = opts.huddle ?? null;
+    lastSim = sim; huddleK = opts.huddle ?? null; curTeams = opts.teams || {};
     teamCols = sideColors(opts.teams?.off, opts.teams?.def);
     updateCamera(sim, alpha);
     drawField(sim, opts.teams || {});
     screen = new Map();
     const holder = sim.carrier;
+    drawBench(sim, alpha, opts);
     for (const e of [...sim.ents].sort((a, b) => (a.down ? 0 : 1) - (b.down ? 0 : 1))) screen.set(e, drawPlayer(e, alpha, e === holder));
     if (penalty && wallNow() < penalty.until) { // referee entity + banner while a penalty is being presented
       const pos = penalty.ref.pos, ref = { id: REF_ID, slot: 'REF', side: 'off', jersey: '', name: 'Árbitro', p: null, pos, prev: pos, vel: { x: 0, y: 0 }, facing: penalty.ref.facing, down: false };
