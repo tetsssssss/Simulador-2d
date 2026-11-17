@@ -17,6 +17,6 @@ for kit in (sys.argv[1:] or plan['kits']):
             out = f"{OUT}/{kit}_{layer}_{page['name']}"
             shutil.rmtree(out, ignore_errors=True)
             cmd = blender + ['--', '--kit', spec['build'], '--layer', layer, '--size', str(plan['frame']), '--step', str(plan['step']), '--azimuth', str(plan['azimuth']),
-                             '--elevation', str(plan['elevation']), '--yaws', yaws, '--only', ','.join(page['clips']), '--out', out] + ([] if spec['prop'] else ['--no-prop'])
+                             '--elevation', str(plan['elevation']), '--yaws', yaws, '--only', ','.join(page['clips']), '--out', out] + ([] if spec['prop'] else ['--no-prop']) + (['--model', spec['model']] if spec.get('model') else [])
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
     subprocess.run([sys.executable, 'tools/blender/pack_atlas.py', kit, OUT, 'assets/sprites'], check=True)

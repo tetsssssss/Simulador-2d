@@ -57,7 +57,27 @@ export function loadKit(kit, base = BASE) {
 }
 // Start loading every kit of a sport as soon as the sheet mode is on (idempotent); until ready the avatar fallback is drawn.
 export const SPORT_KITS = { nfl: ['football', 'ref'], nhl: ['hockey', 'hockey_goalie'], mlb: ['baseball', 'baseball_bat'] };
-export function preloadKits(sport) { for (const k of SPORT_KITS[sport] || []) loadKit(k); }
+// "HD" athletes: skinned models imported from Meshy .glb (tools/blender/athlete_import.py), rendered into football_hd / hockey_hd atlases with the
+// same clips. Used for outfield / skater athletes when the preference is on (default on); goalies, referees and baseball keep the low-poly atlases.
+export const HD_KITS = Object.freeze({ football: 'football_hd', hockey: 'hockey_hd' });
+let hdOn = null;
+export function sheetHd() {
+  if (hdOn === null) {
+    try { hdOn = localStorage.getItem('asu_sheet_hd') !== '0'; } catch { hdOn = true; }
+    if (typeof window !== 'undefined') window.addEventListener('storage', e => { if (!e.key || e.key === 'asu_sheet_hd') { try { hdOn = localStorage.getItem('asu_sheet_hd') !== '0'; } catch { /* private */ } } });
+  }
+  return hdOn;
+}
+export function setSheetHd(on) { hdOn = !!on; try { localStorage.setItem('asu_sheet_hd', on ? '1' : '0'); } catch { /* private */ } }
+// Kit to actually use for `base`: the HD atlas when enabled and not failed to load, otherwise the low-poly one.
+// Only ONE of the two sets is loaded at a time (each is ~100-200 MB of decoded images): the HD set while it works, the low-poly set if HD failed or is off.
+// While the chosen atlas is still loading, drawSheet() returns false and the procedural avatar is drawn (same as the very first frames of any kit).
+export function kitFor(base) {
+  const hd = HD_KITS[base]; if (!hd || !sheetHd()) return base;
+  if (kits.get(hd)?.state === 'error') { loadKit(base); return base; }
+  loadKit(hd); return hd;
+}
+export function preloadKits(sport) { for (const k of SPORT_KITS[sport] || []) loadKit(kitFor(k)); }
 export function sheetReady(kit) { const k = loadKit(kit); return k.state === 'ready'; }
 export function hasClip(kit, clip) { const k = kits.get(kit); return !!(k && k.state === 'ready' && k.meta.clips[clip]); }
 
@@ -142,7 +162,7 @@ export function resolveSheet(av, now = 0) {
   else if (kit === 'hockey') { clip = 'hk_glide'; t = now / 1.2 + seed * 0.13; }
   else { clip = IDLE_CLIP; t = now / 2.4 + seed * 0.13; }
   if (atlas === 'hockey_goalie' && action) { /* goalie one-shots are driven by goalieState, not by legacy actions */ clip = GOALIE_CLIP[av.goalieState] || clip; }
-  return { kit: atlas, clip, t };
+  return { kit: kitFor(atlas), clip, t };
 }
 export function pantsColorFor(kit, color, color2) {
   if (kit === 'baseball') return '#dfe5ec';

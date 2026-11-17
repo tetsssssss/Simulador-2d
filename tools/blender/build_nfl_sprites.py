@@ -31,7 +31,7 @@ LEG_SCALE = 1.3      # same stride exaggeration as the 2D "athlete" style (legS)
 def parse_args():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     a = {'clips': 'exports/anim/nfl_clips.json', 'out': 'exports/anim/frames', 'size': 128, 'only': None, 'step': 1, 'render': True, 'kit': 'football',
-         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True, 'yaws': [0.0], 'elevation': 0.0}
+         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True, 'yaws': [0.0], 'elevation': 0.0, 'model': None}
     i = 0
     while i < len(argv):
         k = argv[i]
@@ -47,7 +47,7 @@ def parse_args():
         elif k == '--jersey': a['jersey'] = tuple(float(x) for x in v.split(','))
         elif k == '--pants': a['pants'] = tuple(float(x) for x in v.split(','))
         elif k in ('--build', '--skin'): a[k[2:]] = int(v)
-        elif k in ('--clips', '--out', '--kit', '--engine', '--glb', '--layer'): a[k[2:]] = v
+        elif k in ('--clips', '--out', '--kit', '--engine', '--glb', '--layer', '--model'): a[k[2:]] = v
         i += 2
     return a
 
@@ -102,7 +102,10 @@ def main():
     if a['jersey']: colors['jersey'] = a['jersey']
     if a['pants']: colors['pants'] = a['pants']
     colors = colors or None
-    obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
+    if a['model']:      # external athlete mesh (e.g. Meshy .glb) rigged to the game armature: tools/blender/athlete_import.py
+        from athlete_import import import_athlete
+        obj, rig, prop = import_athlete(a['model'], kit=a['kit'], colors=colors, skin=a['skin'])
+    else: obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
     print(f"[asu] athlete kit={a['kit']} tris={triangle_count(obj)} layer={a['layer']}")
     if a['kit'] == 'ref':       # referee: fixed black/white stripes, never tinted (mask pass = all black)
         if a['layer'] == 'mask':

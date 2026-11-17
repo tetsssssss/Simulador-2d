@@ -46,6 +46,7 @@ test('dirFor: 5 atlas directions (E, SE, S, NE, N) + mirror for the left half; s
   assert.ok(seen.size >= 8, 'all 8 screen directions are reachable (5 rendered + 3 mirrored)');
 });
 test('resolveSheet: roles pick the right atlas and clip; legacy actions are translated; procedural-only actions fall back', () => {
+  SS.setSheetHd(false);   // these checks are about the base kits; HD mapping has its own test below
   const R = (o, now = 0) => SS.resolveSheet({ kit: 'football', role: 'player', seed: 1, ...o }, now);
   assert.deepEqual(R({ action: { type: 'clip:mv_run', t: 0.3 } }), { kit: 'football', clip: 'mv_run', t: 0.3 });
   assert.equal(R({}).clip, 'mv_idle'); assert.equal(R({ role: 'ref', action: { type: 'clip:rf_holding', t: 0.5 } }).kit, 'ref');
@@ -68,7 +69,7 @@ test('visual modes: "Sprites 3D" is selectable, persisted and counts as an avata
   assert.equal(getVisualMode(), 'avatar'); setVisualMode('sheet'); assert.equal(getVisualMode(), 'sheet'); setVisualMode('avatar');
 });
 test('shipped atlases match the plan: kits, pages, clips, rows/frames, PNG sizes (<= 4096 px tall), registry membership', () => {
-  assert.deepEqual(Object.keys(plan.kits).sort(), ['baseball', 'baseball_bat', 'football', 'hockey', 'hockey_goalie', 'ref']);
+  assert.deepEqual(Object.keys(plan.kits).sort(), ['baseball', 'baseball_bat', 'football', 'football_hd', 'hockey', 'hockey_goalie', 'hockey_hd', 'ref']);
   for (const [kit, spec] of Object.entries(plan.kits)) {
     const a = atlas(kit), F = a.frame; assert.equal(F, plan.frame); assert.equal(a.pages.length, spec.pages.length, kit);
     const all = spec.pages.flatMap(p => p.clips); assert.deepEqual(Object.keys(a.clips).sort(), [...all].sort(), kit);
@@ -106,4 +107,16 @@ test('fadeStep: cross-fades only when the clip changes, over FADE seconds, then 
   const r2 = SS.fadeStep(st, B, 10.2 + SS.FADE / 2); assert.ok(r2.k > 0.45 && r2.k < 0.55); assert.ok(r2.from);
   const r3 = SS.fadeStep(st, B, 10.2 + SS.FADE + 0.01); assert.equal(r3.k, 1); assert.equal(r3.from, null);
   const r4 = SS.fadeStep(st, A, 11); assert.equal(r4.k, 0); assert.equal(r4.from.clip, 'run');   // switching back fades again
+});
+
+test('HD kits: mapping covers football/hockey only; kitFor picks HD when enabled, low-poly when off or when the HD atlas failed to load', async () => {
+  assert.deepEqual({ ...SS.HD_KITS }, { football: 'football_hd', hockey: 'hockey_hd' });
+  assert.equal(SS.kitFor('baseball'), 'baseball'); assert.equal(SS.kitFor('hockey_goalie'), 'hockey_goalie'); assert.equal(SS.kitFor('ref'), 'ref');
+  SS.setSheetHd(false); assert.equal(SS.kitFor('football'), 'football'); assert.equal(SS.kitFor('hockey'), 'hockey');
+  SS.setSheetHd(true); assert.equal(SS.kitFor('football'), 'football_hd');             // first ask: chosen and loading
+  await new Promise(r => setTimeout(r, 50));                                           // in Node the atlas cannot load -> state 'error' -> falls back
+  assert.equal(SS.kitFor('football'), 'football'); assert.equal(SS.resolveSheet({ kit: 'football', role: 'player' }, 0).kit, 'football');
+  assert.equal(SS.resolveSheet({ kit: 'hockey', role: 'goalie', goalieState: 'READY' }, 0).kit, 'hockey_goalie');
+  assert.equal(SS.resolveSheet({ kit: 'hockey', role: 'skater', action: { type: 'shoot', shot: 'slap', t: 0.2 } }, 0).clip, 'hk_slap');   // logic stays keyed on the base kit
+  SS.setSheetHd(false);
 });

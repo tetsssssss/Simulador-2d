@@ -72,6 +72,7 @@ for (let round = 0; round < 3; round++) {
 // shell audio settings → shared localStorage
 await page.click('#suAudioBtn');
 await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '35'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+await frame().waitForFunction(() => Math.abs(window.__asuAudio.settings.CROWD - 0.35) < 1e-6, null, { timeout: 2000 }).catch(() => {});   // storage events reach the sport document asynchronously
 const crowdVol = await frame().evaluate(() => window.__asuAudio.settings.CROWD);
 check('audio settings popover syncs to the sport document', Math.abs(crowdVol - 0.35) < 1e-6, `CROWD=${crowdVol}`);
 await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '70'; el.dispatchEvent(new Event('input', { bubbles: true })); });
