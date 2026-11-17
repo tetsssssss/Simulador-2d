@@ -125,3 +125,48 @@ test('nhl v2: commentary narrates every emitted event without undefined/NaN', ()
   }
   for (const t of ['PASS', 'SHOT', 'SAVE', 'GOAL', 'HIT', 'PENALTY', 'TURNOVER', 'RECEPTION']) assert.ok(seen.has(t), `narrated ${t}`);
 });
+
+// Collision/spacing: skaters keep body spacing in PLAY and in stoppage/celebration phases; nobody leaves the rink.
+test('NHL body separation: no stacked skaters outside faceoff placement, nobody pushed out of the rink', () => {
+  const e = createHockeyEngine({ home: team('BOS'), away: team('TOR'), seed: 'sep-1' }), S = e.state;
+  let ticks = 0, stacked = 0, outside = 0, k = 0;
+  while (!S.over && k++ < 6e4) {
+    e.step(); if (S.phase === 'FACEOFF') continue; ticks++;
+    const L = S.players.filter(p => !p.onBench);
+    let bad = false;
+    for (let i = 0; i < L.length; i++) { if (!insideRink(L[i].x, L[i].y, 0)) outside++; for (let j = i + 1; j < L.length; j++) if (Math.hypot(L[i].x - L[j].x, L[i].y - L[j].y) < 1.0) bad = true; }
+    if (bad) stacked++;
+  }
+  assert.equal(outside, 0);
+  assert.ok(stacked / ticks < 0.005, `stacked fraction ${(stacked / ticks).toFixed(4)}`);
+});
+
+// Tunneling: a puck hit from behind the net at ≥100 mph moves more than the cage depth per tick; it must hit the mesh, not pass through.
+test('NHL puck cannot tunnel through the net cage at high speed (swept back-wall test)', async () => {
+  const { RINK, MIDY, goalX } = await import('../nhl/src/rink/geometry.js');
+  const e = createHockeyEngine({ home: team('BOS'), away: team('TOR'), seed: 'tun' }), S = e.state;
+  for (let i = 0; i < 300; i++) e.step();
+  for (const speed of [80, 150, 200]) for (const side of [-1, 1]) for (let k = 0; k < 9; k++) {
+    const gx = goalX(side), backX = side < 0 ? gx - RINK.netD : gx + RINK.netD, toIce = side < 0 ? 1 : -1, P = S.puck;
+    P.owner = null; P.z = 0; P.vz = 0; S.pass = null; S.phase = 'PLAY'; P.y = MIDY + (k - 4) * 0.5; P.x = backX - toIce * 0.8; P.px = P.x; P.py = P.y; P.vx = toIce * speed; P.vy = 0;
+    e.step(); e.step();
+    assert.ok((P.x - gx) * toIce <= 0.2, `puck at ${speed} ft/s passed through the cage (side ${side}, x=${P.x.toFixed(1)})`);
+  }
+});
+
+test('NHL LINE_CHANGE: well formed, changes happen on the fly and at faceoffs', () => {
+  const B = batch(); let fly = 0, stop = 0, n = 0;
+  for (const g of B.games) {
+    const S = g.S, ev = S.events.filter(e => e.type === 'LINE_CHANGE');
+    for (const e of ev) {
+      n++; e.onTheFly ? fly++ : stop++;
+      assert.ok(['home', 'away'].includes(e.team));
+      assert.ok(e.in.length >= 1 && e.in.length <= 5 && e.out.length <= 5, `in/out ${e.in.length}/${e.out.length}`); // sizes differ when a penalty changes the strength (5 off, 4 on)
+      assert.equal(e.forwards + e.defense, e.in.length);
+      for (const id of e.in) assert.equal(S.roster[id].team, e.team);
+      for (const id of e.out) assert.ok(!e.in.includes(id));
+    }
+  }
+  assert.ok(n >= 40, `line changes over 12 games: ${n}`);
+  assert.ok(fly > 0 && stop > 0, `fly ${fly} / faceoff ${stop}`);
+});

@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>Style compare</title>
+<style>body{margin:0;background:#0d1520;color:#cfe;font:12px Inter,system-ui,sans-serif}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+import { drawAvatar, defaultAvatar } from '../../core/render/avatars.js';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), dpr = 2;
+const kits = [['football', '#0b2a6f', '#fff', 'ball'], ['football', '#b3001b', '#fff', 'none'], ['hockey', '#111', '#f5c400', 'stick'], ['baseball', '#0b2a6f', '#fff', 'glove']];
+const poses = [{}, { moving: true, speed: 1, phase: 0.6 }, { moving: true, speed: 1, phase: 2.2 }, { action: { type: 'clip:qb_overhand', t: 0.42 } }, { action: { type: 'clip:ag_wrap_tackle', t: 0.6 } }, { action: { type: 'clip:ps_catch_high_point', t: 0.5 } }];
+const W = 110 * poses.length + 70, H = 190 * kits.length * 2; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ctx.fillStyle = '#16243a'; ctx.fillRect(0, 0, W, H);
+let row = 0;
+for (const style of ['chibi', 'athlete']) for (const [kit, c1, c2, prop] of kits) {
+  const y = row * 190 + 170; ctx.fillStyle = row % 2 ? '#122033' : '#16243a'; ctx.fillRect(0, row * 190, W, 190);
+  ctx.fillStyle = '#9fc2ea'; ctx.font = '11px Inter'; ctx.fillText(style + ' · ' + kit, 6, row * 190 + 14);
+  poses.forEach((p, i) => drawAvatar(ctx, { x: 70 + i * 110, y, h: 130, opts: { ...defaultAvatar('k' + row), gear: 0, build: 1 }, style, kit, prop, role: kit === 'hockey' ? 'skater' : 'player', color: c1, color2: c2, number: 12, dir: 1, facing: 0, t: 0, ...p }));
+  row++;
+}
+window.__done = true;
+</script>

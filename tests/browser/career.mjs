@@ -3,7 +3,7 @@
 // Usage: node tests/browser/career.mjs [port] [outDir]
 const PORT = process.argv[2] || 8200, OUT = process.argv[3] || null;
 const { chromium } = await import('/opt/node-tools/node_modules/playwright/index.mjs');
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 const errs = [], results = [];
 page.on('pageerror', e => errs.push(e.message));

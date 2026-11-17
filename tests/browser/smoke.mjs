@@ -4,8 +4,9 @@
 // no NaN in engine/render state, no JS errors (network failures of blocked hosts are ignored).
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 const PORT = process.argv[2] || 8200, OUT = process.argv[3] || null;
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome' });
 const page = await browser.newPage({ viewport: { width: 1980, height: 1080 } });
+if (process.env.ASU_LOCALE) await page.addInitScript(l => localStorage.setItem('asu_locale', l), process.env.ASU_LOCALE);   // e.g. ASU_LOCALE=en-US
 const errs = [];
 const ignore = /ERR_TUNNEL|CORS|ERR_FAILED|ERR_CONNECTION|Failed to load resource|net::/;
 page.on('console', m => { if (m.type() === 'error' && !ignore.test(m.text())) errs.push(m.text().slice(0, 240)); });
@@ -71,6 +72,7 @@ for (let round = 0; round < 3; round++) {
 // shell audio settings → shared localStorage
 await page.click('#suAudioBtn');
 await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '35'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+await frame().waitForFunction(() => Math.abs(window.__asuAudio.settings.CROWD - 0.35) < 1e-6, null, { timeout: 2000 }).catch(() => {});   // storage events reach the sport document asynchronously
 const crowdVol = await frame().evaluate(() => window.__asuAudio.settings.CROWD);
 check('audio settings popover syncs to the sport document', Math.abs(crowdVol - 0.35) < 1e-6, `CROWD=${crowdVol}`);
 await page.$eval('#suAudioPop input[data-k=CROWD]', el => { el.value = '70'; el.dispatchEvent(new Event('input', { bubbles: true })); });

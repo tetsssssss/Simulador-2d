@@ -339,6 +339,9 @@ div.preset{display:flex}
 .live-comm .lc-line.p2 .lc-x { font-weight: 600; }
 .live-comm .lc-line.p3 .lc-x { font-weight: 800; }
 .live-comm .tone-score { border-left-color: #f5c542; }
+.live-comm .tone-color { border-left-color: #5aa9ff; font-style: italic; opacity: .92; }
+.live-comm .lc-head { flex-wrap: wrap; gap: 6px; }
+.live-comm .lc-mode { min-width: 92px; width: auto; padding: 2px 6px; font-size: 12px; background: #0f1824; color: var(--text, #e8eef7); border: 1px solid var(--line2, #2a3a4e); border-radius: 6px; }
 .live-comm .tone-turnover { border-left-color: #ff5d5d; }
 .live-comm .tone-bad { border-left-color: #ff8f5d; }
 .live-comm .tone-good { border-left-color: #4fd18b; }
@@ -356,5 +359,7 @@ div.preset{display:flex}
 .rc-why>b{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
 .rc-why i{font-style:normal;font-weight:800;color:#8fb7ff;margin-right:4px}
 .result-pop .rcard{max-width:min(560px,92vw)}
+/* The pop-up sits over the action between plays: keep it to headline + yards. Tackle, concept and "Por que terminou" stay in the Em jogo panel and the game log. */
+.result-pop .rc-why,.result-pop .rc-tk,.result-pop .rc-def{display:none}
 .logline .lwhy{display:block;color:#9fb2c8;font-size:11px}
 #camSeg button.on{background:rgba(78,161,255,.18);border-color:#4ea1ff;color:#d6e8ff}

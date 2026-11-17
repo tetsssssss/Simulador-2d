@@ -14,7 +14,7 @@ import { simRatings } from './ratings.js';
 export const DT = 1 / 30;
 const POSTS = 3, CENTER = RINK.center, BLUE_U = RINK.center - RINK.blueLine, GOAL_U = RINK.center - RINK.goalLine;
 // Stable event vocabulary (state.events[].type). PASS carries `kind`, SHOT `shotType`, SAVE `save` (goalie state).
-export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
+export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'LINE_CHANGE', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
 export const PASS_KINDS = ['short', 'cross', 'saucer', 'stretch', 'drop', 'bank'];
 export const SHOT_TYPES = ['wrist', 'snap', 'slap', 'backhand', 'one-timer'];
 export const GOALIE_STATES = ['READY', 'BUTTERFLY', 'SLIDE', 'GLOVE', 'BLOCKER', 'PAD_SAVE', 'RECOVER'];
@@ -112,11 +112,21 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (force || t.dShift > 50) { t.pair = (t.pair + 1) % 3; t.dShift = 0; }
   }
 
+  // Line change = rotate lines/pairs, put the new five on the ice and announce who came on / went off (LINE_CHANGE event).
+  function shiftChange(side, entering, onTheFly) {
+    const before = skaters(side).map(p => p.id);
+    changeLines(side, false); setOnIce(entering);
+    const after = skaters(side).map(p => p.id), out = before.filter(id => !after.includes(id)), inn = after.filter(id => !before.includes(id));
+    if (inn.length && !S.over) emit('LINE_CHANGE', { team: side, onTheFly, out, in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length });
+  }
+
   // ---------- faceoffs / stoppages ----------
   function setFaceoff(dot) {
     faceoffDot = dot; S.phase = 'FACEOFF'; phaseT = 1.2;
     for (const side of ['home', 'away']) changeLines(side, false);
+    const onIceBefore = { home: skaters('home').map(p => p.id), away: skaters('away').map(p => p.id) };
     setOnIce(false);
+    for (const side of ['home', 'away']) { const after = skaters(side).map(p => p.id), inn = after.filter(id => !onIceBefore[side].includes(id)); if (inn.length && S.t > 0) emit('LINE_CHANGE', { team: side, onTheFly: false, out: onIceBefore[side].filter(id => !after.includes(id)), in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length }); }
     for (const side of ['home', 'away']) {
       const spots = faceoffSpots(T[side].dir, dot.x, dot.y);
       const sk = skaters(side), order = ['C', 'LW', 'RW', 'LD', 'RD'];
@@ -235,7 +245,11 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // net frame: bounce off the back/sides of the cage
       const nx0 = side < 0 ? gx - RINK.netD : gx, nx1 = side < 0 ? gx : gx + RINK.netD;
-      if (P.x > nx0 && P.x < nx1 && Math.abs(P.y - MIDY) < POSTS + 0.3) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
+      const yCage = Math.abs(P.y - MIDY) < POSTS + 0.3, backX = side < 0 ? nx0 : nx1;
+      // swept test: a hard shot from behind the net travels more than the cage depth (3.3 ft) in one tick (≥ ~100 mph), so a
+      // point-in-box check let it tunnel through the cage. Crossing the back plane inside the posts counts as hitting the mesh.
+      const sweptBack = yCage && (ox - backX) * (P.x - backX) < 0 && (side < 0 ? ox < nx0 : ox > nx1);
+      if (sweptBack || (P.x > nx0 && P.x < nx1 && yCage)) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
     }
     if (!insideRink(P.x, P.y, 0.6)) {
       const c = clampInside(P.x, P.y, 0.6);
@@ -729,11 +743,30 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const tgt = Math.atan2(P.y - p.y, P.x - p.x); p.facing += clamp(angDiff(tgt, p.facing), -9 * DT, 9 * DT);
     p.skate = Math.hypot(p.vx, p.vy) > 2 ? 'shuffle' : 'idle';
   }
+  // Body separation (position + velocity). Skaters have a 2.6 ft personal radius; goalies are immovable in the crease,
+  // so the skater takes the whole correction. Exact overlaps (d = 0) get a deterministic push axis, closing speed is
+  // removed (inelastic contact) and the result is clamped back inside the rink, so nobody is shoved through the boards.
   function separate() {
-    const L = S.players;
-    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-      const a = L[i], b = L[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 0 && d < 2.6) { const push = (2.6 - d) / 2, nx = dx / d, ny = dy / d; if (!a.goalie) { a.x -= nx * push; a.y -= ny * push; } if (!b.goalie) { b.x += nx * push; b.y += ny * push; } }
+    const L = S.players.filter(p => !p.onBench), R = 2.6, R2 = R * R;
+    for (let pass = 0; pass < 2; pass++) {
+      let any = false;
+      for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+        const a = L[i], b = L[j]; if (a.goalie && b.goalie) continue;
+        let dx = b.x - a.x, dy = b.y - a.y; const d2 = dx * dx + dy * dy;
+        if (d2 >= R2) continue; // cheap reject: most pairs are far apart
+        any = true;
+        let d = Math.sqrt(d2), over;
+        if (d < 1e-4) { const ang = ((i * 7 + j * 13) % 16) * (Math.PI / 8); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; over = R; } else over = R - d;
+        const nx = dx / d, ny = dy / d, wa = a.goalie ? 0 : b.goalie ? 1 : 0.5, wb = 1 - wa;
+        a.x -= nx * over * wa; a.y -= ny * over * wa; b.x += nx * over * wb; b.y += ny * over * wb;
+        const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rel < 0) { // closing: kill the approach component on the movable side(s)
+          if (!a.goalie) { a.vx += nx * rel * wa; a.vy += ny * rel * wa; }
+          if (!b.goalie) { b.vx -= nx * rel * wb; b.vy -= ny * rel * wb; }
+        }
+        for (const q of [a, b]) if (!q.goalie) { const c = clampInside(q.x, q.y, 1.6); if (c.x !== q.x || c.y !== q.y) { q.x = c.x; q.y = c.y; } }
+      }
+      if (!any) break; // second pass only when the first one moved somebody
     }
   }
 
@@ -762,7 +795,9 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // change on the fly when tired and the puck is not in our defensive zone
       const pu = uOf(side, P.x);
-      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) { changeLines(side, false); setOnIce(true); }
+      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) {
+        shiftChange(side, true, true);
+      }
     }
     if (slow) for (const r of rosterList) if (r.onBench) r.energy = Math.min(1, r.energy + 0.02 * bdt);
   }
@@ -802,7 +837,8 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     }
     if (S.phase === 'STOPPAGE' || S.phase === 'GOAL' || S.phase === 'INTERMISSION' || S.phase === 'FINAL_PENDING') {
       phaseT -= DT;
-      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * 18; p.ty = MIDY + (p.y - MIDY) * 0.3; } } move(p); }
+      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * (16 + ((p.num || 0) % 3) * 2.8); p.ty = MIDY + (p.y - MIDY) * 0.3 + (((p.num || 0) % 5) - 2) * 3.2; } } move(p); }
+      separate(); // celebration huddles / stoppage scrums keep body spacing (no stacked sprites)
       puckStep();
       if (phaseT <= 0) {
         if (S.phase === 'FINAL_PENDING') { finish(); return; }

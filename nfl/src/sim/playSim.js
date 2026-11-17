@@ -17,6 +17,7 @@ import { carrierVelocity, pursuitVelocity, escortVelocity, attemptTackles, check
 import { assignRunBlocks, runBlockVelocity } from './runBlocking.js';
 import { initRunner, runnerVelocity } from './rbVision.js';
 import { updateMoves } from './carrierMoves.js';
+import { FOUL_RULES, pickFoul, decideFlag } from './fouls.js';
 
 export const SIM_HZ = 30;
 const MAX_PLAY_TIME = 20;
@@ -80,6 +81,12 @@ export function createPlay(opts) {
     // GameplaySettings → engine tuning (src/core/gameplaySettings.js engineTuning). null = calibrated defaults.
     tune: opts.tuning || null,
   };
+  // Flags (opt-in: opts.penaltyRate, a dedicated rng stream so the rest of the simulation is untouched).
+  sim.pen = null;
+  if ((opts.penaltyRate ?? 0) > 0) {
+    const prng = createRng(hashSeed(`${seed}:pen`));
+    if (prng.next() < opts.penaltyRate) { const foul = pickFoul(prng, callType), rule = FOUL_RULES[foul]; sim.pen = { foul, rule, at: 0.9 + prng.next() * (callType === 'pass' ? 1.8 : 1.2), pick: prng.next(), thrown: false, accepted: null }; }
+  }
   sim.emit = (type, data = {}, debug = false) => {
     const ev = { t: Math.round(sim.t * 100) / 100, type, ...data };
     (debug ? sim.debugEvents : sim.events).push(ev);
@@ -93,6 +100,12 @@ export function createPlay(opts) {
   };
   sim.whistle = reason => { if (sim.phase !== 'DEAD') { sim.phase = 'DEAD'; sim.deadReason = reason; sim.result = computeResult(sim); } };
 
+  sim.throwFlag = () => {   // emit the flag once; the offender is a player of a matching slot, picked with the foul's own random draw
+    const p = sim.pen; if (!p || p.thrown) return; p.thrown = true;
+    const pool = (p.rule.side === 'off' ? sim.offense : sim.defense).filter(e => p.rule.who.test(e.slot));
+    const by = pool.length ? pool[Math.floor(p.pick * pool.length) % pool.length] : null;
+    sim.emit('PENALTY', { foul: p.foul, side: p.rule.side, yards: p.rule.yards, autoFirst: !!p.rule.autoFirst, lossOfDown: !!p.rule.lossOfDown, phase: p.rule.phase, by: by ? by.id : null });
+  };
   for (const s of OFF_SLOTS) { const e = makeEntity(slots.off[s], s, 'off', al.o[s], opts.energy, opts.overrides, sim.tune); sim.off[s] = e; sim.offense.push(e); }
   for (const s of DEF_SLOTS) { const e = makeEntity(slots.def[s], s, 'def', al.d[s], opts.energy, opts.overrides, sim.tune); sim.def[s] = e; sim.defense.push(e); }
   sim.ents = [...sim.offense, ...sim.defense];
@@ -124,6 +137,7 @@ export function createPlay(opts) {
     initQB(sim, []);
   }
   sim.emit('SNAP', { losX, down, distance, concept, defCall });
+  if (sim.pen && sim.pen.rule.phase === 'pre') { sim.throwFlag(); sim.whistle('PENALTY'); }   // dead-ball foul: the play never starts
   return sim;
 }
 
@@ -306,6 +320,7 @@ export function step(sim) {
   if (sim.phase === 'DEAD') return false;
   const dt = sim.dt;
   sim.t += dt; sim.tick++;
+  if (sim.pen && !sim.pen.thrown && sim.pen.rule.phase === 'in' && sim.t >= sim.pen.at) sim.throwFlag();
   for (const e of sim.ents) { e.prev.x = e.pos.x; e.prev.y = e.pos.y; if (e.noBlock > 0) e.noBlock -= dt; }
   if (sim.ball) sim.ball.prev = { x: sim.ball.pos.x, y: sim.ball.pos.y, z: sim.ball.z };
 
@@ -380,6 +395,13 @@ function computeResult(sim) {
     // Yards before first contact (relative to the LOS), for calibration (YBC / YAC split).
     contactX: sim.firstContact ? Math.round((sim.firstContact.x - losX) * 10) / 10 : null,
   };
+  if (sim.pen && sim.pen.rule.phase === 'pre') {    // dead-ball foul: no play happened
+    const p = sim.pen, rule = p.rule, s = rule.side === 'off' ? -1 : 1;
+    r.outcome = 'PENALTY'; r.clockStops = true; r.yards = s * Math.min(rule.yards, s > 0 ? Math.floor((120 - losX) / 2) : 99);
+    r.spotX = clamp(losX + r.yards, 0, 120); r.penalty = { foul: p.foul, side: rule.side, yards: Math.abs(r.yards), accepted: true, autoFirst: false, replay: true, preSnap: true };
+    sim.emit('WHISTLE', { reason: sim.deadReason, outcome: r.outcome, yards: r.yards, spotX: r.spotX, contactX: null });
+    return r;
+  }
   const c = sim.carrier;
   const fumbleRec = find('FUMBLE_RECOVERY');
   const td = find('TOUCHDOWN');
@@ -410,6 +432,16 @@ function computeResult(sim) {
   if (!r.turnover) {
     r.yards = Math.round(r.spotX - losX);
     if (r.spotX <= 10 && !r.touchdown) { r.safety = true; sim.emit('SAFETY', { x: r.spotX }); }
+  }
+  if (sim.pen && sim.pen.rule.phase === 'in') {      // flag during the play: throw it now if the play ended first, then accept / decline
+    sim.throwFlag();
+    const p = sim.pen, rule = p.rule, accept = decideFlag(rule, { yards: r.yards, turnover: r.turnover, touchdown: r.touchdown, safety: r.safety, outcome: r.outcome }, sim.distance);
+    p.accepted = accept; r.penalty = { foul: p.foul, side: rule.side, yards: rule.yards, accepted: accept, autoFirst: !!rule.autoFirst, lossOfDown: !!rule.lossOfDown, replay: !rule.lossOfDown, playOutcome: r.outcome };
+    if (accept) {   // the play is nullified: spot of the foul from the line of scrimmage (half the distance to the goal at most)
+      const s = rule.side === 'off' ? -1 : 1, y = s * Math.min(rule.yards, s > 0 ? Math.floor((120 - losX) / 2) : 99);
+      r.turnover = false; r.touchdown = null; r.safety = false; r.yards = y; r.spotX = clamp(losX + y, 0, 120); r.clockStops = true;
+    }
+    sim.emit('PENALTY_RESULT', { foul: p.foul, side: rule.side, yards: rule.yards, accepted: accept, playOutcome: r.penalty.playOutcome });
   }
   if (has('OUT_OF_BOUNDS') || r.touchdown || r.safety) r.clockStops = true;
   sim.emit('WHISTLE', { reason: sim.deadReason, outcome: r.outcome, yards: r.yards, spotX: r.spotX, contactX: r.contactX });

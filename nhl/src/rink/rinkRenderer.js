@@ -5,9 +5,12 @@
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { createCamera } from '../../../core/render/camera.js';
 import { drawSprite, drawTrackedObject, zoomLevel } from '../../../core/render/sprites.js';
+import { createLabelLayer } from '../../../core/render/labels.js';
+import { StridePhase, skateGait } from '../../../core/anim/locomotion.js';
 import { RINK, MIDY, FACEOFF_DOTS } from './geometry.js';
 import { photoImage } from '../photos.js';
-import { getAvatar } from '../../../core/render/avatars.js';
+import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
+import { preloadKits } from '../../../core/render/spriteSheet.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', view: 128 },
@@ -152,42 +155,74 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
   function lerp(e, a) { return { x: (e.px ?? e.x) + (e.x - (e.px ?? e.x)) * a, y: (e.py ?? e.y) + (e.y - (e.py ?? e.y)) * a }; }
 
   // one-shot avatar actions driven by engine events (SHOT → shoot, HIT → check, GOAL → celebrate); keyed by player id
-  const acts = new Map(); let evIdx = 0;
+  const acts = new Map(); let evIdx = 0, ghosts = [];
+  // Skaters removed by a LINE_CHANGE stay on screen for GHOST_T seconds, skating to the bench door (visual only; the engine already benched them).
+  const GHOST_T = 1.6;
+  function ghostPlayers(state) {
+    const t = state.t ?? 0; ghosts = ghosts.filter(g => t - g.t0 >= 0 && t - g.t0 <= GHOST_T);
+    return ghosts.map(g => { const k = Math.min(1, (t - g.t0) / GHOST_T), e = k * k * (3 - 2 * k), x = g.x0 + (g.bx - g.x0) * e, y = g.y0 + (g.by - g.y0) * e, px = g.x0 + (g.bx - g.x0) * Math.max(0, e - 0.03), py = g.y0 + (g.by - g.y0) * Math.max(0, e - 0.03);
+      return { ...g.rec, x, y, px, py, vx: (g.bx - g.x0) * 0.4, vy: (g.by - g.y0) * 0.4, facing: Math.atan2(g.by - g.y0, g.bx - g.x0), onBench: true, ghost: true, skate: 'glide' }; });
+  }
+  // Reserves on the bench: up to BENCH_N skaters per team (not on the ice), standing along the bench in front of the boards, facing the play;
+  // they cheer for 3 s when their team scores. Pure presentation: positions are fixed slots, nothing is simulated.
+  const BENCH_N = 5; let lastGoal = null;
+  function benchPlayers(state) {
+    const roster = Object.values(state.roster || {}), onIce = new Set([...(state.players || []).map(p => p.id), ...ghosts.map(g => g.rec.id)]), t = state.t ?? 0, out = [];   // skaters still skating off (ghosts) are not seated yet
+    for (const [side, x0, x1] of [['home', 58, 92], ['away', 108, 142]]) {
+      const res = roster.filter(r => r.team === side && !r.goalie && !onIce.has(r.id)).sort((a, b) => (a.id < b.id ? -1 : 1)).slice(0, BENCH_N);
+      res.forEach((r, i) => {
+        const x = x0 + 4 + i * ((x1 - x0 - 8) / Math.max(1, BENCH_N - 1)), y = RINK.W + 4.2, cheer = lastGoal && lastGoal.team === side && t - lastGoal.t0 >= 0 && t - lastGoal.t0 < 3;
+        out.push({ ...r, x, y, px: x, py: y, vx: 0, vy: 0, facing: -Math.PI / 2, onBench: true, ghost: true, bench: true, skate: 'glide', benchAct: cheer ? { type: 'celebrate', t: (t - lastGoal.t0) / 3 } : { type: 'clip:hk_glide', t: 0.12 } });
+      });
+    }
+    return out;
+  }
   function pumpActions(state) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
-      if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6 });
+      if (e.type === 'LINE_CHANGE') for (const id of e.out || []) { const rec = state.roster?.[id]; if (rec) ghosts.push({ rec, t0, x0: rec.x, y0: rec.y, bx: (rec.team === 'home' ? 75 : 125) + ((id.length * 7) % 9 - 4), by: RINK.W - 2 }); } // skaters leaving glide to the bench door
+      else if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6, shot: e.shotType });
       else if (e.type === 'HIT') acts.set(e.by, { type: 'check', t0, dur: 0.45 });
-      else if (e.type === 'GOAL') { acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); for (const id of e.assists || []) acts.set(id?.id ?? id, { type: 'celebrate', t0, dur: 2.2 }); }
+      else if (e.type === 'GOAL') { lastGoal = { team: e.team, t0 }; acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); for (const id of e.assists || []) acts.set(id?.id ?? id, { type: 'celebrate', t0, dur: 2.2 }); }
     }
   }
-  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k, shot: A.shot }; };
+  const labelLayer = createLabelLayer();
+  const strides = new StridePhase(1 / 3); // rink units are feet; the gait thresholds are in yards/s
   function drawPlayers(state, a, opts) {
-    screen = new Map(); pumpActions(state);
+    screen = new Map(); if (!opts.replay) pumpActions(state);
     const s = S();
-    const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (opts.visual === 'avatar' ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
+    const r = Math.max(4.5, Math.min(26, 1.55 * s)) * (isAvatarMode(opts.visual) ? 1.45 : 1); // ~1.55 ft body radius (avatars drawn larger)
     const level = zoomLevel(r);
-    const list = [...state.players].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
+    if (opts.visual === 'sheet') preloadKits('nhl');
+    const list = [...benchPlayers(state), ...state.players, ...(opts.replay ? [] : ghostPlayers(state))].sort((p, q) => (p.goalie ? 0 : 1) - (q.goalie ? 0 : 1));
     for (const p of list) {
       const pos = lerp(p, a), team = state[p.team] || {};
       const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
       const img = mode === 'photo' ? photoImage(p.p) : null;
       // hints for the avatar: goalie silhouette, low stance in crossovers / stops / wind-ups, facing side, stride flag
       const low = !p.goalie && (p.cross || p.wind || p.skate === 'brake');
-      const avatar = mode === 'avatar' ? { opts: getAvatar('nhl', p.p?.id ?? p.pid ?? p.id), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
+      // keyframed skating gait (core/anim hk_* loops) from the real speed; event actions (shoot/check/celebrate) take priority
+      let action = p.bench ? p.benchAct : actionOf(state, p.id), phase = null;
+      if (isAvatarMode(mode) && !p.goalie) {
+        phase = strides.update(p.id, pos, performance.now(), p.num || 0);
+        if (!action) { const sp = Math.hypot(p.vx || 0, p.vy || 0) / 3, id = skateGait({ speed: sp, backwards: !!p.back, turning: !!p.cross }); if (id) action = { type: 'clip:' + id, t: phase / (Math.PI * 2) }; }
+      }
+      const avatar = isAvatarMode(mode) ? { sheet: mode === 'sheet', opts: avatarFor('nhl', p.p?.id ?? p.pid ?? p.id, p.slot), kit: 'hockey', role: p.goalie ? 'goalie' : 'skater', prop: 'stick', pose: p.goalie ? 'goalie' : low ? 'crouch' : 'stand',
         moving: Math.hypot(p.x - (p.px ?? p.x), p.y - (p.py ?? p.y)) > 0.03, seed: (p.num || 0) % 9, dir: Math.cos(p.facing || 0) >= 0 ? 1 : -1,
-        crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null, action: actionOf(state, p.id), speed: Math.min(1, Math.hypot(p.vx || 0, p.vy || 0) / 26) } : null;
+        crossover: !!p.cross, backward: !!p.back, goalieState: p.state || null, action, phase, speed: Math.min(1, Math.hypot(p.vx || 0, p.vy || 0) / 26) } : null;
       const X0 = X(pos.x), Y0 = Y(pos.y), rr = p.goalie ? r * 1.06 : r;
       drawSprite(ctx, {
-        x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false ? p.last : '',
+        x: X0, y: Y0, r: rr, color: team.color, color2: team.color2, number: p.num ?? '', pos: p.posLabel || p.pos, name: opts.showNames !== false && !p.ghost ? p.last : '',
         img, avatar, shape: p.goalie ? 'goalie' : 'circle', facing: p.facing, carrier: state.puck?.owner === p.id, target: state.pass?.targetId === p.id,
-        selected: opts.selected === p.id, dim: p.onBench, level, t: state.t || 0,
+        selected: opts.selected === p.id, energy: p.bench || p.ghost ? null : p.energy, dim: p.onBench, level, t: state.t || 0, labels: labelLayer, labelId: p.id,
       });
       screen.set(p.id, { X: X0, Y: Y0, r: rr, p });
       if (p.goalie) drawGoalieState(p, X0, Y0, rr, state);
       else if (p.cross || p.skate === 'brake') drawStride(p, X0, Y0, rr, state.t || 0);
     }
+    labelLayer.flush(ctx);
     drawHighlights(state, a, r);
   }
 

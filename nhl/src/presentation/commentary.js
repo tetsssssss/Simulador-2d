@@ -88,12 +88,35 @@ export const NHL_COMMENTARY = {
     (e, c) => `GOOOL! ${N(c, e.by)} marca para ${T(c, e.team)}${e.assists?.length ? `, assistência de ${e.assists.map(a => L(c, a)).join(' e ')}` : ''}!`,
     (e, c) => `${L(c, e.by)} balança a rede! Gol de ${T(c, e.team)}!`,
   ],
+  LINE_CHANGE: [
+    (e, c) => e.onTheFly ? (e.defense && !e.forwards ? `${T(c, e.team)} troca a dupla de defesa em movimento.` : e.forwards && !e.defense ? `${T(c, e.team)} troca a linha de ataque em movimento.` : `${T(c, e.team)} muda a linha em movimento.`) : null,
+  ],
   ICING: [(e, c) => `Icing. Faceoff na zona de ${T(c, e.team)}.`],
   OFFSIDE: [(e, c) => `Impedimento. Jogo parado.`],
   LINE_CHANGE: [(e, c) => e.team ? `${T(c, e.team)} troca a linha.` : null],
   PERIOD_START: [(e, c) => `Começa o ${['1º', '2º', '3º'][e.period - 1] || 'prolongamento'} período. ${c.team('away')} ${c.score.away} x ${c.score.home} ${c.team('home')}.`],
   PERIOD_END: [(e, c) => `Fim do ${['1º', '2º', '3º'][e.period - 1] || ''} período.`],
   FINAL: [(e, c) => c.score.home === c.score.away ? `Fim de jogo, empate.` : `FIM DE JOGO! ${T(c, c.score.home > c.score.away ? 'home' : 'away')} vence por ${Math.max(c.score.home, c.score.away)} a ${Math.min(c.score.home, c.score.away)}.`],
+  // milestone sentences appended to the line (counters live in the commentary memory = one game)
+  $color(e, c, h) {
+    const home = c.tot?.('home', 'sog') ?? 0, away = c.tot?.('away', 'sog') ?? 0, hh = c.tot?.('home', 'hit') ?? 0, ha = c.tot?.('away', 'hit') ?? 0;
+    const id = e.by || e.shooter || e.goalie, b = id && c.box?.[id], gb = e.goalie && c.box?.[e.goalie];
+    const opts = [
+      () => home + away >= 10 && Math.abs(home - away) >= 4 ? `${T(c, home > away ? 'home' : 'away')} domina nos chutes: ${Math.max(home, away)} a ${Math.min(home, away)}.` : null,
+      () => b && b.g + b.a >= 2 ? `${L(c, id)} já tem ${b.g + b.a} pontos hoje: ${b.g} gol${b.g === 1 ? '' : 's'} e ${b.a} assistência${b.a === 1 ? '' : 's'}.` : null,
+      () => gb && gb.sa >= 10 ? `${L(c, e.goalie)} tem ${gb.sv} defesas em ${gb.sa} chutes, ${(100 * gb.sv / gb.sa).toFixed(1)}% de aproveitamento.` : null,
+      () => hh + ha >= 12 && Math.abs(hh - ha) >= 4 ? `${T(c, hh > ha ? 'home' : 'away')} impõe o jogo físico: ${Math.max(hh, ha)} hits a ${Math.min(hh, ha)}.` : null,
+      () => c.period >= 3 && c.score && Math.abs(c.score.home - c.score.away) <= 1 ? 'Jogo apertado no terceiro período: um erro pode decidir tudo.' : null,
+      () => c.powerPlay ? 'Com jogador a mais, a movimentação do disco é a chave para abrir a defesa.' : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
+  $story(e, c, h) {
+    if (e.type === 'GOAL') { const n = h.bump(`g:${e.by}`); return n === 2 ? `Segundo gol de ${L(c, e.by)} na partida!` : n === 3 ? 'HAT TRICK!' : n > 3 ? `${n}º gol dele hoje!` : null; }
+    if (e.type === 'SAVE') { const n = h.bump(`sv:${e.goalie}`); return n > 0 && n % 10 === 0 ? `${L(c, e.goalie)} chega a ${n} defesas.` : null; }
+    if (e.type === 'PENALTY') { const n = h.bump(`pen:${e.on}`); return n === 2 ? `Segunda penalidade de ${L(c, e.on)} hoje.` : null; }
+    return null;
+  },
   $after(e, c, h) { if (e.type === 'SHOT') h.bump(`shots:${e.team}`); if (e.type === 'GOAL') h.reset(`shots:${e.team}`); },
   $priority(e) { return ['GOAL', 'FINAL', 'BREAKAWAY'].includes(e.type) || (e.type === 'SAVE' && e.big) ? 3 : ['PENALTY', 'POWER_PLAY', 'SAVE', 'PERIOD_START', 'PERIOD_END'].includes(e.type) || (e.type === 'HIT' && e.big) ? 2 : 1; },
   $tone(e) { return e.type === 'GOAL' ? 'score' : ['TAKEAWAY', 'INTERCEPTION', 'TURNOVER'].includes(e.type) ? 'turnover' : e.type === 'SAVE' ? 'save' : e.type === 'PENALTY' ? 'bad' : e.type === 'POWER_PLAY' ? 'good' : 'normal'; },

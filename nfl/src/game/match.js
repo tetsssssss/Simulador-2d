@@ -4,6 +4,7 @@
 import { buildLineups } from '../nflEngine.js';
 import { createPlay, step, chooseConcept, chooseDefCall } from '../sim/playSim.js';
 import { explainPlay } from '../sim/explain.js';
+import { FOUL_LABEL } from '../sim/fouls.js';
 import { PLAYBOOK, DEF_CALLS } from '../sim/formation.js';
 import { emptyBox, applyPlayEvents } from '../sim/stats.js';
 import { createRng, hashSeed } from '../core/rng.js';
@@ -86,11 +87,13 @@ export function cpuDefenseCall(g) {
 }
 
 // Build the NFLPlay for the next snap. call = { playType, concept?, defCall? }.
+export const DEFAULT_PENALTY_RATE = 0.065;   // ≈ 1 flag per 15 snaps (NFL ≈ 12–13 accepted flags per game)
 export function snap(g, ls, call, tuning) {
   return createPlay({
     offense: ls.offense, defense: ls.defense, ballOn: g.ballOn, down: g.down, distance: g.distance,
     playType: call.playType, concept: call.concept, defCall: call.defCall, stunt: call.stunt,
     seed: `${g.seed}-${g.playNo + 1}-${call.playType}`, energy: g.energy, tuning,
+    penaltyRate: tuning?.penaltyRate ?? DEFAULT_PENALTY_RATE,   // flags in real games (0 in createPlay by default so calibration/golden runs stay flag-free)
   });
 }
 
@@ -134,11 +137,17 @@ export function summarize(sim, who) {
   try { out.why = explainPlay(sim); } catch { out.why = null; } // "Por que terminou" (evidence from the sim's own record)
   if (r.touchdown === 'off' || r.touchdown === 'def') { out.badge = 'TOUCHDOWN'; out.tone = r.touchdown === 'off' ? 'good' : 'bad'; }
   if (r.safety) out.badge = 'SAFETY';
+  if (r.penalty) {   // flag: accepted (play nullified, spot moved) or declined (play stands)
+    const P = r.penalty, label = FOUL_LABEL[P.foul] || P.foul;
+    out.flag = { foul: P.foul, label, side: P.side, yards: P.yards, accepted: P.accepted };
+    if (P.accepted) { out.badge = 'FLAG'; out.tone = P.side === 'off' ? 'bad' : 'good'; out.lines.unshift(`${label} · ${P.yards} yd`); } else out.lines.unshift(`Bandeira recusada · ${label}`);
+  }
   return out;
 }
 
 // Short one-line text for the game log.
 export function logText(sum) {
+  if (sum.flag?.accepted) return `FLAG — ${sum.flag.label}, ${sum.flag.yards} yd (${sum.flag.side === 'off' ? 'ataque' : 'defesa'})`;
   const yards = ['RUSH', 'COMPLETE', 'SCRAMBLE', 'SACK'].includes(sum.outcome) ? ` — ${sum.yards} yd` : '';
   const what = sum.outcome === 'COMPLETE' ? 'Complete' : sum.outcome === 'INCOMPLETE' ? 'Incomplete' : sum.outcome === 'INTERCEPTION' ? 'INTERCEPTION' : sum.outcome === 'FUMBLE_LOST' ? 'FUMBLE' : '';
   const base = sum.outcome === 'RUSH' ? sum.concept : sum.title === 'SACK' ? 'Sack' : sum.title.replace('PASS — ', '').toLowerCase().replace(/^./, c => c.toUpperCase());
@@ -162,9 +171,16 @@ export function applyPlay(g, sim, who) {
   if (r.touchdown === 'off') { add(7, off); note(`TOUCHDOWN ${off}! (PAT automático)`, 'score'); score(off, `TD · ${sum.title} ${sum.lines[0] || ''}`); flip(25); }
   else if (r.touchdown === 'def') { add(7, def); note(`TOUCHDOWN DEFENSIVO ${def}!`, 'score'); score(def, 'TD defensivo'); g.down = 1; g.ballOn = 25; g.distance = 10; }
   else if (r.safety) { add(2, def); note(`SAFETY! +2 ${def}`, 'score'); score(def, 'Safety'); flip(35); }
+  else if (r.penalty?.accepted) {
+    const P = r.penalty, offFoul = P.side === 'off', defTeam = def;
+    note(`FLAG: ${FOUL_LABEL[P.foul] || P.foul} — ${P.yards} jd contra ${offFoul ? off : defTeam}${P.preSnap ? '' : ' (jogada anulada)'}`, 'flag');
+    const before = g.ballOn; g.ballOn = Math.max(1, Math.min(99, Math.round(r.spotX - 10)));
+    if (P.autoFirst || (!offFoul && g.ballOn - before >= g.distance)) { g.down = 1; g.distance = Math.min(10, 100 - g.ballOn); notes.push('1ª descida (falta)'); }
+    else { g.distance = Math.max(1, g.distance - (g.ballOn - before)); if (P.lossOfDown) { g.down++; if (g.down > 4) { note(`Turnover on downs — posse ${def}`, 'turnover'); flip(100 - g.ballOn); } } }
+  }
   else if (r.turnover) { const spot = r.spotX >= 110 ? 20 : 110 - r.spotX; note(`Turnover — posse ${def}`, 'turnover'); flip(Math.round(spot)); }
   else {
-    g.ballOn = Math.round(r.spotX - 10);
+    g.ballOn = Math.max(1, Math.min(99, Math.round(r.spotX - 10)));   // a carry stopped a hair short of the goal line rounds to the 1, never to 100
     if (r.yards >= g.distance) { g.down = 1; g.distance = Math.min(10, 100 - g.ballOn); if (r.yards > 0) notes.push('1ª descida!'); }
     else {
       g.distance -= r.yards; g.down++;

@@ -70,10 +70,16 @@ export const MLB_COMMENTARY = {
     (e, c) => e.kind === 'doublePlay' ? `DOUBLE PLAY! ${T(c, e.team)} sai do sufoco!` : null,
     (e, c) => e.kind === 'fieldersChoice' ? `Fielder's choice, out na base da frente.` : null,
     (e, c) => e.kind === 'caughtStealing' ? `Pego roubando base!` : null,
+    (e, c) => e.kind === 'pickoff' ? `Pickoff! Out ${c.outs}.` : null,
     (e, c) => `Out ${c.outs}.`,
   ],
   RUN_SCORES: [(e, c) => `${L(c, e.runner)} cruza o home! ${T(c, e.team)} ${c.score[e.team]}.`, (e, c) => `Corrida anotada por ${L(c, e.runner)}.`],
   ERROR: [(e, c) => e.kind === 'throw' ? `Arremesso ruim de ${L(c, e.fielder)}! Erro, o corredor avança.` : null, (e, c) => `Erro de ${L(c, e.fielder)}!`, (e, c) => `${L(c, e.fielder)} falha na jogada. Erro.`],
+  // every variant must produce text for both results (the engine avoids recently used variants; a null-only leftover would silence the line)
+  PICKOFF_ATTEMPT: [
+    (e, c) => e.result === 'OUT' ? `PICKOFF! ${L(c, e.pitcher)} pega ${L(c, e.runner)} fora da base!` : `${L(c, e.pitcher)} tenta o pickoff. ${L(c, e.runner)} volta a tempo.`,
+    (e, c) => e.result === 'OUT' ? `${L(c, e.runner)} se distrai e é pego no pickoff!` : e.attempt > 1 ? `Segunda tentativa de pickoff de ${L(c, e.pitcher)}.` : `${L(c, e.pitcher)} olha para a base e tenta segurar ${L(c, e.runner)}.`,
+  ],
   STOLEN_BASE: [(e, c) => `${L(c, e.runner)} rouba a ${e.base === 3 ? 'terceira' : 'segunda'}!`, (e, c) => `Base roubada! ${L(c, e.runner)} chega antes do arremesso.`],
   RUNNER_DECISION: [
     (e, c) => e.decision === 'STEAL' ? `${L(c, e.runner)} sai correndo para a próxima base!` : null,
@@ -86,6 +92,24 @@ export const MLB_COMMENTARY = {
   INNING_END: [(e, c) => e.lob ? `Fim da metade. ${e.lob} corredor${e.lob > 1 ? 'es deixados' : ' deixado'} em base.` : 'Três outs. Troca de lado.'],
   PITCHING_CHANGE: [(e, c) => `Troca de arremessador: entra ${N(c, e.pitcher)}.`],
   FINAL: [(e, c) => `FIM DE JOGO! ${T(c, c.score.home > c.score.away ? 'home' : 'away')} vence por ${Math.max(c.score.home, c.score.away)} a ${Math.min(c.score.home, c.score.away)}.`],
+  $color(e, c, h) {
+    const pid = e.pitcher, bid = e.batter || e.by, pb = pid && c.box?.[pid], bb = bid && c.box?.[bid];
+    const ip = o => `${Math.floor(o / 3)}.${o % 3}`;
+    const opts = [
+      () => pb && pb.outs >= 3 ? `${L(c, pid)} hoje: ${ip(pb.outs)} entradas, ${pb.ha} rebatida${pb.ha === 1 ? '' : 's'} cedida${pb.ha === 1 ? '' : 's'}, ${pb.ra} corrida${pb.ra === 1 ? '' : 's'} e ${pb.ka} strikeout${pb.ka === 1 ? '' : 's'}.` : null,
+      () => bb && bb.ab >= 2 ? `${L(c, bid)} hoje: ${bb.h} rebatida${bb.h === 1 ? '' : 's'} em ${bb.ab} vez${bb.ab === 1 ? '' : 'es'}${bb.hr ? `, com ${bb.hr} home run` : ''}.` : null,
+      () => pb && pb.pc >= 85 ? `${L(c, pid)} chega a ${pb.pc} arremessos. O bullpen pode entrar em breve.` : null,
+      () => risp(c) && c.outs < 2 ? 'Corredor em posição de pontuar com menos de dois outs: a pressão cai sobre o arremessador.' : null,
+      () => c.inning >= 7 && c.score && Math.abs(c.score.home - c.score.away) <= 1 ? 'Jogo decidido nos detalhes nas últimas entradas.' : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
+  $story(e, c, h) {
+    if (e.type === 'HOME_RUN') { const n = h.bump(`hr:${e.by}`); return n === 2 ? `Segundo home run de ${L(c, e.by)} no jogo!` : n > 2 ? `${n}º home run dele hoje!` : null; }
+    if (e.type === 'HIT') { const n = h.bump(`ht:${e.by}`); return n === 2 ? `Segundo hit de ${L(c, e.by)} hoje.` : n === 3 ? `Já são três hits de ${L(c, e.by)}!` : null; }
+    if (e.type === 'STRIKEOUT') { const n = h.bump(`ks:${e.pitcher}`); return n === 5 || n === 10 ? `${L(c, e.pitcher)} chega a ${n} strikeouts.` : null; }
+    return null;
+  },
   $after(e, c, h) { if (e.type === 'STRIKEOUT') h.bump(`k:${e.pitcher}`); },
   $priority(e) { if (e.type === 'RUNNER_DECISION') return e.decision === 'STEAL' || e.decision === 'TAG_UP' ? 2 : 0; return ['HOME_RUN', 'FINAL'].includes(e.type) || (e.type === 'OUT' && e.kind === 'doublePlay') ? 3 : ['HIT', 'STRIKEOUT', 'RUN_SCORES', 'WALK', 'ERROR', 'INNING_START'].includes(e.type) ? 2 : 1; },
   $tone(e) { return ['HOME_RUN', 'RUN_SCORES'].includes(e.type) ? 'score' : e.type === 'ERROR' ? 'turnover' : e.type === 'STRIKEOUT' ? 'save' : e.type === 'HIT' ? 'good' : 'normal'; },
@@ -108,6 +132,7 @@ const FALLBACK = {
   OUT: [(e, c) => `Out.`, (e, c) => `É out para ${T(c, e.team)}.`, (e, c) => `Mais um out. ${c.outs ?? ''}`.trim()],
   RUN_SCORES: [(e, c) => `Corrida anotada.`, (e, c) => `${T(c, e.team)} marca.`, (e, c) => `${L(c, e.runner)} pisa no home.`],
   ERROR: [(e, c) => `Erro da defesa.`, (e, c) => `A defesa falha.`, (e, c) => `Erro anotado para ${T(c, e.team)}.`],
+  PICKOFF_ATTEMPT: [(e, c) => e.result === 'OUT' ? `Pickoff! O corredor é pego.` : `Tentativa de pickoff. O corredor volta.`],
   STOLEN_BASE: [(e, c) => `Base roubada.`, (e, c) => `${L(c, e.runner)} avança correndo.`, (e, c) => `O receptor não consegue evitar.`],
   RUNNER_DECISION: [(e, c) => `${L(c, e.runner)} decide: ${e.decision}.`, (e, c) => `Decisão de corrida de ${L(c, e.runner)}.`, (e, c) => `${L(c, e.runner)} lê a jogada.`],
   INNING_START: [(e, c) => `Começa o ${e.inning}º inning.`, (e, c) => `${e.half === 'top' ? 'Topo' : 'Fim'} da entrada ${e.inning}.`, (e, c) => `Nova meia-entrada.`],

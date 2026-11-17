@@ -1,0 +1,367 @@
+{
+ "frame": 96,
+ "step": 2,
+ "azimuth": 0,
+ "elevation": 20,
+ "yaws": [
+  0,
+  -45,
+  -90,
+  45,
+  90
+ ],
+ "dirs": [
+  "E",
+  "SE",
+  "S",
+  "NE",
+  "N"
+ ],
+ "kits": {
+  "football": {
+   "build": "football",
+   "prop": false,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "mv_idle",
+      "mv_walk",
+      "mv_jog",
+      "mv_run",
+      "mv_sprint",
+      "mv_run_ball",
+      "mv_sprint_ball",
+      "mv_backpedal"
+     ]
+    },
+    {
+     "name": "move2",
+     "dirs": 5,
+     "clips": [
+      "mv_shuffle",
+      "mv_carioca",
+      "mv_athletic_ready"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "mv_jump_cut",
+      "mv_stumble_recover",
+      "qb_throwaway",
+      "qb_lob",
+      "qb_touch",
+      "qb_overhand",
+      "qb_quick_release",
+      "qb_bullet",
+      "qb_three_quarter",
+      "qb_sidearm",
+      "qb_under_pressure",
+      "qb_throw_on_run",
+      "qb_off_platform",
+      "qb_shotgun_snap",
+      "qb_under_center",
+      "qb_handoff",
+      "qb_slide",
+      "qb_scramble",
+      "qb_pocket_escape",
+      "ag_wrap_tackle",
+      "ag_wrap_victim",
+      "ag_arm_tackle",
+      "ag_pile_top",
+      "ag_pile_bottom",
+      "ag_tackle_drag",
+      "ag_escape_grip",
+      "ag_ball_rip",
+      "ag_lock_hands",
+      "ps_catch_chest",
+      "ps_catch_hands",
+      "ps_catch_over_shoulder",
+      "ps_catch_diving",
+      "ps_catch_high_point",
+      "ps_catch_basket",
+      "ps_catch_toe_tap",
+      "ps_contested_catch",
+      "ps_drop",
+      "ps_swat",
+      "ps_interception",
+      "gs_arms_up"
+     ]
+    },
+    {
+     "name": "events2",
+     "dirs": 1,
+     "clips": [
+      "ps_screen_toss",
+      "ps_checkdown",
+      "ps_hail_mary",
+      "qb_jump_throw"
+     ]
+    }
+   ]
+  },
+  "hockey": {
+   "build": "hockey",
+   "prop": true,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "hk_glide",
+      "hk_skate",
+      "hk_skate_back",
+      "hk_crossover"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "gs_arms_up",
+      "ag_wrap_tackle",
+      "ag_pile_bottom",
+      "hk_wrist",
+      "hk_snap",
+      "hk_slap",
+      "hk_backhand",
+      "hk_onetimer",
+      "hk_check"
+     ]
+    }
+   ]
+  },
+  "hockey_goalie": {
+   "build": "goalie",
+   "prop": true,
+   "pages": [
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "gk_ready",
+      "gk_butterfly",
+      "gk_slide",
+      "gk_glove",
+      "gk_blocker",
+      "gk_pad_save",
+      "gk_recover",
+      "gs_arms_up"
+     ]
+    }
+   ]
+  },
+  "baseball": {
+   "build": "baseball",
+   "prop": false,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "mv_idle",
+      "mv_walk",
+      "mv_jog",
+      "mv_run",
+      "mv_sprint",
+      "mv_run_ball",
+      "mv_sprint_ball"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "ps_catch_diving",
+      "ps_catch_hands",
+      "qb_overhand",
+      "qb_quick_release",
+      "qb_sidearm",
+      "bb_pitch",
+      "bb_field_ground",
+      "bb_catcher_crouch",
+      "qb_slide",
+      "gs_arms_up",
+      "ag_pile_bottom"
+     ]
+    }
+   ]
+  },
+  "baseball_bat": {
+   "build": "baseball",
+   "prop": true,
+   "pages": [
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "bb_stance",
+      "bb_swing",
+      "mv_idle",
+      "gs_arms_up"
+     ]
+    }
+   ]
+  },
+  "ref": {
+   "build": "ref",
+   "prop": false,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "mv_idle",
+      "mv_walk",
+      "mv_jog"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "rf_touchdown",
+      "rf_first_down",
+      "rf_incomplete",
+      "rf_timeout",
+      "rf_safety",
+      "rf_no_good",
+      "rf_touchback",
+      "rf_clock_stop",
+      "rf_dead_ball",
+      "rf_flag_throw",
+      "rf_holding",
+      "rf_false_start",
+      "rf_offside",
+      "rf_pass_interference",
+      "rf_facemask",
+      "rf_delay_of_game",
+      "rf_unsportsmanlike",
+      "rf_intentional_grounding"
+     ]
+    }
+   ]
+  },
+  "football_hd": {
+   "build": "football",
+   "prop": false,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "mv_idle",
+      "mv_walk",
+      "mv_jog",
+      "mv_run",
+      "mv_sprint",
+      "mv_run_ball",
+      "mv_sprint_ball",
+      "mv_backpedal"
+     ]
+    },
+    {
+     "name": "move2",
+     "dirs": 5,
+     "clips": [
+      "mv_shuffle",
+      "mv_carioca",
+      "mv_athletic_ready"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "mv_jump_cut",
+      "mv_stumble_recover",
+      "qb_throwaway",
+      "qb_lob",
+      "qb_touch",
+      "qb_overhand",
+      "qb_quick_release",
+      "qb_bullet",
+      "qb_three_quarter",
+      "qb_sidearm",
+      "qb_under_pressure",
+      "qb_throw_on_run",
+      "qb_off_platform",
+      "qb_shotgun_snap",
+      "qb_under_center",
+      "qb_handoff",
+      "qb_slide",
+      "qb_scramble",
+      "qb_pocket_escape",
+      "ag_wrap_tackle",
+      "ag_wrap_victim",
+      "ag_arm_tackle",
+      "ag_pile_top",
+      "ag_pile_bottom",
+      "ag_tackle_drag",
+      "ag_escape_grip",
+      "ag_ball_rip",
+      "ag_lock_hands",
+      "ps_catch_chest",
+      "ps_catch_hands",
+      "ps_catch_over_shoulder",
+      "ps_catch_diving",
+      "ps_catch_high_point",
+      "ps_catch_basket",
+      "ps_catch_toe_tap",
+      "ps_contested_catch",
+      "ps_drop",
+      "ps_swat",
+      "ps_interception",
+      "gs_arms_up"
+     ]
+    },
+    {
+     "name": "events2",
+     "dirs": 1,
+     "clips": [
+      "ps_screen_toss",
+      "ps_checkdown",
+      "ps_hail_mary",
+      "qb_jump_throw"
+     ]
+    }
+   ],
+   "model": "assets/models/meshy/football_player.glb"
+  },
+  "hockey_hd": {
+   "build": "hockey",
+   "prop": false,
+   "pages": [
+    {
+     "name": "move",
+     "dirs": 5,
+     "clips": [
+      "hk_glide",
+      "hk_skate",
+      "hk_skate_back",
+      "hk_crossover"
+     ]
+    },
+    {
+     "name": "events",
+     "dirs": 1,
+     "clips": [
+      "gs_arms_up",
+      "ag_wrap_tackle",
+      "ag_pile_bottom",
+      "hk_wrist",
+      "hk_snap",
+      "hk_slap",
+      "hk_backhand",
+      "hk_onetimer",
+      "hk_check"
+     ]
+    }
+   ],
+   "model": "assets/models/meshy/hockey_player.glb"
+  }
+ }
+}

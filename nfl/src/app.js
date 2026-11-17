@@ -14,6 +14,8 @@ import { playerView } from './ui/views/player.js';
 import { settingsView } from './ui/views/settings.js';
 import { careerView } from './ui/views/career.js';
 import { franchisesView, collegesView, tradesView, medicalView, rivalriesView, championsView, dataView } from './ui/views/misc.js';
+import { initMobileNav } from '../../core/ui/mobileNav.js';
+import { initPerfHud } from '../../core/ui/perfHud.js'; initMobileNav(); initPerfHud();   // diagnostic FPS overlay (off unless asu_perf=1)
 
 const sm = createSaveManager();
 const state = {

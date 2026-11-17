@@ -89,7 +89,7 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
     throwTarget: null, events: [], box: {}, roster, over: false, phase: 'PRE', lastPitch: null, pitchLog: [], speed, stage: 'PRE', mu: {}, steal: null, pitchTrail: null,
     stats: { pitchTypes: {}, decisions: {}, runnerDecisions: {}, steals: { att: 0, sb: 0, cs: 0 }, bunts: 0, contacts: 0, foulContacts: 0, fouls: 0 },
   };
-  let acc = 0, phaseT = 2.0, play = null, pitchAnim = null, nextPA = true;
+  let acc = 0, phaseT = 2.0, play = null, pitchAnim = null, nextPA = true, pickoffsThisPA = 0;
   const bat = () => (S.half === 'top' ? 'away' : 'home'), fld = () => other(bat());
   const box = id => (S.box[id] ||= { ab: 0, h: 0, d2: 0, d3: 0, hr: 0, r: 0, rbi: 0, bb: 0, k: 0, outs: 0, ha: 0, ra: 0, bba: 0, ka: 0, pc: 0, hra: 0, sb: 0, cs: 0, sh: 0, a: 0, e: 0 });
   const emit = (type, data = {}) => { const e = { type, t: +S.t.toFixed(2), inning: S.inning, half: S.half, ...data }; S.events.push(e); track(type, e); return e; };
@@ -110,7 +110,7 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
     const t = T[bat()], b = t.order[t.idx % 9];
     const sp = BATTER_SPOT(batsAgainst(b, pitcher()));
     Object.assign(b, { x: sp.x, y: sp.y, px: sp.x, py: sp.y, tx: sp.x, ty: sp.y, spd: 0, base: 0 });
-    S.batter = b; S.balls = 0; S.strikes = 0; S.steal = null; pitcher().lastPitches = [];
+    S.batter = b; S.balls = 0; S.strikes = 0; S.steal = null; pickoffsThisPA = 0; pitcher().lastPitches = [];
     emit('AT_BAT', { batter: b.id, pitcher: pitcher().id, team: bat() });
   }
   const batsAgainst = (b, p) => (b.bats === 'S' ? (p.throws === 'L' ? 'R' : 'L') : b.bats);
@@ -224,6 +224,32 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
     if (to === 3) sit *= 0.2;
     const appetite = 0.25 + 1.6 * clamp(r.R.steal - 0.4, 0, 0.6);
     return { r, to, margin, deliv, Tball, prob: TUNE.stealK * Math.pow(want, 1.2) * appetite * sit };
+  }
+
+  // ---------- pickoff attempts (before the pitch; runner on 1st or 2nd, never with two pickoffs already this PA) ----------
+  // Attempt chance grows with the runner's steal threat and shrinks with a poor move; success is rare and depends on the runner's
+  // jump vs the pitcher's hold. A caught runner is a real out (the half ends if it is the third).
+  function pickoffTry() {
+    if (pickoffsThisPA >= 2) return false;
+    const r = S.runners.find(x => x.base === 1) || S.runners.find(x => x.base === 2);
+    if (!r || (r.base === 1 && S.runners.some(x => x.base === 2))) return false; // not with first-and-second (the lead runner is the target elsewhere)
+    const p = pitcher(), F = T[fld()].field[r.base === 1 ? '1B' : 'SS'];
+    if (!F) return false;
+    const threat = clamp(r.R.steal - 0.35, 0, 0.65), want = 0.012 + 0.1 * threat + 0.02 * (p.R.hold - 0.5);
+    if (rng.next() >= want * (S.balls === 3 ? 0.5 : 1)) return false;
+    pickoffsThisPA++;
+    const pOut = clamp(0.03 + 0.04 * (p.R.hold - 0.5) + 0.03 * (0.6 - r.R.steal), 0.005, 0.09);
+    const out = rng.next() < pOut;
+    emit('PICKOFF_ATTEMPT', { pitcher: p.id, runner: r.id, base: r.base, fielder: F.id, team: fld(), result: out ? 'OUT' : 'SAFE', attempt: pickoffsThisPA });
+    S.stats.pickoffs = S.stats.pickoffs || { att: 0, out: 0 }; S.stats.pickoffs.att++;
+    if (out) {
+      S.stats.pickoffs.out++;
+      S.outs++; box(p.id).outs++; S.runners = S.runners.filter(x => x !== r); r.base = 0;
+      emit('OUT', { kind: 'pickoff', runner: r.id, fielder: F.id, team: fld(), assist: true });
+      if (S.outs >= 3) { endHalf(); return true; }
+    }
+    S.phase = 'PRE'; phaseT = out ? 1.6 : 1.1; resetPositions(false);
+    return true;
   }
 
   function throwPitch() {
@@ -451,12 +477,19 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
     plan.fielderMoves.push({ f: F, x: Q.x, y: Q.y, t: tF });
     // coverage: 1B → first, SS/2B → second, 3B → third, C → home; outfielders back up the play
     const cover = { '1B': 1, '2B': 2, SS: 2, '3B': 3, C: 4 };
+    // two fielders never share one spot: the second to claim a base (e.g. 2B and SS both → second) backs up 6 ft away, on his own side
+    const claimed = [{ x: Q.x, y: Q.y }];
+    const spread = (f, p) => {
+      if (!claimed.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 3.5)) { claimed.push(p); return p; }
+      let dx = f.x - p.x, dy = f.y - p.y, d = Math.hypot(dx, dy); if (d < 1e-3) { dx = f.pos === 'SS' ? -1 : 1; dy = 0.6; d = Math.hypot(dx, dy); }
+      const q = { x: p.x + dx / d * 6, y: p.y + dy / d * 6 }; claimed.push(q); return q;
+    };
     for (const f of S.fielders) if (f !== F) {
       let base = cover[f.pos];
       if (f.pos === '2B' && F.pos !== 'SS' && Q.x < 0) base = 2; else if (f.pos === 'SS' && (F.pos === '2B' || Q.x >= 0)) base = 2; else if (f.pos === '2B' && F.pos === '1B') base = 1;
       if (f.pos === 'P') { const p = F.pos === '1B' ? basePos(1) : { x: f.x, y: f.y + 6 }; plan.fielderMoves.push({ f, x: p.x, y: p.y }); continue; }
-      if (base) { const p = basePos(base); plan.fielderMoves.push({ f, x: p.x, y: p.y }); }
-      else plan.fielderMoves.push({ f, x: (f.x + Q.x) / 2, y: (f.y + Q.y) / 2 }); // back up
+      if (base) { const p = spread(f, basePos(base)); plan.fielderMoves.push({ f, x: p.x, y: p.y }); }
+      else { const p = spread(f, { x: (f.x + Q.x) / 2, y: (f.y + Q.y) / 2 }); plan.fielderMoves.push({ f, x: p.x, y: p.y }); } // back up
     }
     const err = !best.retrieve && rng.next() < (best.air ? 0.012 : 0.025) * (1.4 - F.R.hands) * (best.dive ? 3 : 1) * clamp(1 - 0.012 * (F._focus || 0), 0.6, 1.5);
     if (fl.foul && !(best.air && !err)) return foulPlay(fl, F, goer); // a foul that nobody catches: the ball flies, lands, the count moves
@@ -734,7 +767,7 @@ export function createBaseballEngine({ home, away, seed = 'mlb', ratingsOf = nul
       const h = pitcher(); b.px = b.x; b.py = b.y; b.pz = b.z; Object.assign(b, { x: h.x, y: h.y, z: 5, holder: h.id, hidden: false });
       if (phaseT <= 0) {
         if (nextPA) { nextPA = false; maybeChangePitcher(); newBatter(); phaseT = 1.0; return; }
-        throwPitch();
+        if (!pickoffTry()) throwPitch();
       }
       return;
     }
