@@ -6,7 +6,7 @@ Regra: **etapa só avança quando a prova está cumprida e registrada** (testado
 
 | # | Etapa | Objetivo | Entrega e critério para avançar |
 |---|---|---|---|
-| 1 | Diagnóstico e orçamento | Inventário do que roda hoje nos 3 jogos e metas numéricas por plataforma | Tabela "clipe → evento do motor → aparece em jogo?" (hoje 40 de 147 ligados) + orçamento (tris, textura, MB, ms/quadro) por PC e celular. Prova: uma partida completa de cada esporte sem travar |
+| 1 | **(feita)** Diagnóstico e orçamento | Inventário do que roda hoje nos 3 jogos e metas numéricas por plataforma | Tabela "clipe → evento do motor → aparece em jogo?" (hoje 40 de 147 ligados) + orçamento (tris, textura, MB, ms/quadro) por PC e celular. Prova: uma partida completa de cada esporte sem travar |
 | 2 | Direção de arte PS1/PS2 | Escolher o look antes de produzir | Folha de estilo (1 atleta, 1 estádio, 1 HUD) em PS1 (baixa resolução, Gouraud, dither) e PS2 (mais detalhe, texturas 256). Prova: você escolhe com 2 renders lado a lado |
 | 3 | Atleta e bola no Blender | Modelo reutilizável com UV, textura, rosto, uniforme por máscara, 3 LODs e biótipos por posição | `.blend` editável, `.glb` por kit, render de teste, contagem de tris por LOD. Prova: poses de teste sem deformação ruim |
 | 4 | Animações essenciais | Parado, andar, correr, patinar, passe, chute/tacada, queda, recuperação com **transições blendadas** (hoje o clipe troca seco) | Máquina de estados única + teste de continuidade + vídeo curto. Prova: 10 jogadas por esporte sem "pulos" de pose |
@@ -29,3 +29,6 @@ Sem esse número, migrar os 3 jogos para 3D é a decisão mais cara e mais fáci
 
 ## O que ainda não sei
 O **NBA Universe Manager e o ZIP v11 da imagem não estão no repositório**: só tenho NFL/NHL/MLB. Se o basquete deve ser o 4º jogo, preciso do zip.
+
+## Status
+* **Etapa 1 concluída:** `docs/INVENTARIO_ETAPA1.md` (69 de 147 clipes ligados, 22 só em demo, 56 sem gatilho) e `docs/ORCAMENTO.md` (metas PC/celular, lacunas). Partida de 30 s por esporte e modo sem erro e sem travar, exceto MLB a 52 fps e hitch de 116 ms no 1º uso do atlas.
