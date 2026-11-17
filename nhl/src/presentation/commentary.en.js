@@ -9,6 +9,19 @@ const periodName = n => ['first', 'second', 'third'][n - 1] || 'overtime';
 
 export const NHL_COMMENTARY_EN = {
   ...PT, $lang: 'en-US',
+  $color(e, c, h) {
+    const home = c.tot?.('home', 'sog') ?? 0, away = c.tot?.('away', 'sog') ?? 0, hh = c.tot?.('home', 'hit') ?? 0, ha = c.tot?.('away', 'hit') ?? 0;
+    const id = e.by || e.shooter || e.goalie, b = id && c.box?.[id], gb = e.goalie && c.box?.[e.goalie];
+    const opts = [
+      () => home + away >= 10 && Math.abs(home - away) >= 4 ? `${T(c, home > away ? 'home' : 'away')} is dominating the shot count, ${Math.max(home, away)} to ${Math.min(home, away)}.` : null,
+      () => b && b.g + b.a >= 2 ? `${L(c, id)} already has ${b.g + b.a} points tonight: ${b.g} goal${b.g === 1 ? '' : 's'} and ${b.a} assist${b.a === 1 ? '' : 's'}.` : null,
+      () => gb && gb.sa >= 10 ? `${L(c, e.goalie)} has stopped ${gb.sv} of ${gb.sa}, a ${(100 * gb.sv / gb.sa).toFixed(1)} percent save rate.` : null,
+      () => hh + ha >= 12 && Math.abs(hh - ha) >= 4 ? `${T(c, hh > ha ? 'home' : 'away')} is setting the physical tone, ${Math.max(hh, ha)} hits to ${Math.min(hh, ha)}.` : null,
+      () => c.period >= 3 && c.score && Math.abs(c.score.home - c.score.away) <= 1 ? 'Tight game in the third: one mistake could decide it.' : null,
+      () => c.powerPlay ? 'With the man advantage, puck movement is the key to opening up the defense.' : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
   $story(e, c, h) {
     if (e.type === 'GOAL') { const n = h.bump(`g:${e.by}`); return n === 2 ? `Second goal of the night for ${L(c, e.by)}!` : n === 3 ? 'HAT TRICK!' : n > 3 ? `Goal number ${n} for him tonight!` : null; }
     if (e.type === 'SAVE') { const n = h.bump(`sv:${e.goalie}`); return n > 0 && n % 10 === 0 ? `${L(c, e.goalie)} reaches ${n} saves.` : null; }

@@ -49,3 +49,18 @@ test('createVoiceCast: without Web Speech it is a safe no-op adapter', () => {
   const vc = createVoiceCast({ synth: null, Utterance: null });
   assert.equal(vc.minPriority, 99); vc.speak('x', {}); vc.cancel(); assert.deepEqual(vc.voices(), []);
 });
+
+test('createVoiceCast: one color remark waits for the current line and is spoken after it; a big moment clears it', async () => {
+  const synth = fakeSynth(), vc = createVoiceCast({ synth, Utterance: U, audio: () => null });
+  vc.speak('Gol!', { tone: 'score', priority: 3 });
+  vc.speak('Dado do comentarista.', { tone: 'color', priority: 2 });
+  assert.equal(synth.spoken.length, 1);
+  synth.speaking = false; synth.spoken[0].onend();
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(synth.spoken.length, 2); assert.equal(synth.spoken[1].voice.name, 'Ana');   // analyst voice
+  vc.speak('Outro gol!', { tone: 'score', priority: 3 });
+  vc.speak('Dado velho.', { tone: 'color', priority: 2 });
+  vc.speak('Terceiro gol!', { tone: 'score', priority: 3 });                                 // clears the waiting remark
+  synth.speaking = false; synth.spoken.at(-1).onend(); await new Promise(r => setTimeout(r, 300));
+  assert.ok(!synth.spoken.some(u => u.text === 'Dado velho.'));
+});

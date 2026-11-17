@@ -339,6 +339,7 @@ div.preset{display:flex}
 .live-comm .lc-line.p2 .lc-x { font-weight: 600; }
 .live-comm .lc-line.p3 .lc-x { font-weight: 800; }
 .live-comm .tone-score { border-left-color: #f5c542; }
+.live-comm .tone-color { border-left-color: #5aa9ff; font-style: italic; opacity: .92; }
 .live-comm .tone-turnover { border-left-color: #ff5d5d; }
 .live-comm .tone-bad { border-left-color: #ff8f5d; }
 .live-comm .tone-good { border-left-color: #4fd18b; }

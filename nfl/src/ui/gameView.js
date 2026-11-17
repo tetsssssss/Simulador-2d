@@ -114,7 +114,7 @@ export function mountGame(root, deps) {
     const ls = lineups(), off = offAbbr(g), def = defAbbr(g);
     const sc = t => (t === g.home ? g.homeScore : g.awayScore);
     return {
-      name: id => ls.who[id]?.name, last: id => lastOf(ls.who[id]?.name), off, def, home: g.home, away: g.away,
+      name: id => ls.who[id]?.name, last: id => lastOf(ls.who[id]?.name), num: id => ls.who[id]?.jersey_number ?? ls.who[id]?.number, off, def, home: g.home, away: g.away,
       homeScore: g.homeScore, awayScore: g.awayScore, score: { off: sc(off), def: sc(def) },
       quarter: g.quarter, clock: g.clock, down: g.down, distance: g.distance, spot: ballSpot(g), redZone: g.ballOn >= 80,
       losX: s?.losX ?? (g.ballOn + 10), qbId: s?.qb?.id, clockLabel: g.over ? 'FINAL' : `Q${g.quarter} ${clockStr(g.clock)}`,

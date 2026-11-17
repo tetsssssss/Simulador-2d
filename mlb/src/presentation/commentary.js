@@ -92,6 +92,18 @@ export const MLB_COMMENTARY = {
   INNING_END: [(e, c) => e.lob ? `Fim da metade. ${e.lob} corredor${e.lob > 1 ? 'es deixados' : ' deixado'} em base.` : 'Três outs. Troca de lado.'],
   PITCHING_CHANGE: [(e, c) => `Troca de arremessador: entra ${N(c, e.pitcher)}.`],
   FINAL: [(e, c) => `FIM DE JOGO! ${T(c, c.score.home > c.score.away ? 'home' : 'away')} vence por ${Math.max(c.score.home, c.score.away)} a ${Math.min(c.score.home, c.score.away)}.`],
+  $color(e, c, h) {
+    const pid = e.pitcher, bid = e.batter || e.by, pb = pid && c.box?.[pid], bb = bid && c.box?.[bid];
+    const ip = o => `${Math.floor(o / 3)}.${o % 3}`;
+    const opts = [
+      () => pb && pb.outs >= 3 ? `${L(c, pid)} hoje: ${ip(pb.outs)} entradas, ${pb.ha} rebatida${pb.ha === 1 ? '' : 's'} cedida${pb.ha === 1 ? '' : 's'}, ${pb.ra} corrida${pb.ra === 1 ? '' : 's'} e ${pb.ka} strikeout${pb.ka === 1 ? '' : 's'}.` : null,
+      () => bb && bb.ab >= 2 ? `${L(c, bid)} hoje: ${bb.h} rebatida${bb.h === 1 ? '' : 's'} em ${bb.ab} vez${bb.ab === 1 ? '' : 'es'}${bb.hr ? `, com ${bb.hr} home run` : ''}.` : null,
+      () => pb && pb.pc >= 85 ? `${L(c, pid)} chega a ${pb.pc} arremessos. O bullpen pode entrar em breve.` : null,
+      () => risp(c) && c.outs < 2 ? 'Corredor em posição de pontuar com menos de dois outs: a pressão cai sobre o arremessador.' : null,
+      () => c.inning >= 7 && c.score && Math.abs(c.score.home - c.score.away) <= 1 ? 'Jogo decidido nos detalhes nas últimas entradas.' : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
   $story(e, c, h) {
     if (e.type === 'HOME_RUN') { const n = h.bump(`hr:${e.by}`); return n === 2 ? `Segundo home run de ${L(c, e.by)} no jogo!` : n > 2 ? `${n}º home run dele hoje!` : null; }
     if (e.type === 'HIT') { const n = h.bump(`ht:${e.by}`); return n === 2 ? `Segundo hit de ${L(c, e.by)} hoje.` : n === 3 ? `Já são três hits de ${L(c, e.by)}!` : null; }

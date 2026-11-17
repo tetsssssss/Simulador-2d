@@ -119,6 +119,18 @@ const FALLBACK = {
 };
 export const MLB_COMMENTARY_EN = {
   ...PT, $lang: 'en-US',
+  $color(e, c, h) {
+    const pid = e.pitcher, bid = e.batter || e.by, pb = pid && c.box?.[pid], bb = bid && c.box?.[bid];
+    const ip = o => `${Math.floor(o / 3)}.${o % 3}`;
+    const opts = [
+      () => pb && pb.outs >= 3 ? `${L(c, pid)} tonight: ${ip(pb.outs)} innings, ${pb.ha} hit${pb.ha === 1 ? '' : 's'}, ${pb.ra} run${pb.ra === 1 ? '' : 's'} and ${pb.ka} strikeout${pb.ka === 1 ? '' : 's'}.` : null,
+      () => bb && bb.ab >= 2 ? `${L(c, bid)} tonight: ${bb.h} for ${bb.ab}${bb.hr ? ` with a home run` : ''}.` : null,
+      () => pb && pb.pc >= 85 ? `${L(c, pid)} is up to ${pb.pc} pitches. The bullpen could be coming soon.` : null,
+      () => risp(c) && c.outs < 2 ? 'Runner in scoring position with fewer than two outs: the pressure is on the pitcher.' : null,
+      () => c.inning >= 7 && c.score && Math.abs(c.score.home - c.score.away) <= 1 ? 'This one comes down to the details in the late innings.' : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
   $story(e, c, h) {
     if (e.type === 'HOME_RUN') { const n = h.bump(`hr:${e.by}`); return n === 2 ? `Second homer of the game for ${L(c, e.by)}!` : n > 2 ? `Home run number ${n} tonight for him!` : null; }
     if (e.type === 'HIT') { const n = h.bump(`ht:${e.by}`); return n === 2 ? `${L(c, e.by)}'s second hit tonight.` : n === 3 ? `That's three hits for ${L(c, e.by)}!` : null; }

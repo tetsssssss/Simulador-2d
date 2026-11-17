@@ -12,7 +12,7 @@ export function baseballHook(deps) {
     commentaryCtx: s => {
       const batSide = s.half === 'top' ? 'away' : 'home';
       return {
-        name: id => s.roster[id]?.name, last: id => s.roster[id]?.last, team: side => s[side]?.abbr || side,
+        name: id => s.roster[id]?.name, last: id => s.roster[id]?.last, num: id => s.roster[id]?.num, box: s.box, team: side => s[side]?.abbr || side,
         score: { ...s.score }, inning: s.inning, half: s.half, outs: s.outs, balls: s.balls, strikes: s.strikes,
         runners: s.runners.map(r => r.base).filter(b => b >= 1 && b <= 3), batSide, fieldSide: batSide === 'home' ? 'away' : 'home', walkoff: !!s.walkoff,
         clockLabel: s.over ? 'FINAL' : `${s.half === 'top' ? '▲' : '▼'}${s.inning} ${s.outs} out`,

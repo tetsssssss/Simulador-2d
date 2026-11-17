@@ -10,6 +10,18 @@ const late = ctx => ctx.quarter >= 4 && ctx.clock <= 300;
 
 export const NFL_COMMENTARY_EN = {
   ...PT, $lang: 'en-US',
+  $color(e, c, h) {
+    const run = h.streak('n:run'), pass = h.streak('n:pass'), tot = run + pass, m = margin(c);
+    const opts = [
+      () => tot >= 8 ? `${c.off} has gone ${Math.round(100 * pass / tot)} percent through the air and ${Math.round(100 * run / tot)} percent on the ground.` : null,
+      () => c.down === 3 && c.distance >= 8 ? `Third and long: ${c.def} can drop into coverage and send pressure.` : null,
+      () => c.down === 4 ? 'Fourth down changes the feel of this game: the coach has to choose between going for it and kicking.' : null,
+      () => c.redZone ? 'In the red zone the field shrinks and the defense squeezes the space.' : null,
+      () => c.quarter >= 4 && c.clock <= 300 ? `${Math.max(1, Math.round(c.clock / 60))} minute${Math.round(c.clock / 60) > 1 ? 's' : ''} left: every possession counts.` : null,
+      () => m >= 14 ? `${c.off} leads by ${m} and is controlling the tempo.` : m <= -14 ? `${c.off} has to rally: down ${-m}.` : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
   $story(e, c, h) {
     if (e.type === 'TOUCHDOWN' && e.by) { const n = h.bump(`td:${e.by}`); return n === 2 ? `Second touchdown of the day for ${L(c, e.by)}!` : n > 2 ? `Touchdown number ${n} for him today!` : null; }
     if (e.type === 'PASS_COMPLETE') { const n = h.bump(`rc:${e.receiver}`); return n === 5 || n === 8 ? `${L(c, e.receiver)} already has ${n} catches.` : null; }

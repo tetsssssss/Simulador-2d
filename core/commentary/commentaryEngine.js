@@ -5,8 +5,8 @@
 // can react to sequences (h.streak / h.last).
 import { createRng } from '../rng/rng.js';
 
-export function createCommentary({ pack, seed = 'commentary', speech = null, maxLines = 120, avoidRecent = 3 } = {}) {
-  const rng = createRng(String(seed));
+export function createCommentary({ pack, seed = 'commentary', speech = null, maxLines = 120, avoidRecent = 3, colorEvery = 7 } = {}) {
+  const rng = createRng(String(seed)); let sinceColor = 0; const recentColor = [];
   const recent = new Map(); // type -> [variant indexes]
   const lines = [];
   const memory = { last: [], counters: {} };
@@ -17,7 +17,7 @@ export function createCommentary({ pack, seed = 'commentary', speech = null, max
   const introduced = new Set();
   const introNames = ctx => {
     if (!ctx || !ctx.last || !ctx.name || ctx.__intro) return ctx;
-    return { ...ctx, __intro: true, last: id => { const n = ctx.name(id), l = ctx.last(id); if (!id || !n || n === l || introduced.has(id)) return l; introduced.add(id); return n; } };
+    return { ...ctx, __intro: true, last: id => { const n = ctx.name(id), l = ctx.last(id); if (!id || !n || n === l || introduced.has(id)) return l; introduced.add(id); const num = ctx.num?.(id); return num ? `#${num} ${n}` : n; } };
   };
 
   const h = {
@@ -62,10 +62,15 @@ export function createCommentary({ pack, seed = 'commentary', speech = null, max
       if (pack.$after) pack.$after(ev, ctx, h);
       if (!text) return null;
       const line = { id: lines.length + 1, type: ev.type, text, clock: ctx.clockLabel || '', tone: (pack.$tone && pack.$tone(ev, ctx)) || 'normal', priority: (pack.$priority && pack.$priority(ev, ctx)) || 1 };
-      lines.unshift(line); if (lines.length > maxLines) lines.length = maxLines;
+      const push = l => { lines.unshift(l); if (lines.length > maxLines) lines.length = maxLines; for (const s of subs) s(l); if (speaking && l.priority >= (speaking.minPriority ?? 2)) speaking.speak(l.text, l); };
       memory.last.unshift({ type: ev.type, ev }); if (memory.last.length > 12) memory.last.length = 12;
-      for (const s of subs) s(line);
-      if (speaking && line.priority >= (speaking.minPriority ?? 2)) speaking.speak(text, line);
+      push(line);
+      // analyst ("color") remark: facts from the game state, never on big moments, at most one every `colorEvery` lines
+      sinceColor++;
+      if (pack.$color && line.priority < 3 && sinceColor >= colorEvery && rng.next() < 0.7) {
+        let ct = null; for (let k = 0; k < 4 && !ct; k++) { const c2 = pack.$color(ev, ctx, h); if (c2 && !recentColor.includes(c2)) ct = c2; }   // never repeat the last few remarks
+        if (ct) { recentColor.push(ct); if (recentColor.length > 6) recentColor.shift(); sinceColor = 0; push({ id: lines.length + 1, type: 'COLOR', text: ct, clock: line.clock, tone: 'color', priority: 2 }); }
+      }
       return line;
     },
     // PresentationEngine listener interface

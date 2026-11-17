@@ -112,6 +112,18 @@ export const NFL_COMMENTARY = {
   PUNT: [(e, c) => `${c.off} vai para o punt.`],
   KICKOFF: [(e, c) => 'Kickoff.'],
   // streaks / sequence memory
+  $color(e, c, h) {
+    const run = h.streak('n:run'), pass = h.streak('n:pass'), tot = run + pass, m = margin(c);
+    const opts = [
+      () => tot >= 8 ? `${c.off} tem apostado ${Math.round(100 * pass / tot)}% no jogo aéreo e ${Math.round(100 * run / tot)}% na corrida.` : null,
+      () => c.down === 3 && c.distance >= 8 ? `Terceira e longa: a defesa de ${c.def} pode abrir a cobertura e rodar a pressão.` : null,
+      () => c.down === 4 ? 'A quarta descida muda o clima do jogo: o técnico precisa decidir entre arriscar e chutar.' : null,
+      () => c.redZone ? 'Na red zone o campo encurta e a defesa fecha os espaços.' : null,
+      () => c.quarter >= 4 && c.clock <= 300 ? `Restam ${Math.max(1, Math.round(c.clock / 60))} minuto${Math.round(c.clock / 60) > 1 ? 's' : ''} no relógio: cada posse conta.` : null,
+      () => m >= 14 ? `${c.off} abre ${m} pontos de vantagem e controla o ritmo.` : m <= -14 ? `${c.off} precisa reagir: perde por ${-m}.` : null,
+    ].map(f => f()).filter(Boolean);
+    return opts.length ? h.pick(opts) : null;
+  },
   $story(e, c, h) {
     if (e.type === 'TOUCHDOWN' && e.by) { const n = h.bump(`td:${e.by}`); return n === 2 ? `Segundo touchdown de ${L(c, e.by)} hoje!` : n > 2 ? `${n}º touchdown dele na partida!` : null; }
     if (e.type === 'PASS_COMPLETE') { const n = h.bump(`rc:${e.receiver}`); return n === 5 || n === 8 ? `${L(c, e.receiver)} já tem ${n} recepções.` : null; }
@@ -119,6 +131,7 @@ export const NFL_COMMENTARY = {
     return null;
   },
   $after(e, c, h) {
+    if (e.type === 'HANDOFF') h.bump('n:run'); if (e.type === 'PASS_ATTEMPT') h.bump('n:pass');
     if (e.type === 'PASS_COMPLETE') { h.bump(`rec:${e.receiver}`); h.reset('inc'); }
     if (e.type === 'INCOMPLETE') h.bump('inc');
     if (e.type === 'SACK') h.bump('sack'); else if (e.type === 'SNAP') { /* keep */ } else if (['PASS_COMPLETE', 'HANDOFF'].includes(e.type)) h.reset('sack');

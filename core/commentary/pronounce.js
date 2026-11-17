@@ -22,6 +22,7 @@ export function userOverrides() { try { return JSON.parse((typeof localStorage !
 export function speakable(text, lang = 'pt-BR', extra = userOverrides()) {
   if (!text) return text;
   const base = String(lang).slice(0, 2);
+  text = text.replace(/#(\d+)/g, base === 'pt' ? 'camisa $1' : base === 'es' ? 'número $1' : 'number $1');   // '#16 Mitch Marner' is spoken as 'camisa 16 …'
   const dict = base === 'pt' ? { ...TERMS_PT, ...NAMES_PT, ...extra } : { ...extra };
   const key = base + JSON.stringify(extra); let c = cache.get(key); if (c === undefined) { c = compile(dict); cache.set(key, c); }
   return c ? text.replace(c.re, m => c.map.get(m.toLowerCase()) ?? m) : text;

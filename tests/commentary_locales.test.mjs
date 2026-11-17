@@ -46,3 +46,18 @@ test('story hook: milestones are appended (2nd goal, hat trick) in both language
   const c = createCommentary({ pack: commentaryPack('nhl', 'en-US'), seed: 5 }), a = c.describe({ type: 'SHOT', by: 's1', team: 'home' }, ctx).text, b = c.describe({ type: 'SHOT', by: 's1', team: 'home' }, ctx).text;
   assert.ok(a.includes('Alex Stone') && !b.includes('Alex Stone') && b.includes('Stone'), `${a} | ${b}`);
 });
+
+test('color commentary: analyst lines use real stats, carry tone "color", come at most every few lines and never on big moments', () => {
+  const box = { s1: { g: 2, a: 1, sog: 5, hit: 0, sa: 0, sv: 0 }, g1: { g: 0, a: 0, sa: 20, sv: 18, sog: 0, hit: 0 } };
+  const cx = { ...ctx, box, tot: (side, k) => (side === 'home' ? { sog: 14, hit: 3 }[k] : { sog: 6, hit: 9 }[k]) ?? 0, num: id => (id === 's1' ? 16 : null) };
+  for (const loc of ['pt-BR', 'en-US']) {
+    const c = createCommentary({ pack: commentaryPack('nhl', loc), seed: 11, colorEvery: 2 }); const seen = [];
+    c.subscribe(l => seen.push(l));
+    for (let i = 0; i < 40; i++) c.describe({ type: i % 2 ? 'SHOT' : 'SAVE', by: 's1', goalie: 'g1', shooter: 's1', team: 'home' }, cx);
+    const col = seen.filter(l => l.type === 'COLOR');
+    assert.ok(col.length >= 3, `${loc}: ${col.length} color lines`); assert.ok(col.every(l => l.tone === 'color' && !/undefined|NaN/.test(l.text)), col.map(l => l.text).join(' | '));
+    assert.ok(seen.some(l => /#16 Alex Stone/.test(l.text)), 'first mention carries jersey number');
+    const gl = createCommentary({ pack: commentaryPack('nhl', loc), seed: 2, colorEvery: 1 }), got = []; gl.subscribe(l => got.push(l));
+    gl.describe({ type: 'GOAL', by: 's1', team: 'home', assists: [] }, cx); assert.ok(!got.some(l => l.type === 'COLOR'), 'no color on a goal');
+  }
+});

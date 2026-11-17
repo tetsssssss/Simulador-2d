@@ -25,7 +25,7 @@ export function pickVoices(voices, lang = 'pt-BR', prefs = {}) {
 }
 
 // Which caster reads this line: the analyst takes turnovers / bad news / reviews; the caller takes everything else.
-const COLOR_TONES = new Set(['turnover', 'bad', 'review']);
+const COLOR_TONES = new Set(['turnover', 'bad', 'review', 'color']);
 export function roleFor(line) { return line && COLOR_TONES.has(line.tone) ? 'color' : 'play'; }
 
 // Delivery by emotion. priority 3 = big moment (touchdown, goal, home run...). Values are Web Speech rate/pitch/volume.
@@ -48,6 +48,7 @@ export function createVoiceCast({
   audio = () => (typeof window !== 'undefined' ? window.__asuAudio : null),
 } = {}) {
   if (!synth || !Utterance) return { minPriority: 99, speak() {}, cancel() {}, voices: () => [], setLang() {}, setPrefs() {}, cast: () => ({}) };
+  let pending = null;   // one analyst remark waits for the current line to finish (stale after 9 s)
   let cast = pickVoices(synth.getVoices?.() || [], lang, prefs);
   const refresh = () => { cast = pickVoices(synth.getVoices?.() || [], lang, prefs); };
   // voices load asynchronously in Chromium: re-pick when the list arrives
@@ -56,16 +57,18 @@ export function createVoiceCast({
     minPriority,
     speak(text, line) {
       if (!text) return;
+      if (line && line.priority >= 3) pending = null;
       if (line && line.priority >= 3) synth.cancel();                 // big moments interrupt
-      else if (synth.pending || synth.speaking) return;               // never queue a backlog
+      else if (synth.pending || synth.speaking) { if (line && line.tone === 'color') pending = { text, line, at: Date.now() }; return; }   // no backlog; only one color remark may wait
       const role = roleFor(line), pr = prosodyFor(line, role, baseRate), u = new Utterance(pronounce(text));
       const v = cast[role]; if (v) u.voice = v;
       u.lang = (v && v.lang) || lang; u.rate = pr.rate; u.pitch = pr.pitch; u.volume = Math.max(0, Math.min(1, pr.volume * volume()));
       const a = audio();
-      u.onstart = () => a?.duck?.(0.45, 12000); u.onend = u.onerror = () => a?.unduck?.();
+      u.onstart = () => a?.duck?.(0.45, 12000);
+      u.onend = u.onerror = () => { a?.unduck?.(); const p = pending; pending = null; if (p && Date.now() - p.at < 9000) setTimeout(() => this.speak(p.text, p.line), 250); };
       synth.speak(u);
     },
-    cancel() { synth.cancel(); audio()?.unduck?.(); },
+    cancel() { pending = null; synth.cancel(); audio()?.unduck?.(); },
     voices: () => cast.all,
     cast: () => ({ play: cast.play?.name || null, color: cast.color?.name || null }),
     setLang(l) { lang = l; refresh(); },
