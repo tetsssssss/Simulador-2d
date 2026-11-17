@@ -6,3 +6,4 @@ dist/
 # Blender renders (regenerable in ~3 min, see docs/anim/BLENDER_NOTES.md): ~46 MB of PNG frames + ~15 MB of sheets per kit
 exports/anim/frames*/
 exports/anim/sheets*/
+exports/anim/atlas_frames/
