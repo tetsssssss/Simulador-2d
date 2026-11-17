@@ -336,6 +336,7 @@ export const issuesHtml = lg => (lg && lg.issues?.length ? `<div>${lg.issues.map
 export function pageTitle(text, right = '') { return `<div class="page-title"><h2>${esc(text)}</h2><span class="grow"></span>${right}</div>`; }
 export const panel = (title, body, right = '', cls = '') => `<section class="panel ${cls}"><div class="panel-h"><b>${esc(title)}</b><span>${right}</span></div>${body}</section>`;
 export function download(name, text, type = 'application/json') {
+  if (typeof window !== 'undefined' && window.AsuNative?.saveFile) { window.AsuNative.saveFile(name, text); return; }   // Android app: a WebView cannot download blobs
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 export const subTabs = (id, tabs, cur) => `<div class="subtabs" role="group" aria-label="Seções">${tabs.map(([k, l]) => `<button data-act="subtab" data-id="${id}" data-k="${k}" aria-pressed="${k === cur}" class="${k === cur ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;

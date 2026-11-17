@@ -128,8 +128,9 @@
   pop.addEventListener('click', async e => {
     const bk = e.target.closest('[data-bk]'); if (!bk) return;
     if (bk.dataset.bk === 'export') {
-      const b = collectBackup(localStorage), blob = new Blob([JSON.stringify(b)], { type: 'application/json' }), a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `asu-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      const b = collectBackup(localStorage), name = `asu-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (window.AsuNative?.saveFile) window.AsuNative.saveFile(name, JSON.stringify(b));      // Android app: system "save as" dialog (a WebView cannot download blobs)
+      else { const blob = new Blob([JSON.stringify(b)], { type: 'application/json' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
       note(`Backup baixado: ${b.count} itens (${Math.round(b.bytes / 1024)} KB).`);
     } else document.getElementById('suBkFile').click();
   });
@@ -150,7 +151,7 @@
 </script>
 <script>
   // Offline / installable: the service worker caches the app shell on first visit (sports assets are cached when first used).
-  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/ASUApp/.test(navigator.userAgent)) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
 </html>
