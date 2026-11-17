@@ -147,14 +147,36 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
 
   // one-shot avatar actions driven by engine events (PITCH → throw, swing decisions → swing, RUN_SCORES / HOME_RUN → celebrate)
   const acts = new Map(); let evIdx = 0;
+  // Dugout and bullpen occupants (presentation only): the batting team's hitters who are not at bat / on base sit in the dugout, a few relievers
+  // wait in the bullpen; both cheer for 3 s when their team scores. Slots follow the rotated dugout / bullpen rectangles drawn above.
+  const DUG_N = 5, PEN_N = 3; let lastScore = null;
+  function benchGuys(state) {
+    const roster = Object.values(state.roster || {}), t = state.t ?? 0, out = [];
+    const busy = new Set([...(state.fielders || []).map(f => f.id), state.batter?.id, ...(state.runners || []).map(r => r.id)].filter(Boolean));
+    const inOrder = new Set(); for (const side of ['home', 'away']) for (const r of state[side]?.lineup?.order || []) if (r) inOrder.add(r.id);
+    for (const [side, sgn] of [['home', 1], ['away', -1]]) {
+      const mine = roster.filter(r => r.team === side && !busy.has(r.id)).sort((x, y) => (x.id < y.id ? -1 : 1));
+      const dug = mine.filter(r => inOrder.has(r.id)).slice(0, DUG_N), pen = mine.filter(r => !inOrder.has(r.id)).slice(0, PEN_N);
+      const place = (list, along, off, spread, ly) => {
+        const th = sgn > 0 ? Math.PI / 4 : -Math.PI / 4, c = { x: sgn * R2 * along + sgn * R2 * off, y: R2 * along - R2 * off };
+        list.forEach((r, i) => {
+          const lx = (i - (list.length - 1) / 2) * spread, x = c.x + lx * Math.cos(th) - ly * Math.sin(th), y = c.y - (lx * Math.sin(th) + ly * Math.cos(th));
+          const cheer = lastScore && lastScore.team === side && t - lastScore.t0 >= 0 && t - lastScore.t0 < 3;
+          out.push({ ...r, x, y, px: x, py: y, facing: Math.atan2(-y, -x), bench: true, benchAct: cheer ? { type: 'celebrate', t: (t - lastScore.t0) / 3 } : null });
+        });
+      };
+      place(dug, 74, 54, 9, 1.2); place(pen, 255, 28, 12, 0);
+    }
+    return out;
+  }
   function pumpActions(state) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
       if (e.type === 'PITCH') { acts.set(e.pitcher, { type: 'throw', t0, dur: 0.85 }); if (e.decision && e.decision !== 'TAKE') acts.set(e.batter, { type: 'swing', t0: t0 + 0.45, dur: 0.55 }); }
       else if (e.type === 'PICKOFF_ATTEMPT') { acts.set(e.pitcher, { type: 'throw', t0, dur: 0.7 }); acts.set(e.runner, { type: 'dive', t0: t0 + 0.3, dur: 0.7 }); } // throw to the base, runner dives back
-      else if (e.type === 'HOME_RUN') acts.set(e.by, { type: 'celebrate', t0, dur: 3 });
-      else if (e.type === 'RUN_SCORES') acts.set(e.runner, { type: 'celebrate', t0, dur: 1.6 });
+      else if (e.type === 'HOME_RUN') { acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); lastScore = { team: e.team, t0 }; }
+      else if (e.type === 'RUN_SCORES') { acts.set(e.runner, { type: 'celebrate', t0, dur: 1.6 }); lastScore = { team: e.team, t0 }; }
     }
   }
   const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
@@ -168,10 +190,11 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     if (opts.visual === 'sheet') preloadKits('mlb');
     const base = Math.max(8.5, Math.min(24, 2.6 * s)) * (isAvatarMode(opts.visual) ? 1.55 : 1);
     const items = [];
+    for (const b of benchGuys(state)) items.push({ e: b, role: 'circle', scale: 0.95, bench: true });
     for (const f of state.fielders || []) items.push({ e: f, role: f.pos === 'P' ? 'pitcher' : 'circle', scale: f.pos === 'P' ? 1.22 : 1 });
     if (state.batter) items.push({ e: state.batter, role: 'batter', scale: 1.28 });
     for (const r of state.runners || []) items.push({ e: r, role: 'circle', scale: 1.05 });
-    for (const { e, role, scale } of items) {
+    for (const { e, role, scale, bench } of items) {
       const team = state[e.team] || {}, p = lerp(e, a), r = base * scale;
       const mode = opts.visual || (opts.showPhotos === false ? 'plain' : 'photo');
       const img = mode === 'photo' ? photoImage(e.p) : null;
@@ -181,14 +204,14 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
         const moving = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) > 0.02, isC = e.pos === 'C', rl = e.role || (role === 'batter' ? 'batter' : role === 'pitcher' ? 'pitcher' : e.base != null || e.runner ? 'runner' : isC ? 'catcher' : 'fielder');
         const hasBall = state.ball?.holder === e.id;
         // keyframed gait (same mv_* clips as the NFL) from the real speed; swing/throw/dive actions take priority
-        let action = actionOf(state, e.id); const phase = strides.update(e.id, p, performance.now(), e.pid ?? 0);
+        let action = bench ? e.benchAct : actionOf(state, e.id); const phase = strides.update(e.id, p, performance.now(), e.pid ?? 0);
         if (!action && moving) { const sp = Math.hypot(e.x - (e.px ?? e.x), e.y - (e.py ?? e.y)) * 30 / 3, id = runGait({ speed: sp, carrying: !!hasBall }); if (id) action = { type: 'clip:' + id, t: phase / (Math.PI * 2) }; }
         avatar = { sheet: mode === 'sheet', opts: getAvatar('mlb', e.pid ?? e.id), kit: 'baseball', role: rl, prop: rl === 'batter' ? 'bat' : rl === 'runner' ? 'none' : hasBall ? 'ball' : 'glove', pose: isC ? 'crouch' : 'stand', moving, seed: (e.pid ?? 0) % 7, dir: p.x > 0 ? -1 : 1, action, phase };
       }
       drawSprite(ctx, {
-        x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false ? e.last : '', img,
+        x: X0, y: Y0, r, color: team.color, color2: team.color2, number: e.num, pos: e.pos, name: opts.showNames !== false && !bench ? e.last : '', img,
         shape: role, avatar, facing: e.facing != null ? -e.facing : null, carrier: state.ball?.holder === e.id, target: state.throwTarget === e.id,
-        selected: opts.selected === e.id, level: zoomLevel(r), t: state.t || 0, labels: labelLayer, labelId: e.id,
+        selected: opts.selected === e.id, dim: !!bench, level: zoomLevel(r), t: state.t || 0, labels: labelLayer, labelId: e.id,
       });
       screen.set(e.id, { X: X0, Y: Y0, r, e });
     }
