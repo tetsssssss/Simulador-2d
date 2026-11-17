@@ -11,7 +11,7 @@ def main(src, dst):
         if not files: continue
         ims = [Image.open(os.path.join(d, f)).convert('RGBA') for f in files]; w, h = ims[0].size
         sheet = Image.new('RGBA', (w * len(ims), h)); [sheet.paste(im, (i * w, 0)) for i, im in enumerate(ims)]
-        sheet.save(os.path.join(dst, clip + '.png')); atlas[clip] = {'frame_w': w, 'frame_h': h, 'frames': len(ims)}
+        sheet.save(os.path.join(dst, clip + '.png'), optimize=True); atlas[clip] = {'frame_w': w, 'frame_h': h, 'frames': len(ims)}
     json.dump(atlas, open(os.path.join(dst, 'atlas.json'), 'w'), indent=1); print(f'{len(atlas)} sheets -> {dst}')
 
 if __name__ == '__main__':

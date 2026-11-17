@@ -11,10 +11,10 @@ const A = await import('../core/render/avatars.js');
 const ctxStub = () => new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : (t[k] ?? (() => {}))), set: (t, k, v) => { t[k] = v; return true; } });
 
 const catalog = readFileSync(new URL('../docs/ANIMATION_2D_CATALOG.csv', import.meta.url), 'utf8').split('\n').slice(1).filter(Boolean).map(l => l.split(',')[1]);
-const STAGE_SIZES = { qb: 25, move: 20, gesture: 20, foul: 20, grab: 20, pass: 20 };
+const STAGE_SIZES = { qb: 25, move: 20, gesture: 20, foul: 20, grab: 20, pass: 20, skate: 4 };
 
 test('every clip is valid (schema, ranges, key times, events)', () => {
-  assert.equal(ALL_CLIPS.length, 125);
+  assert.equal(ALL_CLIPS.length, 129);
   for (const c of ALL_CLIPS) assert.deepEqual(validateClip(c), [], c.id);
 });
 test('ids are unique and every clip maps to a real entry of the NFL catalog (traceability)', () => {
@@ -113,9 +113,9 @@ test('catch variant follows the ball: low → dive, high → high-point, contest
   assert.equal(catchClipId(sim(), e({ contested: true })), 'ps_contested_catch'); assert.equal(catchClipId(sim({ type: 'LOB', y: 1 }), e()), 'ps_catch_toe_tap');
   assert.equal(catchClipId(sim({ type: 'TOUCH' }), e()), 'ps_catch_hands');
 });
-test('animation plan file matches the registry (ids per batch, 125 clips = 25 QB + 100 new)', () => {
+test('animation plan file matches the registry (ids per batch, 129 clips = 25 QB + 100 football + 4 skating)', () => {
   const plan = JSON.parse(readFileSync(new URL('../docs/anim/plan.json', import.meta.url), 'utf8'));
-  assert.equal(plan.total, 125);
+  assert.equal(plan.total, 129);
   for (const [g, list] of Object.entries(BATCHES)) assert.deepEqual(plan.stages[g], list.map(c => c.id), g);
 });
 test('every clip with a release/catch event puts the ball where the event says', () => {
@@ -129,4 +129,17 @@ test('locomotion loops: 9 cyclic clips, legs alternate (half a cycle apart) and 
   for (const id of loops) { const c = getClip(id); assert.ok(c.loop, id); const a = samplePose(c, 0), b = samplePose(c, 0.5); assert.ok(Math.abs(a.lF - -b.lF) < 1e-6 && Math.abs(a.lB - -b.lB) < 1e-6, id + ' legs mirror'); assert.ok(a.kF !== b.kF, id + ' foot lift alternates'); }
   const speed = ['mv_walk', 'mv_jog', 'mv_run', 'mv_sprint'].map(id => getClip(id)); // faster gait = longer stride, more lean, shorter cycle
   for (let i = 1; i < speed.length; i++) { assert.ok(samplePose(speed[i], 0).lF > samplePose(speed[i - 1], 0).lF); assert.ok(speed[i].dur < speed[i - 1].dur); }
+});
+
+test('shared locomotion: skating gaits by speed/direction, running gait parity with the NFL picker, stride phase follows distance only', async () => {
+  const { StridePhase, skateGait, runGait } = await import('../core/anim/locomotion.js');
+  assert.equal(skateGait({ speed: 0.2 }), null); assert.equal(skateGait({ speed: 2 }), 'hk_glide'); assert.equal(skateGait({ speed: 6 }), 'hk_skate');
+  assert.equal(skateGait({ speed: 5, backwards: true }), 'hk_skate_back'); assert.equal(skateGait({ speed: 6, turning: true }), 'hk_crossover');
+  for (const id of ['hk_glide', 'hk_skate', 'hk_skate_back', 'hk_crossover']) assert.ok(getClip(id).loop);
+  for (const sp of [0.1, 1, 3, 5, 8]) for (const carrying of [false, true]) assert.equal(runGait({ speed: sp, carrying }), locomotionClipId({ speed: sp, carrying }));
+  const sp = new StridePhase(1 / 3); let ph = sp.update('a', { x: 0, y: 0 }, 0, 1);
+  assert.equal(sp.update('a', { x: 0, y: 0 }, 100, 1), ph, 'standing still: phase frozen');
+  const ph1 = sp.update('a', { x: 3, y: 0 }, 200, 1); assert.ok(ph1 > ph, 'moving 3 ft advances the phase'); const ph2 = sp.update('a', { x: 3 + 300, y: 0 }, 300, 1); assert.equal(ph2, ph1, 'teleport (>= 3 yd in one frame) keeps the phase');
+  const a = new StridePhase(1), b = new StridePhase(1); a.update('x', { x: 0, y: 0 }, 0); b.update('x', { x: 0, y: 0 }, 0);
+  const slow = a.update('x', { x: 0.05, y: 0 }, 100), fast = b.update('x', { x: 0.05, y: 0 }, 5); assert.ok(fast <= slow + 1e-9, 'same distance, higher speed = no more phase than slow gait');
 });

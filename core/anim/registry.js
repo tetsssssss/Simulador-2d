@@ -6,8 +6,9 @@ import { GESTURE_CLIPS } from './clips/football_gestures.js';
 import { FOUL_CLIPS } from './clips/football_fouls.js';
 import { GRAB_CLIPS } from './clips/football_grabs.js';
 import { PASS_CLIPS } from './clips/football_pass.js';
+import { SKATE_CLIPS } from './clips/hockey_skate.js';
 
-export const BATCHES = { qb: QB_CLIPS, move: MOVE_CLIPS, gesture: GESTURE_CLIPS, foul: FOUL_CLIPS, grab: GRAB_CLIPS, pass: PASS_CLIPS };
+export const BATCHES = { qb: QB_CLIPS, move: MOVE_CLIPS, gesture: GESTURE_CLIPS, foul: FOUL_CLIPS, grab: GRAB_CLIPS, pass: PASS_CLIPS, skate: SKATE_CLIPS };
 export const ALL_CLIPS = Object.values(BATCHES).flat();
 const BY_ID = new Map(ALL_CLIPS.map(c => [c.id, c]));
 export const getClip = id => BY_ID.get(id) || null;

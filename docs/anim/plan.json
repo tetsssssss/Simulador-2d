@@ -1,5 +1,5 @@
 {
- "total": 125,
+ "total": 129,
  "note": "ids per batch; qb = etapa 1, demais = pacote \"noite\" (movimentação, gestos, faltas, agarrado, passe)",
  "stages": {
   "qb": [
@@ -138,6 +138,12 @@
    "ps_swat",
    "ps_interception",
    "ps_contested_catch"
+  ],
+  "skate": [
+   "hk_glide",
+   "hk_skate",
+   "hk_skate_back",
+   "hk_crossover"
   ]
  }
 }

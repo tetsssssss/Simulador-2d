@@ -6,6 +6,7 @@
 // Clips that exist but are not wired yet (no engine event to hang them on): qb_kneel, qb_spike, qb_cadence, qb_pump_fake,
 // qb_play_action, qb_under_center (the engine always lines the QB up in the gun), qb_read_option.
 import { getClip } from '../../../core/anim/registry.js';
+import { runGait } from '../../../core/anim/locomotion.js';
 
 // Choose the QB throw from what the engine already knows at release: ball type (distance), pressure, QB movement, throw-away.
 export function throwClipId(sim, ev) {
@@ -35,14 +36,7 @@ export const WIRED_CLIPS = Object.freeze([
   'gs_arms_up',
 ]);
 // Locomotion clip from the athlete's real velocity (yd/s). One loop = one full stride cycle, driven by distance (stride phase).
-export function locomotionClipId({ speed, backwards = false, carrying = false }) {
-  if (speed < 0.45) return null;
-  if (backwards && speed > 0.8) return 'mv_backpedal';
-  if (speed < 2.3) return 'mv_walk';
-  if (speed < 4.3) return 'mv_jog';
-  if (speed < 6.6) return carrying ? 'mv_run_ball' : 'mv_run';
-  return carrying ? 'mv_sprint_ball' : 'mv_sprint';
-}
+export function locomotionClipId(o) { return runGait(o); }
 
 const hash = id => [...String(id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 // Catch variant from the ball's flight (height at the catch, ball type), the field position (sideline → toe tap) and the receiver.

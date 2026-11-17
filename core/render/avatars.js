@@ -171,6 +171,11 @@ export function drawAvatar(ctx, o) {
   const drawCpFront = () => {
     const el = handAt(F, cp.aF, armLen * 0.5), fh = { x: el.x + Math.sin(cp.fF) * armLen * 0.5 * dir, y: el.y + Math.cos(cp.fF) * armLen * 0.5 };
     limb(ctx, F.x, F.y, el.x, el.y, aw, color); limb(ctx, el.x, el.y, fh.x, fh.y, aw * 0.95, color); skinDot(fh.x, fh.y + 0.15 * u);
+    if (prop === 'stick' && !cp.ball) { // hockey stick follows the front hand, blade on the ice ahead of the skater
+      const groundY = 0.1 * u, tipX = fh.x + dir * 3.2 * u, tipY = Math.min(fh.y + 4.6 * u * P.legS * 0.8, groundY);
+      ctx.strokeStyle = '#d9dde3'; ctx.lineWidth = Math.max(1.2, 0.5 * u); ctx.beginPath(); ctx.moveTo(fh.x, fh.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+      ctx.strokeStyle = '#11161c'; ctx.lineWidth = Math.max(1.6, 0.85 * u); ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(tipX + dir * 1.5 * u, groundY); ctx.stroke();
+    } else if (prop === 'glove' && !cp.ball) { ctx.fillStyle = '#8a5a2b'; ctx.beginPath(); ctx.arc(fh.x + dir * 0.2 * u, fh.y + 0.1 * u, 0.95 * u, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3d2610'; ctx.lineWidth = Math.max(1, u * 0.14); ctx.stroke(); }
     if (cp.ball) { // football held by the front hand, the back hand, or both (centre)
       const bx = cp.ball === 'FB' ? (fh.x + cpB.h.x) / 2 : cp.ball === 'B' ? cpB.h.x : fh.x, by = cp.ball === 'FB' ? (fh.y + cpB.h.y) / 2 : cp.ball === 'B' ? cpB.h.y : fh.y;
       ctx.fillStyle = '#7a4a22'; ctx.beginPath(); ctx.ellipse(bx + dir * 0.3 * u, by - 0.3 * u, 0.95 * u, 0.6 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#f1c27d'; ctx.lineWidth = Math.max(0.8, u * 0.1); ctx.stroke();

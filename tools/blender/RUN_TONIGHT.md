@@ -1,3 +1,6 @@
+> **Atualização:** os scripts já foram executados e corrigidos (bpy 5.1, sem GPU) — ver `docs/anim/BLENDER_NOTES.md`. O roteiro abaixo
+> continua válido para o SEU Blender: o que falta validar é a sua versão, a importação na engine e o visual.
+
 # Roteiro para rodar o Blender (noite) — 15 minutos para validar, depois render em lote
 
 Pré-requisito: Blender 3.6+ ou 4.x no PATH (`blender --version`) e este repositório na pasta atual.
@@ -20,7 +23,7 @@ Espere: `[asu] mv_run: N frames` para cada clipe e PNGs em `exports/anim/frames_
 ## 3. O que conferir nas imagens (e o que mudar se estiver errado)
 | Sintoma | Causa provável | Ajuste |
 |---|---|---|
-| Braço do arremesso gira para trás/para baixo | sentido de rotação | `SIGN = 1.0` (era -1.0) |
+| Braço do arremesso gira para trás/para baixo | sentido de rotação (validado no 5.1) | `SIGN = 1.0` (era -1.0) |
 | Atleta aparece de costas / espelhado | câmera | em `setup_scene`: `cam.location = (0, 10, ...)` e `rotation_euler = (radians(90), 0, radians(180))` |
 | Figura muito pequena/grande | escala ortográfica | `cam.data.ortho_scale` (12*U → 10*U ou 14*U) |
 | Pernas muito abertas no sprint | conversão planar | multiplicar `l`/`k` por 0.8 em `leg_angles` |
