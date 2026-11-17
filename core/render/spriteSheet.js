@@ -42,7 +42,7 @@ export class LRU {
   set(k, v) { this.m.set(k, v); if (this.m.size > this.max) this.m.delete(this.m.keys().next().value); }
   get size() { return this.m.size; }
 }
-const cache = new LRU(900);
+const cache = new LRU(1800);   // 96x96x4 = 36 KB per tinted frame (~65 MB worst case); 5 directions x gaits x 2 team palettes thrash a smaller cache
 
 function loadImage(url) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; }); }
 export function loadKit(kit, base = BASE) {

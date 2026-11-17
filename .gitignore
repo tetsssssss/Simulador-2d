@@ -7,3 +7,4 @@ dist/
 exports/anim/frames*/
 exports/anim/sheets*/
 exports/anim/atlas_frames/
+*.zip
