@@ -23,6 +23,8 @@ import { NFL_ATMOSPHERE, nflStands } from '../presentation/atmosphere.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { TEAM_COLORS } from './teamColors.js';
+import { createRecorder } from './replay.js';
+import { createDirector } from './director.js';
 import { esc, avatar, teamLogo, ovrBadge, ratingsOf, keyAttrs, keyForAttribute, pid } from './components.js';
 
 export { newGameState };
@@ -48,7 +50,7 @@ export function mountGame(root, deps) {
   const view = {
     sim: null, raf: 0, acc: 0, last: 0, speed: disp.animSpeed || 1, paused: false, debug: !!disp.debug, zoom: 'medium', camera: null, highlights: true,
     follow: disp.cameraFollow !== false, phase: 'AWAIT', deadAt: null, resultAt: null, auto: m.mode === 'SPECTATOR' || !!m.auto,
-    selected: null, visual: getVisualMode(), playClock: 40, pendingCall: null, lastSum: null, boxTab: 'TEAM', simming: false, sel: { off: null, def: null },
+    selected: null, visual: getVisualMode(), director: (() => { try { return localStorage.getItem('asu_nfl_director') === '1'; } catch { return false; } })(), dirShot: 'BROADCAST', playClock: 40, pendingCall: null, lastSum: null, boxTab: 'TEAM', simming: false, sel: { off: null, def: null },
   };
   const cache = makeLineupCache(() => m.roster ? m.roster(state.roster) : state.roster);
   const sandbox = m.mode === 'SANDBOX';
@@ -69,9 +71,11 @@ export function mountGame(root, deps) {
           <div class="seg" id="speedSeg">${SPEEDS.map(v => `<button data-speed="${v}" class="${v === view.speed ? 'on' : ''}">${v}x</button>`).join('')}</div>
           <button id="nextBtn" title="Próxima jogada com chamada da CPU (N)">Next Play ▶</button>
           <button id="autoBtn" class="toggle ${view.auto ? 'on' : ''}" title="CPU chama todas as jogadas automaticamente">Auto Play</button>
+          <button id="instReplayBtn" title="Replay da última jogada (R)" disabled>⏪ Replay</button>
           ${sandbox ? '' : '<button id="simEndBtn" title="Simula o resto do jogo com o motor (sem animação)">Sim to end ⏭</button>'}
           <span class="grow"></span>
           <div class="seg" id="zoomSeg"><button data-zoom="close">Close</button><button data-zoom="medium" class="on">Mid</button><button data-zoom="full">Full</button></div>
+          <button id="dirBtn" class="toggle ${view.director ? 'on' : ''}" title="Câmera diretora: troca de ângulo sozinha (huddle, QB, bola no ar, replay)">🎬 Dir</button>
           <button id="camBtn" class="toggle ${view.follow ? 'on' : ''}" title="Câmera segue a bola">Cam</button>
           <div class="seg" id="camSeg" title="Câmeras (C alterna)">${Object.entries(CAMERAS).map(([k, c]) => `<button data-camera="${k}" title="${c.label}">${c.label}</button>`).join('')}</div>
           <button id="hlBtn" class="toggle on" title="Destaques discretos: QB, portador, alvo e defensor mais próximo">Destaques</button>
@@ -98,7 +102,25 @@ export function mountGame(root, deps) {
   const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
   const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, camera: view.camera, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, huddle: huddleK(), camera: view.director ? view.dirShot : view.camera, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  // Pre-snap huddle: the offense gathers behind the ball for ~1.4 s (shorter at higher speeds), then breaks to its formation. The sim does not step meanwhile.
+  const huddleOn = () => view.huddle && performance.now() - view.huddle.t0 < view.huddle.dur;
+  const huddleK = () => (huddleOn() ? (performance.now() - view.huddle.t0) / view.huddle.dur : null);
+  // Instant replay of the last play (touchdowns / turnovers automatically, any play with the Replay button): the recorder stores every tick, the
+  // finished sim object is replayed at half speed from the recording and then restored to its final state.
+  const rec = createRecorder();
+  const director = createDirector();   // 🎬 auto camera (off by default; any manual camera choice turns it off)
+  function startReplay() {
+    const s = view.sim; if (!s || view.phase !== 'AWAIT' || rec.length < 20) return;
+    view.phase = 'REPLAY'; view.replay = { i: 0, frac: 0 }; view.replayDone = true;
+    renderer.beginReplay(s); $('#resultPop').classList.remove('show');
+    $('#callTag').innerHTML = '<span class="chip replay-chip">⏪ REPLAY</span> <span class="muted">1/2 velocidade · clique em Replay para pular</span>'; syncControls();
+  }
+  function endReplay() {
+    const s = view.sim; if (!s || view.phase !== 'REPLAY') return;
+    rec.apply(s, rec.length - 1); renderer.endReplay(s); view.phase = 'AWAIT'; view.replay = null; view.resultAt = performance.now();
+    $('#callTag').innerHTML = ''; $('#resultPop').classList.add('show'); syncControls();
+  }
   const tuning = () => deps.tuning();
   const lineups = () => cache.get(offAbbr(g), defAbbr(g));
 
@@ -226,6 +248,7 @@ export function mountGame(root, deps) {
     try { view.sim = snap(g, ls, { playType: 'pass', concept: 'DRIVE', defCall: 'COVER_3' }, tuning()); } catch { view.sim = null; }
   }
   function runCall(call, seedN) {
+    if (view.phase === 'REPLAY') endReplay();
     if (g.over || view.simming || view.phase === 'RUN') return;
     if (sandbox) applySandboxSituation();
     const ls = lineups();
@@ -239,6 +262,9 @@ export function mountGame(root, deps) {
         sb.last = { call, seedN: n };
       } else s = snap(g, ls, call, tuning());
     } catch (e) { toast(e.message); return; }
+    view.huddle = !sandbox && !g.over && S().display.huddle !== false ? { t0: performance.now(), dur: Math.max(300, 1400 / Math.max(1, view.speed)) } : null;
+    if (view.huddle) window.__asuHuddles = (window.__asuHuddles || 0) + 1;   // test hook
+    rec.reset(); view.replayDone = false;
     view.sim = s; view.commIdx = 0; view.acc = 0; view.phase = 'RUN'; view.deadAt = null; view.paused = false; view.sel = { off: null, def: null };
     $('#resultPop').classList.remove('show');
     $('#callTag').innerHTML = `<span class="chip">${esc(PLAY_TYPES[s.call.playType])}</span> ${esc(conceptLabel(s.call.concept))} <span class="muted">vs ${esc(s.call.defLabel)}</span>`;
@@ -259,7 +285,7 @@ export function mountGame(root, deps) {
     $('#resultPop').innerHTML = resultCard(sum) + (sandbox ? '' : `<div class="rp-next">${g.over ? 'FINAL' : `${esc(downText(g))} · ${esc(ballSpot(g))}`}</div>`);
     $('#resultPop').classList.add('show');
     view.phase = 'AWAIT'; view.resultAt = performance.now(); view.playClock = 40;
-    $('#callTag').innerHTML = '';
+    $('#callTag').innerHTML = ''; syncControls();
     if (!sandbox) persist();
     if (g.over) onOver();
     drawAll();
@@ -376,23 +402,27 @@ export function mountGame(root, deps) {
     $('#pauseBtn').classList.toggle('on', view.paused);
     root.querySelectorAll('#speedSeg button').forEach(b => b.classList.toggle('on', +b.dataset.speed === view.speed));
     root.querySelectorAll('#zoomSeg button').forEach(b => b.classList.toggle('on', !view.camera && b.dataset.zoom === view.zoom));
-    root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.camera === view.camera));
+    root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.camera === (view.director ? view.dirShot : view.camera)));
     $('#hlBtn').classList.toggle('on', view.highlights);
     root.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', (b.dataset.view === 'debug') === view.debug));
     $('#autoBtn').classList.toggle('on', view.auto);
     $('#camBtn').classList.toggle('on', view.follow);
     $('#nextBtn').disabled = view.phase === 'RUN' || g.over || view.simming;
+    $('#dirBtn').classList.toggle('on', !!view.director);
+    $('#instReplayBtn').disabled = !(view.phase === 'REPLAY' || (view.phase === 'AWAIT' && rec.length >= 20)); $('#instReplayBtn').textContent = view.phase === 'REPLAY' ? '⏭ Skip' : '⏪ Replay';
     if ($('#simEndBtn')) $('#simEndBtn').disabled = g.over || view.simming;
   }
   const togglePause = () => { view.paused = !view.paused; syncControls(); };
   $('#pauseBtn').onclick = togglePause;
   $('#speedSeg').onclick = e => { const v = e.target.dataset.speed; if (v) { view.speed = +v; syncControls(); } };
   $('#zoomSeg').onclick = e => { const v = e.target.dataset.zoom; if (v) { view.zoom = v; view.camera = null; syncControls(); } }; // classic zoom leaves any preset
-  $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.camera = view.camera === v ? null : v; syncControls(); } };
+  $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.director = false; try { localStorage.setItem('asu_nfl_director', '0'); } catch { /* private */ } view.camera = view.camera === v ? null : v; syncControls(); } };
+  $('#dirBtn').onclick = () => { view.director = !view.director; try { localStorage.setItem('asu_nfl_director', view.director ? '1' : '0'); } catch { /* private */ } syncControls(); };
   $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
   $('#viewSeg').onclick = e => { const v = e.target.dataset.view; if (v) { view.debug = v === 'debug'; syncControls(); drawDebug(); drawPlayerCard(); } };
   $('#camBtn').onclick = () => { view.follow = !view.follow; syncControls(); };
   $('#autoBtn').onclick = () => { view.auto = !view.auto; m.auto = view.auto; syncControls(); };
+  $('#instReplayBtn').onclick = () => { if (view.phase === 'REPLAY') endReplay(); else startReplay(); };
   $('#nextBtn').onclick = () => { if (view.phase === 'AWAIT') runCall(cpuCall()); };
   $('#exitBtn').onclick = () => { if (m.mode === 'CAREER' && !g.over && !confirm('Sair da partida da carreira? O progresso do jogo fica salvo para continuar depois.')) return; state.match = g.over ? null : m; m.suspended = true; deps.navigate('play'); };
   $('#boxTabs').onclick = e => { const t = e.target.dataset.tab; if (t) { view.boxTab = t; root.querySelectorAll('#boxTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); drawBox(); } };
@@ -408,6 +438,7 @@ export function mountGame(root, deps) {
     if (!canvas.isConnected || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     if (e.code === 'Space') { e.preventDefault(); togglePause(); }
     else if (e.key === 'n' || e.key === 'N') $('#nextBtn').click();
+    else if (e.key === 'r' || e.key === 'R') $('#instReplayBtn').click();
     else if (e.key === 'd' || e.key === 'D') { view.debug = !view.debug; syncControls(); drawDebug(); }
     else if (e.key === 'c' || e.key === 'C') { const ks = [null, ...Object.keys(CAMERAS)]; view.camera = ks[(ks.indexOf(view.camera) + 1) % ks.length]; syncControls(); }
     else if (['1', '2', '3', '4'].includes(e.key)) { view.speed = SPEEDS[+e.key - 1]; syncControls(); }
@@ -429,15 +460,20 @@ export function mountGame(root, deps) {
     const s = view.sim;
     const dtReal = view.last ? Math.min(0.1, (ts - view.last) / 1000) : 0;
     view.last = ts;
-    if (s && view.phase === 'RUN' && !view.paused) {
+    if (s && view.phase === 'RUN' && !view.paused && !huddleOn()) {
       view.acc += dtReal * view.speed;
-      while (view.acc >= s.dt && s.phase !== 'DEAD') { step(s); view.acc -= s.dt; }
+      while (view.acc >= s.dt && s.phase !== 'DEAD') { step(s); rec.capture(s); view.acc -= s.dt; }
       emitLive(s);
       if (s.phase === 'DEAD') {
         if (view.deadAt === null) view.deadAt = ts;
         if (ts - view.deadAt > 600 / Math.max(1, view.speed)) { view.deadAt = null; finishPlay(); }
       }
     }
+    if (s && view.phase === 'REPLAY') {
+      view.replay.i += dtReal * 30 * 0.5;
+      if (view.replay.i >= rec.length - 1) endReplay(); else { const a = rec.apply(s, view.replay.i); view.replay.frac = a - Math.floor(a); }
+    }
+    if (view.director) { const R = s?.result; view.dirShot = director.pick({ phase: view.phase, huddle: !!huddleOn(), simPhase: s?.phase, scoring: !!(R && (R.touchdown || R.turnover)) }, ts / 1000); if (view.dirShot !== view.dirShown) { view.dirShown = view.dirShot; syncControls(); } }
     presentation.tick(dtReal);
     if (view.phase === 'AWAIT' && !g.over && !view.paused && !view.simming) {
       const before = Math.ceil(view.playClock);
@@ -445,10 +481,12 @@ export function mountGame(root, deps) {
       if (Math.ceil(view.playClock) !== before) drawBug();
       const since = view.resultAt ? ts - view.resultAt : Infinity;
       if (S().display.autoAdvance !== false && since > 5200 / Math.max(1, view.speed)) $('#resultPop').classList.remove('show');
-      if (view.auto && since > 2200 / Math.max(1, view.speed)) runCall(cpuCall());
+      const R = s?.result;   // automatic replay after a touchdown / turnover (once per play)
+      if (!sandbox && !view.replayDone && R && (R.touchdown || R.turnover) && S().display.autoReplay !== false && since > 1600 / Math.max(1, view.speed)) startReplay();
+      else if (view.auto && view.phase === 'AWAIT' && since > 2200 / Math.max(1, view.speed)) runCall(cpuCall());
     }
     if (s) {
-      renderer.render(s, s.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / s.dt), renderOpts());
+      renderer.render(s, view.phase === 'REPLAY' ? view.replay.frac : s.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / s.dt), renderOpts());
       if (view.debug && ++hudTick % 3 === 0) drawDebug();
     }
     view.raf = requestAnimationFrame(frame);

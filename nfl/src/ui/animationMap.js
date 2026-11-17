@@ -99,5 +99,17 @@ export function contactPull(p, q, gap = 0.75, k = 1, max = 2.2) {
   const move = Math.min(max, (d - gap)) * Math.min(1, k);
   return { x: p.x + dx / d * move, y: p.y + dy / d * move };
 }
+// Huddle (render-only): before the snap the offense stands in a circle behind the ball, then breaks to its formation spot.
+//   k = progress 0..1 of the whole pre-snap window: 0..HUDDLE_BREAK = in the circle, then jogs to the formation.
+// idx/n = this player's index among the offense; center = { x, y }; returns { x, y, facing, breaking, active }.
+export const HUDDLE_BREAK = 0.62;
+export function huddlePose(k, idx, n, center, formation, radius = 1.7) {
+  if (typeof k !== 'number' || !(k >= 0 && k < 1)) return { x: formation.x, y: formation.y, facing: null, breaking: false, active: false };
+  const a = (idx / Math.max(1, n)) * Math.PI * 2, hx = center.x + Math.cos(a) * radius, hy = center.y + Math.sin(a) * radius;
+  if (k < HUDDLE_BREAK) return { x: hx, y: hy, facing: Math.atan2(center.y - hy, center.x - hx), breaking: false, active: true };
+  const u = smooth01((k - HUDDLE_BREAK) / (1 - HUDDLE_BREAK));
+  const x = hx + (formation.x - hx) * u, y = hy + (formation.y - hy) * u;
+  return { x, y, facing: Math.atan2(formation.y - hy, formation.x - hx), breaking: true, active: true };
+}
 export const CONTACT_CLIPS = new Set(['clip:ag_wrap_tackle', 'clip:ag_arm_tackle', 'clip:ag_pile_top']);
 export const smooth01 = x => { const k = Math.max(0, Math.min(1, x)); return k * k * (3 - 2 * k); };

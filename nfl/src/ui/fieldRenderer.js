@@ -5,13 +5,14 @@
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
-import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01 } from './animationMap.js';
+import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01, huddlePose } from './animationMap.js';
 import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
 import { preloadKits } from '../../../core/render/spriteSheet.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
+import { createWeather, weatherPref } from '../../../core/render/weather.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { TEAM_COLORS } from './teamColors.js';
 
@@ -253,13 +254,15 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     for (const a of pn.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true, next: a.next });
     penalty = pn; return pn;
   }
+  let replaying = false;   // gameView drives an instant replay of the finished sim (see ui/replay.js)
   const contacts = new Map();   // tackler/assist id -> carrier id (visual contact pull while the tackle clip runs)
   function pumpActions(sim) {
     if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); contacts.clear(); }
-    const t0 = sim.t ?? 0, set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
+    let t0 = sim.t ?? 0; const set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx];
+      if (replaying) { if (e.t > (sim.t ?? 0)) break; t0 = e.t; }   // replay: events fire at their own recorded time
       if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
       if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
@@ -294,6 +297,8 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     if (d < 3) st.ph += d * (2.5 - 0.11 * v); // d >= 3 yd in one frame = teleport (new play): keep the phase
     st.x = p.x; st.y = p.y; st.t = now; return st.ph;
   }
+  let wx = null, wxSeed = '', wxT = 0;
+  let huddleK = null; // 0..1 while the pre-snap huddle plays (gameView), else null
   let handBall = false; // a keyframed clip is drawing the ball in the athlete's hands → skip the separate carried-ball sprite
   function drawPlayer(e, a, isCarrier, override = null) {
     const s = ppy();
@@ -305,6 +310,11 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const ca = actionOf(lastSim, e.id), ce = lastSim.ents?.find(x => x.id === ct.c);
       if (ca && ce && CONTACT_CLIPS.has(ca.type)) p = contactPull(p, lerpPos(ce, a), ct.gap, smooth01(ca.t / 0.45));
     }
+    let hFacing = null, hBreak = false;
+    if (huddleK != null && e.side === 'off' && !override && lastSim?.offense) {   // pre-snap huddle (render-only; the simulation has not started stepping)
+      const hp = huddlePose(huddleK, lastSim.offense.indexOf(e), lastSim.offense.length, { x: lastSim.losX - 8.5, y: lastSim.by }, p);
+      if (hp.active) { p = { x: hp.x, y: hp.y }; hFacing = hp.facing; hBreak = hp.breaking; }
+    }
     const [X, Y] = pt(p.x, p.y);
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
@@ -315,12 +325,13 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       if (e.down) clipAct = { type: 'clip:ag_pile_bottom', t: 1 };
       else { const sp = Math.hypot(e.vel?.x || 0, e.vel?.y || 0), back = sp > 0.5 && ((e.vel.x * Math.cos(e.facing) + e.vel.y * Math.sin(e.facing)) / sp) < -0.35, lat = sp > 0.8 && Math.abs((-(e.vel.x || 0) * Math.sin(e.facing) + (e.vel.y || 0) * Math.cos(e.facing)) / sp) > 0.8, id = locomotionClipId({ lateral: lat && e.side === 'def', ready: e.side === 'def' && !isCarrier && !(lastSim?.t > 0.2), speed: sp, backwards: back, carrying: isCarrier }); if (id) clipAct = { type: 'clip:' + id, t: ph / (Math.PI * 2) }; }
     }
+    if (hBreak && av) clipAct = { type: 'clip:mv_jog', t: ph / (Math.PI * 2) };   // jogging out of the huddle
     if (clipAct && clipPoseOf(clipAct)?.ball) handBall = true;
     const qb = e === lastSim?.qb;
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
+      avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: (hFacing ?? e.facing) + cam.rot,
       carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
@@ -526,7 +537,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     if (opts.zoom) cam.zoom = opts.zoom;
     prefs = { photos: opts.photos !== false, visual: opts.visual || (opts.photos === false ? 'plain' : 'photo'), follow: opts.follow !== false, selected: opts.selected || null, camera: CAMERAS[opts.camera] ? opts.camera : null, highlights: opts.highlights !== false };
     cam.preset = prefs.camera;
-    lastSim = sim;
+    lastSim = sim; huddleK = opts.huddle ?? null;
     teamCols = sideColors(opts.teams?.off, opts.teams?.def);
     updateCamera(sim, alpha);
     drawField(sim, opts.teams || {});
@@ -542,6 +553,9 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     if (prefs.highlights) drawHighlights(sim, alpha, screen);
     if (opts.debug) drawDebug(sim, alpha, screen);
     drawBall(sim, alpha);
+    { const seed = `${opts.teams?.home || ''}@${opts.teams?.away || ''}`, now = performance.now() / 1000;   // weather overlay (visual only)
+      if (!wx || wxSeed !== seed) { wx = createWeather({ sport: 'nfl', seed }); wxSeed = seed; }
+      wx.setMode(weatherPref()); wx.draw(ctx, W, H, wxT ? Math.min(0.1, now - wxT) : 0.016); wxT = now; }
   }
 
   // Hit test in CSS pixels (canvas-relative) → entity under the cursor (last rendered frame).
@@ -551,7 +565,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     return best;
   }
 
-  return { render, resize, pick, demoPenalty: (foul, o) => (lastSim ? startPenalty(foul, lastSim, o) : null), get penalty() { return penalty; }, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
+  return { beginReplay(sim) { replaying = true; evSim = sim; evIdx = 0; acts.clear(); contacts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; }, render, resize, pick, demoPenalty: (foul, o) => (lastSim ? startPenalty(foul, lastSim, o) : null), get penalty() { return penalty; }, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
 
 function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }

@@ -188,3 +188,14 @@ test('wiring v2: throw variants come from real engine data; lateral / stance gai
   assert.equal(runGait({ speed: 4, lateral: true, carrying: true }), 'mv_jog');                     // ball carriers never shuffle
   for (const id of ['ps_screen_toss', 'ps_checkdown', 'ps_hail_mary', 'qb_jump_throw', 'mv_shuffle', 'mv_carioca', 'mv_athletic_ready']) assert.ok(WIRED_CLIPS.includes(id), id);
 });
+
+test('huddlePose: circle first, then a smooth break to the formation spot; inactive outside 0..1', async () => {
+  const { huddlePose, HUDDLE_BREAK } = await import('../nfl/src/ui/animationMap.js');
+  const C = { x: 20, y: 26 }, F = { x: 31, y: 30 };
+  const h0 = huddlePose(0.1, 3, 11, C, F); assert.ok(h0.active && !h0.breaking);
+  assert.ok(Math.abs(Math.hypot(h0.x - C.x, h0.y - C.y) - 1.7) < 1e-9, 'on the circle'); assert.ok(Math.abs(Math.cos(h0.facing) * (C.x - h0.x) + Math.sin(h0.facing) * (C.y - h0.y) - 1.7) < 1e-9, 'faces the centre');
+  const mid = huddlePose((HUDDLE_BREAK + 1) / 2, 3, 11, C, F); assert.ok(mid.breaking && mid.x > h0.x && mid.x < F.x);
+  const end = huddlePose(0.9999, 3, 11, C, F); assert.ok(Math.hypot(end.x - F.x, end.y - F.y) < 0.05);
+  for (const k of [null, undefined, -0.1, 1, 2, NaN]) { const o = huddlePose(k, 0, 11, C, F); assert.ok(!o.active && o.x === F.x && o.y === F.y, String(k)); }
+  const pts = new Set(Array.from({ length: 11 }, (_, i) => { const q = huddlePose(0.2, i, 11, C, F); return `${q.x.toFixed(2)},${q.y.toFixed(2)}`; })); assert.equal(pts.size, 11, 'every player has its own spot');
+});

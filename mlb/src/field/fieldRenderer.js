@@ -14,6 +14,7 @@ import { BASES, MOUND, FENCE, fenceDist, fencePoint } from './geometry.js';
 import { photoImage } from '../photos.js';
 import { getAvatar, isAvatarMode } from '../../../core/render/avatars.js';
 import { preloadKits } from '../../../core/render/spriteSheet.js';
+import { createWeather, weatherPref } from '../../../core/render/weather.js';
 
 export const CAMERAS = {
   BROADCAST: { label: 'Broadcast', cx: 0, cy: 160, view: 450, viewH: 345 },
@@ -302,6 +303,7 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     return [c.cx, c.cy, c.view, c.viewH];
   }
 
+  let wx = null, wxSeed = '';
   function render(state, alpha = 1, opts = {}) {
     const now = performance.now() / 1000, dt = lastT ? Math.min(0.1, now - lastT) : 0; lastT = now;
     if (opts.camera && CAMERAS[opts.camera]) mode = opts.camera;
@@ -314,6 +316,9 @@ export function createFieldRenderer(canvas, { crowd = null } = {}) {
     drawAthletes(state, alpha, opts);
     drawHighlights(state);
     drawBall(state, alpha);
+    { const seed = `${state.home?.abbr || ''}@${state.away?.abbr || ''}`;   // weather overlay (visual only)
+      if (!wx || wxSeed !== seed) { wx = createWeather({ sport: 'mlb', seed }); wxSeed = seed; }
+      wx.setMode(weatherPref()); wx.draw(ctx, hd.w, hd.h, dt || 0.016); }
     const vg = ctx.createRadialGradient(hd.w / 2, hd.h / 2, Math.min(hd.w, hd.h) * 0.35, hd.w / 2, hd.h / 2, Math.max(hd.w, hd.h) * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, hd.w, hd.h);
   }
