@@ -31,7 +31,7 @@ LEG_SCALE = 1.3      # same stride exaggeration as the 2D "athlete" style (legS)
 def parse_args():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     a = {'clips': 'exports/anim/nfl_clips.json', 'out': 'exports/anim/frames', 'size': 128, 'only': None, 'step': 1, 'render': True, 'kit': 'football',
-         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True}
+         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True, 'yaws': [0.0], 'elevation': 0.0}
     i = 0
     while i < len(argv):
         k = argv[i]
@@ -42,6 +42,8 @@ def parse_args():
         elif k == '--size': a['size'] = int(v)
         elif k == '--step': a['step'] = max(1, int(v))
         elif k == '--azimuth': a['azimuth'] = float(v)
+        elif k == '--elevation': a['elevation'] = float(v)
+        elif k == '--yaws': a['yaws'] = [float(x) for x in v.split(',')]
         elif k == '--jersey': a['jersey'] = tuple(float(x) for x in v.split(','))
         elif k == '--pants': a['pants'] = tuple(float(x) for x in v.split(','))
         elif k in ('--build', '--skin'): a[k[2:]] = int(v)
@@ -73,7 +75,7 @@ def apply_frame(rig, fr, i):
         rot(f'thigh_{s}', th); rot(f'shin_{s}', kn)
 
 
-def setup_scene(size, azimuth, engine):
+def setup_scene(size, azimuth, engine, elevation=0.0):
     sc = bpy.context.scene; sc.render.resolution_x = sc.render.resolution_y = size; sc.render.film_transparent = True
     sc.render.image_settings.file_format = 'PNG'; sc.render.image_settings.color_mode = 'RGBA'
     sc.view_settings.view_transform = 'Standard'; sc.view_settings.look = 'None'   # no tone mapping: white stays white and the mask channels stay 0/1 (the game tints by multiplying)
@@ -87,8 +89,8 @@ def setup_scene(size, azimuth, engine):
         sc.cycles.samples = 24; sc.cycles.device = 'CPU'
     cam_d = bpy.data.cameras.new('cam'); cam_d.type = 'ORTHO'; cam_d.ortho_scale = 2.35
     cam = bpy.data.objects.new('cam', cam_d); bpy.context.collection.objects.link(cam); sc.camera = cam
-    az = math.radians(azimuth); r = 8.0                           # azimuth 0 = pure side view (camera on -Y); 30 = three-quarter from the front-left
-    cam.location = (math.sin(az) * r, -math.cos(az) * r, 0.95); cam.rotation_euler = (math.radians(90), 0, az)
+    az = math.radians(azimuth); el = math.radians(elevation); r = 8.0                           # azimuth 0 = pure side view (camera on -Y); 30 = three-quarter from the front-left
+    cam.location = (math.sin(az) * r * math.cos(el), -math.cos(az) * r * math.cos(el), 0.95 + math.sin(el) * r); cam.rotation_euler = (math.radians(90) - el, 0, az)   # elevation tilts the camera down (game top-down feel)
     sun = bpy.data.objects.new('sun', bpy.data.lights.new('sun', 'SUN')); sun.data.energy = 3.0
     sun.rotation_euler = (math.radians(55), 0, math.radians(35)); bpy.context.collection.objects.link(sun)
 
@@ -102,14 +104,17 @@ def main():
     colors = colors or None
     obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
     print(f"[asu] athlete kit={a['kit']} tris={triangle_count(obj)} layer={a['layer']}")
-    if a['layer'] == 'mask':   # team-colour mask pass: R = jersey (+ helmet/cap), G = pants, everything else black; flat light, no outline
+    if a['kit'] == 'ref':       # referee: fixed black/white stripes, never tinted (mask pass = all black)
+        if a['layer'] == 'mask':
+            for m in bpy.data.materials: m.diffuse_color = (0, 0, 0, 1)
+    elif a['layer'] == 'mask':   # team-colour mask pass: R = jersey (+ helmet/cap), G = pants, everything else black; flat light, no outline
         for m in bpy.data.materials:
             rgb = (1, 0, 0) if m.name in ('asu_jersey', 'asu_helmet') else (0, 1, 0) if m.name == 'asu_pants' else (0, 0, 0)
             m.diffuse_color = (*rgb, 1.0)
     elif a['layer'] == 'color':  # team-tintable base: jersey, helmet and pants white (the game multiplies them by the team colours)
         for n in ('asu_jersey', 'asu_helmet', 'asu_pants'):
             if n in bpy.data.materials: bpy.data.materials[n].diffuse_color = (1, 1, 1, 1)
-    setup_scene(a['size'], a['azimuth'], a['engine']); bpy.context.scene.render.fps = doc['fps']
+    setup_scene(a['size'], a['azimuth'], a['engine'], a['elevation']); bpy.context.scene.render.fps = doc['fps']
     if a['layer'] == 'mask' and a['engine'] == 'workbench':
         sh = bpy.context.scene.display.shading; sh.light = 'FLAT'; sh.show_object_outline = False
     bpy.context.view_layer.objects.active = rig; bpy.ops.object.mode_set(mode='POSE')
@@ -122,10 +127,13 @@ def main():
         act.use_fake_user = True; done.append(act)
         bpy.context.scene.frame_start, bpy.context.scene.frame_end = 1, len(c['frames'])
         if a['render']:
-            for i in range(0, len(c['frames']), a['step']):
-                bpy.context.scene.frame_set(i + 1)
-                d = os.path.join(a['out'], c['id']); os.makedirs(d, exist_ok=True)
-                bpy.context.scene.render.filepath = os.path.join(d, f'frame_{i:04d}.png'); bpy.ops.render.render(write_still=True)
+            for yi, yaw in enumerate(a['yaws']):        # --yaws 0,-45,-90,45,90 = E, SE, S, NE, N on screen (the rig turns, the camera stays)
+                rig.rotation_euler.z = math.radians(yaw)
+                for i in range(0, len(c['frames']), a['step']):
+                    bpy.context.scene.frame_set(i + 1)
+                    d = os.path.join(a['out'], c['id'], f'd{yi}') if len(a['yaws']) > 1 else os.path.join(a['out'], c['id']); os.makedirs(d, exist_ok=True)
+                    bpy.context.scene.render.filepath = os.path.join(d, f'frame_{i:04d}.png'); bpy.ops.render.render(write_still=True)
+            rig.rotation_euler.z = 0.0
         print(f"[asu] {c['id']}: {len(c['frames'])} frames")
     bpy.ops.object.mode_set(mode='OBJECT')
     if a['glb']:

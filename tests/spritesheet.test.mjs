@@ -29,10 +29,28 @@ test('LRU keeps the most recently used entries', () => {
   const c = new SS.LRU(3); c.set('a', 1); c.set('b', 2); c.set('c', 3); c.get('a'); c.set('d', 4);
   assert.equal(c.get('b'), undefined); assert.equal(c.get('a'), 1); assert.equal(c.size, 3);
 });
-test('clipTimeFor: clips pass through, no action = idle loop, legacy procedural actions are not in the atlas', () => {
-  assert.deepEqual(SS.clipTimeFor({ type: 'clip:mv_run', t: 0.4 }, 5), { clip: 'mv_run', t: 0.4 });
-  assert.equal(SS.clipTimeFor(null, 4.8).clip, SS.IDLE_CLIP); assert.equal(SS.clipTimeFor({ type: 'swing', t: 0.5 }, 1), null);
-  assert.ok(SS.clipTimeFor(null, 2.4, 0).t >= 1, 'idle time advances');
+test('dirFor: 5 atlas directions (E, SE, S, NE, N) + mirror for the left half; single-direction pages only mirror', () => {
+  const deg = a => a * Math.PI / 180;
+  assert.deepEqual(SS.dirFor(deg(0), 5), { d: 0, flip: false }); assert.deepEqual(SS.dirFor(deg(45), 5), { d: 1, flip: false }); assert.deepEqual(SS.dirFor(deg(90), 5), { d: 2, flip: false });
+  assert.deepEqual(SS.dirFor(deg(-45), 5), { d: 3, flip: false }); assert.deepEqual(SS.dirFor(deg(-90), 5), { d: 4, flip: false });
+  assert.deepEqual(SS.dirFor(deg(180), 5), { d: 0, flip: true }); assert.deepEqual(SS.dirFor(deg(135), 5), { d: 1, flip: true }); assert.deepEqual(SS.dirFor(deg(-135), 5), { d: 3, flip: true });
+  assert.deepEqual(SS.dirFor(deg(-100), 5), { d: 4, flip: true }); // facing slightly left of straight up = N mirrored
+  assert.deepEqual(SS.dirFor(deg(170), 1), { d: 0, flip: true }); assert.deepEqual(SS.dirFor(deg(10), 1), { d: 0, flip: false });
+  const seen = new Set(); for (let a = -180; a < 180; a += 5) { const r = SS.dirFor(deg(a), 5); assert.ok(r.d >= 0 && r.d < 5); seen.add(r.d + (r.flip ? 'f' : '')); }
+  assert.ok(seen.size >= 8, 'all 8 screen directions are reachable (5 rendered + 3 mirrored)');
+});
+test('resolveSheet: roles pick the right atlas and clip; legacy actions are translated; procedural-only actions fall back', () => {
+  const R = (o, now = 0) => SS.resolveSheet({ kit: 'football', role: 'player', seed: 1, ...o }, now);
+  assert.deepEqual(R({ action: { type: 'clip:mv_run', t: 0.3 } }), { kit: 'football', clip: 'mv_run', t: 0.3 });
+  assert.equal(R({}).clip, 'mv_idle'); assert.equal(R({ role: 'ref', action: { type: 'clip:rf_holding', t: 0.5 } }).kit, 'ref');
+  assert.equal(R({ kit: 'hockey', role: 'goalie', goalieState: 'BUTTERFLY' }).clip, 'gk_butterfly'); assert.equal(R({ kit: 'hockey', role: 'goalie', goalieState: 'BUTTERFLY' }).kit, 'hockey_goalie');
+  assert.equal(R({ kit: 'hockey', role: 'goalie' }).clip, 'gk_ready'); assert.equal(R({ kit: 'hockey', role: 'skater' }).clip, 'hk_glide');
+  assert.equal(R({ kit: 'hockey', role: 'skater', action: { type: 'shoot', t: 0.2, shot: 'slap' } }).clip, 'hk_slap'); assert.equal(R({ kit: 'hockey', action: { type: 'shoot', t: 0.2, shot: 'one-timer' } }).clip, 'hk_onetimer');
+  assert.equal(R({ kit: 'hockey', action: { type: 'check', t: 0.5 } }).clip, 'hk_check');
+  const bat = R({ kit: 'baseball', role: 'batter' }); assert.equal(bat.kit, 'baseball_bat'); assert.equal(bat.clip, 'bb_stance'); assert.equal(R({ kit: 'baseball', role: 'batter', action: { type: 'swing', t: 0.5 } }).clip, 'bb_swing');
+  assert.equal(R({ kit: 'baseball', role: 'pitcher', action: { type: 'throw', t: 0.5 } }).clip, 'bb_pitch'); assert.equal(R({ kit: 'baseball', role: 'fielder', action: { type: 'throw', t: 0.5 } }).clip, 'qb_overhand');
+  assert.equal(R({ kit: 'baseball', role: 'catcher' }).clip, 'bb_catcher_crouch'); assert.equal(R({ kit: 'baseball', pose: 'crouch' }).clip, 'bb_catcher_crouch');
+  assert.equal(R({ action: { type: 'snap', t: 0.5 } }), null, 'no clip for a procedural-only action');
 });
 test('colour helpers: hex, short hex, rgb() and kit pants colours', () => {
   assert.deepEqual(SS.parseColor('#0a2870'), [10, 40, 112]); assert.deepEqual(SS.parseColor('#fff'), [255, 255, 255]); assert.deepEqual(SS.parseColor('rgb(10, 20, 30)'), [10, 20, 30]);
@@ -43,18 +61,33 @@ test('visual modes: "Sprites 3D" is selectable, persisted and counts as an avata
   assert.ok(VISUAL_MODES.some(([k]) => k === 'sheet')); assert.ok(isAvatarMode('sheet') && isAvatarMode('avatar') && !isAvatarMode('photo'));
   assert.equal(getVisualMode(), 'avatar'); setVisualMode('sheet'); assert.equal(getVisualMode(), 'sheet'); setVisualMode('avatar');
 });
-test('shipped atlases match the plan: every clip present, rows/frames consistent, PNG sizes match the index, clips exist in the registry', () => {
-  for (const [kit, ids] of Object.entries(plan.kits)) {
-    const a = atlas(kit), F = a.frame; assert.equal(F, plan.frame); assert.deepEqual(Object.keys(a.clips), ids, kit);
-    const rows = new Set(); let maxN = 0;
-    for (const [id, e] of Object.entries(a.clips)) { assert.ok(getClip(id), id); assert.ok(e.n >= 2 && Number.isInteger(e.row) && !rows.has(e.row), `${kit}/${id}`); rows.add(e.row); maxN = Math.max(maxN, e.n); assert.equal(e.loop, !!getClip(id).loop); assert.equal(e.dur, getClip(id).dur); }
-    for (const layer of ['color', 'mask']) { const { w, h } = png(`${kit}_${layer}.png`); assert.equal(w, maxN * F, `${kit}_${layer} width`); assert.equal(h, ids.length * F, `${kit}_${layer} height`); }
+test('shipped atlases match the plan: kits, pages, clips, rows/frames, PNG sizes (<= 4096 px tall), registry membership', () => {
+  assert.deepEqual(Object.keys(plan.kits).sort(), ['baseball', 'baseball_bat', 'football', 'hockey', 'hockey_goalie', 'ref']);
+  for (const [kit, spec] of Object.entries(plan.kits)) {
+    const a = atlas(kit), F = a.frame; assert.equal(F, plan.frame); assert.equal(a.pages.length, spec.pages.length, kit);
+    const all = spec.pages.flatMap(p => p.clips); assert.deepEqual(Object.keys(a.clips).sort(), [...all].sort(), kit);
+    spec.pages.forEach((pg, pi) => {
+      const pageClips = Object.entries(a.clips).filter(([, e]) => e.page === pi), rowsUsed = pg.clips.length * pg.dirs, maxN = Math.max(...pageClips.map(([, e]) => e.n));
+      assert.equal(a.pages[pi].dirs, pg.dirs); assert.equal(pageClips.length, pg.clips.length);
+      pg.clips.forEach((id, ci) => { const e = a.clips[id]; assert.equal(e.row, ci * pg.dirs, `${kit}/${id} row`); assert.equal(e.dirs, pg.dirs); assert.ok(e.n >= 2 && getClip(id), `${kit}/${id}`); assert.equal(e.loop, !!getClip(id).loop); assert.equal(e.dur, getClip(id).dur); });
+      for (const layer of ['color', 'mask']) { const { w, h } = png(`${kit}_${pg.name}_${layer}.png`); assert.equal(w, maxN * F, `${kit}/${pg.name} ${layer} width`); assert.equal(h, rowsUsed * F, `${kit}/${pg.name} ${layer} height`); assert.ok(h <= 4096, 'mobile texture limit'); }
+    });
     assert.ok(a.body > 60 && a.feet > a.body && a.feet < F, `${kit} body box`);
   }
 });
-test('atlas coverage: every clip the renderers can ask for exists in the kit atlas (else the avatar fallback is used)', async () => {
+test('atlas coverage: every clip the renderers can ask for exists in the right kit atlas (else the avatar fallback is used)', async () => {
   const { runGait, skateGait } = await import('../core/anim/locomotion.js');
-  const fb = new Set(Object.keys(atlas('football').clips)); for (const id of WIRED_CLIPS) if (id !== 'mv_stumble_recover' || true) assert.ok(fb.has(id), `football atlas misses wired clip ${id}`);
-  const hk = new Set(Object.keys(atlas('hockey').clips)); for (const sp of [1, 2, 4, 8]) for (const bw of [false, true]) for (const tn of [false, true]) { const id = skateGait({ speed: sp, backwards: bw, turning: tn }); assert.ok(hk.has(id), `hockey atlas misses ${id}`); }
-  const bb = new Set(Object.keys(atlas('baseball').clips)); for (const sp of [1, 3, 5, 8]) for (const c of [false, true]) { const id = runGait({ speed: sp, carrying: c }); assert.ok(bb.has(id), `baseball atlas misses ${id}`); }
+  const has = (kit, id) => !!atlas(kit).clips[id];
+  for (const id of WIRED_CLIPS) assert.ok(has('football', id), `football atlas misses wired clip ${id}`);
+  for (const sp of [1, 2, 4, 8]) for (const bw of [false, true]) for (const tn of [false, true]) { const id = skateGait({ speed: sp, backwards: bw, turning: tn }); assert.ok(has('hockey', id), `hockey atlas misses ${id}`); assert.equal(atlas('hockey').clips[id].dirs, 5, 'skating has 5 directions'); }
+  for (const sp of [1, 3, 5, 8]) for (const c of [false, true]) { const id = runGait({ speed: sp, carrying: c }); assert.ok(has('baseball', id), `baseball atlas misses ${id}`); assert.equal(atlas('baseball').clips[id].dirs, 5); }
+  for (const id of ['gk_ready', 'gk_butterfly', 'gk_slide', 'gk_glove', 'gk_blocker', 'gk_pad_save', 'gk_recover']) assert.ok(has('hockey_goalie', id), id);
+  for (const id of ['hk_wrist', 'hk_snap', 'hk_slap', 'hk_backhand', 'hk_onetimer', 'hk_check', 'gs_arms_up']) assert.ok(has('hockey', id), id);
+  for (const id of ['bb_stance', 'bb_swing']) assert.ok(has('baseball_bat', id), id);
+  for (const id of ['bb_pitch', 'bb_field_ground', 'bb_catcher_crouch', 'qb_overhand', 'ps_catch_diving']) assert.ok(has('baseball', id), id);
+  const { FOUL_KEYS, FOULS } = await import('../nfl/src/ui/penalties.js'); for (const k of FOUL_KEYS) assert.ok(has('ref', FOULS[k].ref), `ref atlas misses ${FOULS[k].ref}`); assert.ok(has('ref', 'rf_flag_throw'));
+  // every legacy action the three renderers emit resolves to a clip that exists in the atlas it resolves to (or to null)
+  const combos = [['football', 'player', 'catch'], ['football', 'player', 'celebrate'], ['football', 'player', 'dive'], ['football', 'player', 'check'], ['hockey', 'skater', 'check'], ['hockey', 'skater', 'celebrate'], ['baseball', 'fielder', 'swing'], ['baseball', 'batter', 'swing'], ['baseball', 'pitcher', 'throw'], ['baseball', 'fielder', 'celebrate'], ['baseball', 'fielder', 'dive'], ['baseball', 'fielder', 'catch']];
+  for (const [kit, role, type] of combos) { const r = SS.resolveSheet({ kit, role, action: { type, t: 0.5 } }); if (r) assert.ok(has(r.kit, r.clip), `${kit}/${role}/${type} → ${r.kit}:${r.clip} not in atlas`); }
+  for (const shot of ['wrist', 'snap', 'slap', 'backhand', 'one-timer']) { const r = SS.resolveSheet({ kit: 'hockey', role: 'skater', action: { type: 'shoot', t: 0.5, shot } }); assert.ok(has(r.kit, r.clip), shot); }
 });

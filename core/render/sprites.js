@@ -7,7 +7,7 @@
 // target/receiving (cyan). `shape: 'goalie'` / 'pitcher' / 'batter' give role-specific silhouettes.
 import { drawCirclePhoto } from './images.js';
 import { drawAvatar } from './avatars.js';
-import { drawSheet, clipTimeFor, pantsColorFor, hasClip } from './spriteSheet.js';
+import { drawSheet, resolveSheet, pantsColorFor } from './spriteSheet.js';
 
 export function zoomLevel(pxRadius) { return pxRadius >= 15 ? 'close' : pxRadius >= 9 ? 'mid' : 'far'; }
 
@@ -168,9 +168,13 @@ function drawAvatarSprite(ctx, o, level) {
   if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
   if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
   let usedSheet = false;
-  if (avatar.sheet && avatar.role !== 'ref' && avatar.role !== 'goalie' && (avatar.pose || 'stand') === 'stand') { // Blender sprite sheet: only for clips present in the atlas; anything else falls back to the procedural avatar below
-    const ct = clipTimeFor(avatar.action, o.t ?? 0, avatar.seed || 0);
-    if (ct) { const dir = facing != null && Math.abs(Math.cos(facing)) > 0.2 ? Math.sign(Math.cos(facing)) : (avatar.dir || 1); usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: avatar.kit, clip: ct.clip, t: ct.t, dir, jersey: color, pants: pantsColorFor(avatar.kit, color, color2) }); }
+  if (avatar.sheet) { // Blender sprite sheet (5 directions on locomotion, mirrored left/right); anything without a clip falls back to the procedural avatar below
+    const r = resolveSheet(avatar, t);
+    if (r) {
+      const phi = facing != null ? Math.atan2(Math.sin(facing), Math.cos(facing)) : null;
+      const pal = r.kit === 'ref' ? ['#ffffff', '#ffffff'] : [color, pantsColorFor(avatar.kit, color, color2)];
+      usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: r.kit, clip: r.clip, t: r.t, phi, dir: avatar.dir || 1, jersey: pal[0], pants: pal[1] });
+    }
   }
   if (!usedSheet) drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, phase: avatar.phase, seed: avatar.seed, dir: avatar.dir,
     color, color2, number, facing, t, showNumber: true });

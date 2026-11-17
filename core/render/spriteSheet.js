@@ -1,6 +1,8 @@
 // Sprite-sheet athletes rendered in Blender (tools/blender/make_atlas.sh → assets/sprites/<kit>_{color,mask}.png + <kit>.json).
 //  * colour atlas: the athlete with white jersey/helmet/pants (shaded), one ROW per clip, frames left→right;
 //  * mask atlas:   R = jersey+helmet, G = pants, alpha = silhouette → the game tints per team: out = base × lerp(1, team, mask);
+//  * paged atlases (<kit>_<page>_{color,mask}.png): locomotion pages carry 5 facing directions (E, SE, S, NE, N; the other three are mirrors),
+//    event pages 1 (mirrored left/right);
 //  * frames are looked up from the same clip data the 2D avatar uses (action { type:'clip:<id>', t }), so both modes animate alike;
 //  * tinted frames are cached (LRU) per (kit, clip, frame, colours): 96×96 pixels each, built on first use.
 // Anything not in the atlas (legacy procedural actions, clips not exported for that kit, assets still loading) returns false and the
@@ -45,38 +47,73 @@ const cache = new LRU(900);
 function loadImage(url) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; }); }
 export function loadKit(kit, base = BASE) {
   let k = kits.get(kit); if (k) return k;
-  k = { meta: null, color: null, mask: null, state: 'loading' }; kits.set(kit, k);
-  Promise.all([fetch(`${base}${kit}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }), loadImage(`${base}${kit}_color.png`), loadImage(`${base}${kit}_mask.png`)])
-    .then(([meta, color, mask]) => { Object.assign(k, { meta, color, mask, state: 'ready' }); }).catch(() => { k.state = 'error'; });
+  k = { meta: null, pages: [], state: 'loading' }; kits.set(kit, k);
+  fetch(`${base}${kit}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(meta => Promise.all(meta.pages.flatMap(pg => [loadImage(`${base}${kit}_${pg.name}_color.png`), loadImage(`${base}${kit}_${pg.name}_mask.png`)])).then(imgs => ({ meta, imgs })))
+    .then(({ meta, imgs }) => { k.meta = meta; k.pages = meta.pages.map((pg, i) => ({ color: imgs[i * 2], mask: imgs[i * 2 + 1] })); k.state = 'ready'; })
+    .catch(() => { k.state = 'error'; });
   return k;
 }
 export function sheetReady(kit) { const k = loadKit(kit); return k.state === 'ready'; }
 export function hasClip(kit, clip) { const k = kits.get(kit); return !!(k && k.state === 'ready' && k.meta.clips[clip]); }
 
-function tintedFrame(k, kit, clip, col, jersey, pants) {
-  const key = `${kit}|${clip}|${col}|${jersey}|${pants}`; let c = cache.get(key); if (c) return c;
-  const F = k.meta.frame, e = k.meta.clips[clip], sx = col * F, sy = e.row * F;
-  const a = canvasFactory(F, F), actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(k.color, sx, sy, F, F, 0, 0, F, F);
-  const b = canvasFactory(F, F), bctx = b.getContext('2d', { willReadFrequently: true }); bctx.drawImage(k.mask, sx, sy, F, F, 0, 0, F, F);
+// Facing → atlas direction. phi = screen angle (0 = right, +π/2 = down/toward the camera). Atlas order: E, SE, S, NE, N (right half only).
+export function dirFor(phi, dirs) {
+  const c = Math.cos(phi), flip = c < 0;
+  if (dirs <= 1) return { d: 0, flip };
+  let psi = flip ? Math.PI - phi : phi; psi = Math.atan2(Math.sin(psi), Math.cos(psi));          // right half: -90°..90°
+  const deg = psi * 180 / Math.PI;
+  const d = deg < -67.5 ? 4 : deg < -22.5 ? 3 : deg < 22.5 ? 0 : deg < 67.5 ? 1 : 2;           // N, NE, E, SE, S
+  return { d, flip };
+}
+
+function tintedFrame(k, kit, clip, row, col, jersey, pants) {
+  const key = `${kit}|${clip}|${row}|${col}|${jersey}|${pants}`; let c = cache.get(key); if (c) return c;
+  const F = k.meta.frame, e = k.meta.clips[clip], pg = k.pages[e.page], sx = col * F, sy = row * F;
+  const a = canvasFactory(F, F), actx = a.getContext('2d', { willReadFrequently: true }); actx.drawImage(pg.color, sx, sy, F, F, 0, 0, F, F);
+  const b = canvasFactory(F, F), bctx = b.getContext('2d', { willReadFrequently: true }); bctx.drawImage(pg.mask, sx, sy, F, F, 0, 0, F, F);
   const base = actx.getImageData(0, 0, F, F), mk = bctx.getImageData(0, 0, F, F), tinted = tintPixels(base.data, mk.data, parseColor(jersey), parseColor(pants));
   base.data.set(tinted); actx.putImageData(base, 0, 0); cache.set(key, a); return a;
 }
 
-// o: { x, feetY, h, kit, clip, t, dir, jersey, pants }  → true when drawn. h = the avatar height in pixels (body of the sprite scaled to it).
+// o: { x, feetY, h, kit, clip, t, phi (screen facing, optional), dir (±1 fallback), jersey, pants } → true when drawn.
+// h = the avatar height in pixels (the sprite body is scaled to it, feet anchored at feetY).
 export function drawSheet(ctx, o) {
   const k = loadKit(o.kit); if (k.state !== 'ready') return false;
-  let clip = o.clip, e = k.meta.clips[clip], t = o.t;
-  if (!e) return false;
-  const col = frameFor(e, t), F = k.meta.frame, s = o.h / k.meta.body, img = tintedFrame(k, o.kit, clip, col, o.jersey, o.pants);
-  ctx.save(); ctx.translate(o.x, o.feetY); if (o.dir < 0) ctx.scale(-1, 1);
+  const e = k.meta.clips[o.clip]; if (!e) return false;
+  const { d, flip } = o.phi != null ? dirFor(o.phi, e.dirs) : { d: 0, flip: (o.dir || 1) < 0 };
+  const col = frameFor(e, o.t), F = k.meta.frame, s = o.h / k.meta.body, img = tintedFrame(k, o.kit, o.clip, e.row + d, col, o.jersey, o.pants);
+  ctx.save(); ctx.translate(o.x, o.feetY); if (flip) ctx.scale(-1, 1);
   ctx.imageSmoothingEnabled = true; ctx.drawImage(img, -F / 2 * s, -k.meta.feet * s, F * s, F * s); ctx.restore();
   return true;
 }
-// Pick the clip/time for an avatar action: clips pass through; no action = idle loop; legacy procedural actions are not in the atlas.
-export function clipTimeFor(action, t, seed = 0, kit = '') {
-  if (!action) return { clip: IDLE_CLIP, t: t / 2.4 + seed * 0.13 };
-  if (typeof action.type === 'string' && action.type.startsWith('clip:')) return { clip: action.type.slice(5), t: action.t ?? 0 };
-  return null;
+
+// Atlas kit + clip + time for an avatar (null = not covered → the caller draws the procedural avatar).
+//  * clip actions pass through; legacy one-shot actions are translated per sport; no action = the role's idle/stance loop;
+//  * goalies use the goalie atlas driven by their save state, batters the bat atlas, referees the striped atlas.
+const LEGACY = {
+  hockey: { check: 'hk_check', celebrate: 'gs_arms_up' },
+  baseball: { celebrate: 'gs_arms_up', dive: 'ps_catch_diving', catch: 'ps_catch_hands', throw: 'qb_overhand' },
+  football: { celebrate: 'gs_arms_up', catch: 'ps_catch_hands', dive: 'ps_catch_diving', check: 'ag_arm_tackle', throw: 'qb_overhand' },
+};
+const SHOT_CLIP = { wrist: 'hk_wrist', snap: 'hk_snap', slap: 'hk_slap', backhand: 'hk_backhand', 'one-timer': 'hk_onetimer', onetimer: 'hk_onetimer' };
+const GOALIE_CLIP = { READY: 'gk_ready', BUTTERFLY: 'gk_butterfly', SLIDE: 'gk_slide', GLOVE: 'gk_glove', BLOCKER: 'gk_blocker', PAD_SAVE: 'gk_pad_save', RECOVER: 'gk_recover' };
+export function resolveSheet(av, now = 0) {
+  const { kit, role, action, pose, seed = 0 } = av; let atlas = kit, clip = null, t = 0;
+  if (role === 'ref') atlas = 'ref'; else if (role === 'goalie') atlas = 'hockey_goalie'; else if (kit === 'baseball' && role === 'batter') atlas = 'baseball_bat';
+  if (action && typeof action.type === 'string' && action.type.startsWith('clip:')) { clip = action.type.slice(5); t = action.t ?? 0; }
+  else if (action && atlas === 'hockey' && action.type === 'shoot') { clip = SHOT_CLIP[action.shot] || 'hk_wrist'; t = action.t ?? 0; }
+  else if (action && atlas === 'baseball' && action.type === 'throw' && role === 'pitcher') { clip = 'bb_pitch'; t = action.t ?? 0; }
+  else if (action && action.type === 'swing' && atlas === 'baseball_bat') { clip = 'bb_swing'; t = action.t ?? 0; }   // only batters swing
+  else if (action && LEGACY[kit]?.[action.type]) { clip = LEGACY[kit][action.type]; t = action.t ?? 0; }
+  else if (action) return null;                                                            // procedural-only action: no clip for it
+  else if (atlas === 'hockey_goalie') { clip = GOALIE_CLIP[av.goalieState] || 'gk_ready'; t = clip === 'gk_ready' ? now / 1.6 + seed * 0.13 : 1; }
+  else if (atlas === 'baseball_bat') { clip = 'bb_stance'; t = now / 1.8 + seed * 0.13; }
+  else if (kit === 'baseball' && (pose === 'crouch' || role === 'catcher')) { clip = 'bb_catcher_crouch'; t = now / 1.8 + seed * 0.13; }
+  else if (kit === 'hockey') { clip = 'hk_glide'; t = now / 1.2 + seed * 0.13; }
+  else { clip = IDLE_CLIP; t = now / 2.4 + seed * 0.13; }
+  if (atlas === 'hockey_goalie' && action) { /* goalie one-shots are driven by goalieState, not by legacy actions */ clip = GOALIE_CLIP[av.goalieState] || clip; }
+  return { kit: atlas, clip, t };
 }
 export function pantsColorFor(kit, color, color2) {
   if (kit === 'baseball') return '#dfe5ec';

@@ -11,10 +11,10 @@ const A = await import('../core/render/avatars.js');
 const ctxStub = () => new Proxy({}, { get: (t, k) => (k === 'measureText' ? () => ({ width: 10 }) : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : (t[k] ?? (() => {}))), set: (t, k, v) => { t[k] = v; return true; } });
 
 const catalog = readFileSync(new URL('../docs/ANIMATION_2D_CATALOG.csv', import.meta.url), 'utf8').split('\n').slice(1).filter(Boolean).map(l => l.split(',')[1]);
-const STAGE_SIZES = { qb: 25, move: 20, gesture: 20, foul: 20, grab: 20, pass: 20, skate: 4 };
+const STAGE_SIZES = { qb: 25, move: 20, gesture: 20, foul: 20, grab: 20, pass: 20, skate: 4, sport: 18 };
 
 test('every clip is valid (schema, ranges, key times, events)', () => {
-  assert.equal(ALL_CLIPS.length, 129);
+  assert.equal(ALL_CLIPS.length, 147);
   for (const c of ALL_CLIPS) assert.deepEqual(validateClip(c), [], c.id);
 });
 test('ids are unique and every clip maps to a real entry of the NFL catalog (traceability)', () => {
@@ -113,9 +113,9 @@ test('catch variant follows the ball: low → dive, high → high-point, contest
   assert.equal(catchClipId(sim(), e({ contested: true })), 'ps_contested_catch'); assert.equal(catchClipId(sim({ type: 'LOB', y: 1 }), e()), 'ps_catch_toe_tap');
   assert.equal(catchClipId(sim({ type: 'TOUCH' }), e()), 'ps_catch_hands');
 });
-test('animation plan file matches the registry (ids per batch, 129 clips = 25 QB + 100 football + 4 skating)', () => {
+test('animation plan file matches the registry (ids per batch, 147 clips = 25 QB + 100 football + 4 skating + 18 sport actions)', () => {
   const plan = JSON.parse(readFileSync(new URL('../docs/anim/plan.json', import.meta.url), 'utf8'));
-  assert.equal(plan.total, 129);
+  assert.equal(plan.total, 147);
   for (const [g, list] of Object.entries(BATCHES)) assert.deepEqual(plan.stages[g], list.map(c => c.id), g);
 });
 test('every clip with a release/catch event puts the ball where the event says', () => {

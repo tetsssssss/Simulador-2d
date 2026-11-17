@@ -8,7 +8,8 @@ Low-poly athlete model + rig for Blender (tested with bpy 5.1; uses only long-st
   an armature with these bones: hips, spine, head, upper_F/B, fore_F/B, thigh_F/B, shin_F/B (F = facing side, B = far side).
 * Athlete faces +X, is 1.80 m tall (build 0 slim / 1 medium / 2 heavy changes widths, not height). Z up, units = metres.
 * Kits: 'football' (helmet + facemask + shoulder pads), 'hockey' (helmet, wide sweater, skates, optional stick),
-  'baseball' (cap, glove, optional bat). Props are separate meshes parented to a hand bone, so they can be hidden.
+  'goalie' (hockey + leg pads, chest protector, mask, blocker/catcher), 'baseball' (cap, glove, optional bat),
+  'ref' (black/white striped shirt, white cap). Hand props (stick/bat) extend along the FOREARM so poses read naturally. Props are separate meshes parented to a hand bone, so they can be hidden.
 * Budget (triangles, measured by tools/blender/report_budget.py): see docs/anim/BLENDER_NOTES.md.
 """
 import math
@@ -131,6 +132,7 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
     """Create the athlete. colors: dict of RGB tuples: jersey, pants, helmet, trim, boots."""
     c = {'jersey': (0.04, 0.16, 0.44), 'pants': (0.92, 0.92, 0.95), 'helmet': (0.92, 0.92, 0.95), 'trim': (0.95, 0.95, 0.95), 'boots': (0.07, 0.07, 0.08)}
     c.update(colors or {})
+    if kit == 'ref': c.update({'jersey': (0.04, 0.04, 0.05), 'pants': (0.05, 0.05, 0.06), 'helmet': (0.97, 0.97, 0.97), 'trim': (0.97, 0.97, 0.97)})
     k = {0: 0.90, 1: 1.0, 2: 1.16}[build]            # width scale (slim / medium / heavy)
     P = _Parts(); sk = SKINS[skin % len(SKINS)]
     M = lambda n, rgb, rough=0.7: _material(f'asu_{n}', rgb, rough)
@@ -140,14 +142,26 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
 
     # ---- torso, neck, head ----
     sw, ww = 0.5 * k, 0.34 * k
-    P.add(_Parts.torso(HIP_Z - 0.03, SH_Z + 0.02, sw, ww, 0.3 * k, 0.24 * k), 'spine', 'jersey')
+    if kit == 'ref':      # 12-sided shirt with alternating black/white vertical stripes that wrap around the body (visible from every direction)
+        n = 12; ring = lambda z, w, d: [(math.cos(a * math.tau / n) * d / 2, math.sin(a * math.tau / n) * w / 2, z) for a in range(n)]
+        lo, hi = ring(HIP_Z - 0.03, ww * 1.05, 0.24 * k), ring(SH_Z + 0.02, sw * 0.95, 0.28 * k)
+        for parity, mat in ((0, 'jersey'), (1, 'trim')):
+            bm = bmesh.new()
+            for a in range(n):
+                if a % 2 != parity: continue
+                b = (a + 1) % n; vs = [bm.verts.new(v) for v in (lo[a], lo[b], hi[b], hi[a])]; bm.faces.new(vs)
+            if parity == 0:  # shoulder cap
+                bm.faces.new([bm.verts.new(v) for v in hi])
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces); P.add(bm, 'spine', mat)
+    else:
+        P.add(_Parts.torso(HIP_Z - 0.03, SH_Z + 0.02, sw, ww, 0.3 * k, 0.24 * k), 'spine', 'jersey')
     P.add(_Parts.box((0, 0, HIP_Z - 0.03), (ww * 1.02, 0.23 * k, 0.1)), 'hips', 'pants')                      # pelvis
     P.add(_Parts.limb((0, 0, SH_Z), (0, 0, SH_Z + 0.12), 0.055 * k, 0.05 * k, 6), 'head', 'skin')               # neck
     P.add(_Parts.ball((0, 0, HEAD_Z), 0.115, 0.95, 0.88, 1.12, 1), 'head', 'skin')                            # head
     # ---- arms (+ joint balls to hide gaps) ----
     for s, y in (('F', -SH_HALF), ('B', SH_HALF)):
         z0 = SH_Z - 0.04; z1 = z0 - UPPER; z2 = z1 - FORE
-        P.add(_Parts.limb((0, y, z0), (0, y, z1), 0.064 * k, 0.052 * k), f'upper_{s}', 'jersey')
+        P.add(_Parts.limb((0, y, z0), (0, y, z1), 0.064 * k, 0.052 * k), f'upper_{s}', 'jersey' if kit != 'ref' else 'trim')
         P.add(_Parts.ball((0, y, z1), 0.054 * k, sub=1), f'fore_{s}', 'skin')
         P.add(_Parts.limb((0, y, z1), (0, y, z2), 0.052 * k, 0.04), f'fore_{s}', 'skin')
         P.add(_Parts.ball((0, y, z2 - 0.04), 0.045, 1, 0.8, 1.1, 1), f'fore_{s}', 'skin')                      # hand
@@ -160,17 +174,25 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
         if kit == 'hockey':
             P.add(_Parts.box((0.07, y, -0.0), (0.3, 0.012, 0.035)), f'shin_{s}', 'metal')                       # skate blade
     # ---- kit ----
-    if kit == 'football':
+    if kit == 'ref':
+        P.add(_Parts.ball((0, 0, HEAD_Z + 0.04), 0.122, 1.0, 0.95, 0.7, 1), 'head', 'helmet'); P.add(_Parts.box((0.13, 0, HEAD_Z + 0.03), (0.1, 0.17, 0.012)), 'head', 'helmet')
+    elif kit == 'football':
         for s, y in (('F', -1), ('B', 1)):                                                                        # shoulder pads
             P.add(_Parts.ball((0, y * (SH_HALF + 0.02), SH_Z - 0.01), 0.1, 0.95, 1.15 * k, 0.7, 1), 'spine', 'jersey')
         P.add(_Parts.ball((0, 0, HEAD_Z + 0.015), 0.135, 1.1, 1.0, 1.05, 1), 'head', 'helmet')                    # helmet shell
         for dz in (-0.045, -0.005, 0.035):                                                                        # facemask bars
             P.add(_Parts.box((0.13, 0, HEAD_Z + dz), (0.015, 0.2, 0.012)), 'head', 'metal')
         P.add(_Parts.box((0.135, 0, HEAD_Z - 0.01), (0.015, 0.012, 0.1)), 'head', 'metal')
-    elif kit == 'hockey':
+    elif kit in ('hockey', 'goalie'):
         P.add(_Parts.torso(HIP_Z - 0.12, SH_Z + 0.01, sw * 1.12, ww * 1.2, 0.3 * k, 0.28 * k), 'spine', 'jersey')   # loose sweater
         P.add(_Parts.ball((0, 0, HEAD_Z + 0.02), 0.128, 1.0, 0.95, 0.95, 1), 'head', 'helmet')
         P.add(_Parts.box((0.0, 0, HEAD_Z - 0.035), (0.25, 0.2, 0.012)), 'head', 'dark')
+        if kit == 'goalie':   # mask cage, bulky leg pads, chest protector, blocker (front hand) and catcher (back hand)
+            for dz in (-0.05, 0.0, 0.05): P.add(_Parts.box((0.13, 0, HEAD_Z + dz), (0.015, 0.2, 0.012)), 'head', 'metal')
+            P.add(_Parts.torso(HIP_Z - 0.02, SH_Z + 0.02, sw * 1.2, ww * 1.35, 0.36 * k, 0.32 * k), 'spine', 'trim')
+            for s, y in (('F', -HIP_HALF), ('B', HIP_HALF)): P.add(_Parts.box((0.03, y, 0.28), (0.2, 0.17, 0.62)), f'shin_{s}', 'trim')
+            P.add(_Parts.box((0.07, -SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.06), (0.1, 0.24, 0.3)), 'fore_F', 'dark')
+            P.add(_Parts.ball((0.0, SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.06), 0.1, 0.55, 1.0, 1.0, 1), 'fore_B', 'trim')
     elif kit == 'baseball':
         P.add(_Parts.ball((0, 0, HEAD_Z + 0.04), 0.122, 1.0, 0.95, 0.7, 1), 'head', 'helmet')                     # cap crown
         P.add(_Parts.box((0.13, 0, HEAD_Z + 0.03), (0.1, 0.17, 0.012)), 'head', 'helmet')                         # brim
@@ -182,18 +204,19 @@ def build_athlete(kit='football', colors=None, build=1, skin=1, number=None, wit
     # smooth shading on organic parts only would need per-face data; flat shading keeps the low-poly look and the glTF clean
     # ---- optional prop (hockey stick / bat) attached to the front hand ----
     prop = None
-    if with_prop and kit in ('hockey', 'baseball'):
+    if with_prop and kit in ('hockey', 'goalie', 'baseball'):
         hand = Vector((0, -SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.04))
-        if kit == 'hockey':   # shaft + blade, pointing forward-down from the hand
-            parts = [_Parts.limb(hand, hand + Vector((0.45, 0, -0.85)), 0.016, 0.016, 6), _Parts.box(hand + Vector((0.52, 0, -0.92)), (0.28, 0.02, 0.07))]
-        else:                 # bat held up and back over the shoulder
-            parts = [_Parts.limb(hand, hand + Vector((-0.1, 0, 0.85)), 0.045, 0.016, 8)]
+        if kit in ('hockey', 'goalie'):   # shaft along the forearm direction (down in the rest pose), blade pointing forward at the end
+            Ls = 1.25 if kit == 'hockey' else 1.1
+            parts = [_Parts.limb(hand, hand + Vector((0, 0, -Ls)), 0.016, 0.016, 6), _Parts.box(hand + Vector((0.12, 0, -Ls + 0.03)), (0.3, 0.02, 0.07))]
+        else:                 # bat: thin grip at the hand, barrel at the far end, along the forearm direction
+            parts = [_Parts.limb(hand, hand + Vector((0, 0, -0.86)), 0.016, 0.034, 8)]
         bm = bmesh.new()
         for part in parts:
             tmp = bpy.data.meshes.new('tmp'); part.to_mesh(tmp); part.free(); bm.from_mesh(tmp); bpy.data.meshes.remove(tmp)
         pm = bpy.data.meshes.new('asu_prop'); bm.to_mesh(pm); bm.free()
         prop = bpy.data.objects.new('asu_prop', pm); bpy.context.collection.objects.link(prop)
-        pm.materials.append(bpy.data.materials['asu_metal'] if kit == 'hockey' else bpy.data.materials['asu_trim'])
+        pm.materials.append(bpy.data.materials['asu_metal'] if kit in ('hockey', 'goalie') else bpy.data.materials['asu_trim'])
         prop.parent = rig; prop.parent_type = 'BONE'; prop.parent_bone = 'fore_F'
         # BONE parenting is relative to the bone TAIL: cancel it so the prop keeps the world-space coordinates above (rest pose)
         prop.matrix_parent_inverse = (rig.matrix_world @ Matrix.Translation(rig.data.bones['fore_F'].tail_local)).inverted()

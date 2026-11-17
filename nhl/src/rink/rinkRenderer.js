@@ -167,12 +167,12 @@ export function createRinkRenderer(canvas, { crowd = null } = {}) {
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
       if (e.type === 'LINE_CHANGE') for (const id of e.out || []) { const rec = state.roster?.[id]; if (rec) ghosts.push({ rec, t0, x0: rec.x, y0: rec.y, bx: (rec.team === 'home' ? 75 : 125) + ((id.length * 7) % 9 - 4), by: RINK.W - 2 }); } // skaters leaving glide to the bench door
-      else if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6 });
+      else if (e.type === 'SHOT') acts.set(e.by, { type: 'shoot', t0, dur: 0.6, shot: e.shotType });
       else if (e.type === 'HIT') acts.set(e.by, { type: 'check', t0, dur: 0.45 });
       else if (e.type === 'GOAL') { acts.set(e.by, { type: 'celebrate', t0, dur: 3 }); for (const id of e.assists || []) acts.set(id?.id ?? id, { type: 'celebrate', t0, dur: 2.2 }); }
     }
   }
-  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k }; };
+  const actionOf = (state, id) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0 || k > 1) { acts.delete(id); return null; } return { type: A.type, t: k, shot: A.shot }; };
   const labelLayer = createLabelLayer();
   const strides = new StridePhase(1 / 3); // rink units are feet; the gait thresholds are in yards/s
   function drawPlayers(state, a, opts) {

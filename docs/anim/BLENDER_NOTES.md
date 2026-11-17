@@ -41,11 +41,14 @@ blender --background --python tools/blender/verify_glb.py -- exports/anim/athlet
 * Desempenho em celular/engine: **não medido** (só contagem de triângulos).
 
 ## Sprite sheet no jogo (modo "Sprites 3D")
-Seletor **Visual → Sprites 3D** (NFL, NHL, MLB; salvo em `asu_visual_mode`). Pipeline: `tools/blender/make_atlas.sh [kit…]` renderiza 2 camadas por kit
-(cor com camisa/capacete/calça brancos + máscara R=camisa/capacete, G=calça), `pack_atlas.py` monta `assets/sprites/<kit>_color.png`, `_mask.png` e `<kit>.json`
-(96 px, 15 fps, 1 linha por clipe). Em tempo de execução `core/render/spriteSheet.js` escolhe o quadro pelo mesmo clipe/tempo do boneco (corrida por fase de
-distância), **tinge por time** multiplicando pela máscara (cache LRU de 900 quadros) e espelha pela direção. Tamanhos: football 3,9 MB (48 clipes), hockey 0,7 MB (9), baseball 0,7 MB (11).
-* O que usa o sheet: gaits (andar/trotar/correr/sprint/patinar/backpedal), idle, e na NFL os clipes de evento do atlas (arremessos, recepções, tackles…).
-* **Cai para o boneco procedural** quando: o clipe não está no atlas (ações legadas: swing, chute, check, mergulho do MLB), goleiro, agachado (receptor/catcher), árbitro, ou enquanto o atlas carrega/falha.
-* Medido (Chromium headless): custo de quadro a 1× NFL p95 2,4 ms · NHL 2,0 · MLB 3,5; a 4× CPU a NFL fica em 60 fps (238 quadros/4 s; o boneco procedural 204).
-* Limites: visão fixa (3/4 frontal, espelhada), sem rosto/textura, cores só em camisa/capacete/calça, hockey: camisa preta fica quase preta, atlas congela em 15 fps.
+Seletor **Visual → Sprites 3D** (NFL, NHL, MLB; salvo em `asu_visual_mode`). Pipeline: `python3 tools/blender/make_atlas.py [kit…]` (plano em `atlas_plan.json`)
+renderiza por kit e por página 2 camadas (cor com camisa/capacete/calça brancos + máscara R=camisa/capacete, G=calça) com câmera inclinada 20°;
+`pack_atlas.py` monta `assets/sprites/<kit>_<página>_{color,mask}.png` (≤ 4096 px de altura) + `<kit>.json`. 96 px, 15 fps, uma linha por (clipe × direção).
+* **6 kits:** `football`, `hockey`, `hockey_goalie` (pernas/peitoral/máscara/bloqueador/luva), `baseball`, `baseball_bat` (batedor com taco), `ref` (camisa listrada, sem tinta).
+* **Direções:** páginas de locomoção/idle têm 5 direções renderizadas (E, SE, S, NE, N) e as outras 3 (W, SW, NW) são espelho → 8 direções na tela. Páginas de eventos: 1 direção (espelhada esq./dir.).
+* **Ações do esporte (18 clipes novos, core/anim/clips/sport_actions.js):** hockey `hk_wrist/snap/slap/backhand/onetimer/check`; goleiro `gk_ready/butterfly/slide/glove/blocker/pad_save/recover`;
+  baseball `bb_stance/swing/pitch/field_ground/catcher_crouch`. O NHL passa `shotType` do evento SHOT; o goleiro usa o estado real (READY…RECOVER).
+* Em tempo de execução (`core/render/spriteSheet.js`): `resolveSheet` escolhe atlas+clipe pelo papel e pela ação; `dirFor` escolhe a direção pelo ângulo de frente; tinge por time (cache LRU) e espelha.
+* **Ainda cai para o boneco procedural** em: snap/handoff legados da NFL, ações sem clipe e enquanto o atlas carrega/falha.
+* Tamanho dos atlas novos ≈ 11 MB (football 5,5; baseball 2,6; hockey 1,6; ref 1,2; goleiro 0,3; bat 0,3 — conferir `du -sh assets/sprites`). **Arquivos antigos** `assets/sprites/{football,hockey,baseball}_{color,mask}.png` (formato de página única) ficaram órfãos e podem ser apagados.
+* Limites: câmera fixa (inclinada 20°), sem rosto/textura, cores só em camisa/capacete/calça, 15 fps, hockey com camisa preta fica quase preta; sem tinta no goleiro (pads brancos, camisa pelo time).

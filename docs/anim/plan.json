@@ -1,5 +1,5 @@
 {
- "total": 129,
+ "total": 147,
  "note": "ids per batch; qb = etapa 1, demais = pacote \"noite\" (movimentação, gestos, faltas, agarrado, passe)",
  "stages": {
   "qb": [
@@ -144,6 +144,26 @@
    "hk_skate",
    "hk_skate_back",
    "hk_crossover"
+  ],
+  "sport": [
+   "hk_wrist",
+   "hk_snap",
+   "hk_slap",
+   "hk_backhand",
+   "hk_onetimer",
+   "hk_check",
+   "gk_ready",
+   "gk_butterfly",
+   "gk_slide",
+   "gk_glove",
+   "gk_blocker",
+   "gk_pad_save",
+   "gk_recover",
+   "bb_stance",
+   "bb_swing",
+   "bb_pitch",
+   "bb_field_ground",
+   "bb_catcher_crouch"
   ]
  }
 }
