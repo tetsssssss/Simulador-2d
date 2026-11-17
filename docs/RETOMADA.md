@@ -10,7 +10,9 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 3. Soak test com limites (tools/perf/soak.mjs → tests)
 4. Etapa 2: folha de estilo PS1 vs PS2 (2 renders) — escolher padrão sem esperar o usuário, marcar como trocável
 ## Feito neste arquivo
-(nada ainda)
+- Pré-decode/preload dos atlas commitado (3dc464c); npm test 136/0. MLB sheet ainda max ~133 ms (perf MLB segue aberto).
+- Etapa 2: docs/anim/style_ps1_vs_ps2.png (bpy 5.1). DECISÃO: PS2 (96 px, suavizado) é o padrão; PS1 (48 px, sem AA, cor reduzida) fica como filtro opcional futuro no runtime (quantizar no tintedFrame). PS1 em 48 px perde o rosto/braços; não vale como padrão.
+- Usuário tem Blender 5.2 no PC (repo lab.blender.org adicionado) mas sem Remote Control; seguimos com bpy 5.1 na nuvem.
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
 ## Ferramentas
