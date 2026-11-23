@@ -55,6 +55,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
   async function showRef(sim) {
     if (!refAct || wall() > refUntil) { if (ref) ref.entity.enabled = false; return; }
     if (!ref) { ref = await factory.spawn('ref', { hd: false, name: 'ref' }); }
+    if (!refAct || wall() > refUntil) { ref.entity.enabled = false; return; }   // the signal ended while the model was loading
     ref.entity.enabled = true; const r = refAct.ref; ref.setPosition('nfl', r.pos.x, r.pos.y); ref.setFacing(r.facing || 0);
     const A = refAct.actions.find(a => a.who === REF_ID), now = wall(); let cur = A;
     while (cur && now > cur.t0 + cur.dur && cur.next) cur = { ...cur.next, t0: cur.t0 + cur.dur };
@@ -111,6 +112,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); contacts.clear(); },
     endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     get ready() { return ready; },
+    cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     athletes: () => pool,
     dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); factory?.dispose(); },
   };
