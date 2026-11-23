@@ -128,12 +128,12 @@ export function mountGame(root, deps) {
   function startReplay() {
     const s = view.sim; if (!s || view.phase !== 'AWAIT' || rec.length < 20) return;
     view.phase = 'REPLAY'; view.replay = { i: 0, frac: 0 }; view.replayDone = true;
-    renderer.beginReplay(s); $('#resultPop').classList.remove('show');
+    renderer.beginReplay(s); un3d.beginReplay(s); $('#resultPop').classList.remove('show');
     $('#callTag').innerHTML = '<span class="chip replay-chip">⏪ REPLAY</span> <span class="muted">1/2 velocidade · clique em Replay para pular</span>'; syncControls();
   }
   function endReplay() {
     const s = view.sim; if (!s || view.phase !== 'REPLAY') return;
-    rec.apply(s, rec.length - 1); renderer.endReplay(s); view.phase = 'AWAIT'; view.replay = null; view.resultAt = performance.now();
+    rec.apply(s, rec.length - 1); renderer.endReplay(s); un3d.endReplay(s); view.phase = 'AWAIT'; view.replay = null; view.resultAt = performance.now();
     $('#callTag').innerHTML = ''; $('#resultPop').classList.add('show'); syncControls();
   }
   const tuning = () => deps.tuning();
@@ -391,7 +391,7 @@ export function mountGame(root, deps) {
   canvas.addEventListener('click', ev => {
     if (!view.sim) return;
     const rect = canvas.getBoundingClientRect();
-    const e = renderer.pick(ev.clientX - rect.left, ev.clientY - rect.top);
+    const e = un3d.active ? un3d.pick(ev.clientX - rect.left, ev.clientY - rect.top) : renderer.pick(ev.clientX - rect.left, ev.clientY - rect.top);   // in 3D mode the 2D layer is hidden: pick in the 3D scene
     view.selected = e && view.selected?.id !== e.id ? e : null;
     drawPlayerCard();
   });
@@ -432,7 +432,7 @@ export function mountGame(root, deps) {
   $('#speedSeg').onclick = e => { const v = e.target.dataset.speed; if (v) { view.speed = +v; syncControls(); } };
   $('#zoomSeg').onclick = e => { const v = e.target.dataset.zoom; if (v) { view.zoom = v; view.camera = null; syncControls(); } }; // classic zoom leaves any preset
   $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.director = false; try { localStorage.setItem('asu_nfl_director', '0'); } catch { /* private */ } view.camera = view.camera === v ? null : v; syncControls(); } };
-  const un3d = mount3dOverlay({ canvas, sport: 'nfl', onFallback: () => { view.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
+  const un3d = mount3dOverlay({ canvas, sport: 'nfl', createRenderer: (stage, c3d) => import('./fieldRenderer3d.js').then(m => m.createNflRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { view.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['close', 'medium', 'full'], view.zoom, s); root.querySelector(`#zoomSeg [data-zoom="${next}"]`)?.click(); });   // two-finger pinch = next zoom preset
   $('#dirBtn').onclick = () => { view.director = !view.director; try { localStorage.setItem('asu_nfl_director', view.director ? '1' : '0'); } catch { /* private */ } syncControls(); };
   $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
@@ -502,8 +502,10 @@ export function mountGame(root, deps) {
       if (!sandbox && !view.replayDone && R && (R.touchdown || R.turnover) && S().display.autoReplay !== false && since > 1600 / Math.max(1, view.speed)) startReplay();
       else if (view.auto && view.phase === 'AWAIT' && since > 2200 / Math.max(1, view.speed)) runCall(cpuCall());
     }
-    if (s) {
-      renderer.render(s, view.phase === 'REPLAY' ? view.replay.frac : s.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / s.dt), renderOpts());
+    const cur = view.sim;   // NOT the `s` captured at the top of the frame: runCall() above may have swapped in the next play (and started its huddle)
+    if (cur) {
+      renderer.render(cur, view.phase === 'REPLAY' ? view.replay.frac : cur.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / cur.dt), renderOpts());
+      un3d.render(cur, view.phase === 'REPLAY' ? view.replay.frac : cur.phase === 'DEAD' || view.phase !== 'RUN' ? 1 : Math.min(1, view.acc / cur.dt), renderOpts());   // 3D mode (no-op otherwise)
       if (view.debug && ++hudTick % 3 === 0) drawDebug();
     }
     view.raf = requestAnimationFrame(frame);

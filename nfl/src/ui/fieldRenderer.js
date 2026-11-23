@@ -7,6 +7,7 @@ import { drawSprite } from '../../../core/render/sprites.js';
 import { createLabelLayer } from '../../../core/render/labels.js';
 import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01, huddlePose } from './animationMap.js';
 import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
+import { sideColors } from './teamColors.js';
 const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
 import { clipPoseOf } from '../../../core/anim/registry.js';
 import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
@@ -593,10 +594,3 @@ function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = pa
 const SUFFIX = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;
 const lastName = n => { const w = String(n || '').trim().split(/\s+/); while (w.length > 1 && SUFFIX.test(w[w.length - 1])) w.pop(); return w[w.length - 1] || ''; };
 // Offense/defense colors; when both teams' primaries are too close, the defense switches to white jerseys.
-function sideColors(off, def) {
-  const o = TEAM_COLORS[off] || '#1d4ed8', d = TEAM_COLORS[def] || '#b91c1c';
-  const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-  const [a, b] = [rgb(o), rgb(d)];
-  const close = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 90;
-  return { off: [o, '#ffffff'], def: close ? ['#f2f4f7', d] : [d, '#ffffff'] };
-}
