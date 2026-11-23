@@ -28,14 +28,16 @@ export async function createStage(canvas, { quality = DEFAULT_QUALITY } = {}) {
   const white = new pc.StandardMaterial(); white.diffuse = new pc.Color(0.92, 0.92, 0.95); white.update();
   for (const x of [-30, 0, 30]) { const m = new pc.Entity('marker'); m.addComponent('render', { type: 'box', material: white, castShadows: true, receiveShadows: true }); m.setLocalScale(1.2, 6, 1.2); m.setPosition(x, 3, 0); root.addChild(m); }
   camera.setPosition(0, 30, 52); camera.lookAt(0, 1, 0);
+  let size = null;
   app.start();
   const api = {
     pc, app, root, camera, sun, ground,
     get quality() { return q; },
-    resize(w, h) { if (w > 0 && h > 0) app.resizeCanvas(w, h); },
+    // The graphics device sizes the drawing buffer as css size x maxPixelRatio (the application-level resizeCanvas depends on the fill mode and was a no-op here).
+    resize(w, h) { if (w > 0 && h > 0) { size = [w, h]; app.graphicsDevice.resizeCanvas(w, h); } },
     setQuality(level) {
       q = qualitySettings(level, globalThis.devicePixelRatio); app.graphicsDevice.maxPixelRatio = q.pixelRatio;
-      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; app.resizeCanvas();
+      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; if (size) app.graphicsDevice.resizeCanvas(size[0], size[1]);
     },
     dispose() {
       if (api.disposed) return; api.disposed = true;

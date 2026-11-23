@@ -43,7 +43,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 * **Entrega:** cena vazia com chão e luz no lugar do campo 2D.
 * **Prova:** teste de navegador abre/fecha o modo 3D 10 vezes sem erro e sem crescer a memória; o smoke 2D continua 33/33.
 
-### Etapa 2 · Atletas 3D ☐
+### Etapa 2 · Atletas 3D ☑ (2026-11-23)
 * `core/render3d/athletes.js`: carrega o `.glb` uma vez por kit, cria instâncias, **mapeia as 147 animações pelo nome**, troca de clipe com mistura suave (*crossfade*) e aplica as cores do time (camisa, calça, capacete, acento) por material.
 * Exportar `.glb` que faltam: goleiro, árbitro, beisebol (rebatedor e campo) pelo pipeline do Blender (`build_nfl_sprites.py --glb`).
 * **Entrega:** galeria de teste com os kits em pé, correndo e comemorando, com cores de 2 times.
@@ -98,7 +98,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 |---|---|---|
 | 0 Viabilidade | ☑ | 2026-11-23 |
 | 1 Base 3D | ☑ | 2026-11-23 |
-| 2 Atletas | ☐ | — |
+| 2 Atletas | ☑ | 2026-11-23 |
 | 3 Campo NFL | ☐ | — |
 | 4 NFL jogável | ☐ | — |
 | 5 Câmeras e replay | ☐ | — |
@@ -111,6 +111,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 * **2026-11-23:** PlayCanvas escolhida. Engine 2.24.3 verificada (MIT, 2,9 MB). Teste de fumaça: atleta HD com 147 animações animando com sombra no navegador sem GPU (15,7 fps por software). Achados: mapear clipes pelo nome do recurso; ajustar bias da sombra.
 
 * **2026-11-23 (Etapa 1):** engine 2.24.3 embutida em `vendor/playcanvas/` (MIT + LICENSE), carregada sob demanda. `core/render3d/{quality,stage,overlay}.js`: palco com céu, chão, sol com sombra (shadowBias 0,25 / normalOffsetBias 0,08: **sem listras**, conferido por captura) e 3 marcadores provisórios. Opção "3D (PlayCanvas)" no menu Visual dos 3 jogos; o 2D roda escondido por baixo (opacidade 0) e continua recebendo cliques. Níveis de qualidade baixa/média/alta (puro, testado). Fallback para o 2D se não houver WebGL2. **Provas:** `tests/browser/render3d.mjs` 17/17 (monta em NFL, NHL e MLB; 10 ciclos de abrir/fechar sem canvas sobrando nem crescimento de memória; sem erros nem avisos de contexto WebGL); suíte 190/0; smoke 2D 33/33. Achado: a lista do modo offline incluía `android/build` (19 MB): corrigido (agora 6 MB, com o 3D).
+* **2026-11-23 (Etapa 2):** `assets/models3d/` com 7 glTF (football_hd, hockey_hd, football, hockey, goalie, ref, baseball: 11 ossos, **147 animações cada**, materiais por zona). `core/render3d/athletes.js`: fábrica de atletas (clipe por nome `resource.name`, mistura suave com `baseLayer.transition`, cor do time por **material clonado por zona**, HD com queda para low-poly, mapeamento sim→mundo: jardas ×0,9144, pés ×0,3048, y→−Z). Galeria de teste `core/render3d/gallery.html` (12 atletas, 2 times, idle → correr → comemorar). **Provas:** `tests/models3d.test.mjs` (todo clipe de cada atlas 2D existe no glTF correspondente; zonas de cor presentes), `tests/browser/athletes3d.mjs` 5/5 (troca de clipes verificada, sem erros), suíte 194/0, smoke 33/33, render3d 17/17. **Bug achado e corrigido:** o canvas 3D ficava em 300×150 px esticado (o `resizeCanvas` da aplicação era no-op): agora `graphicsDevice.resizeCanvas` (css × pixel ratio). **Limites vistos na captura:** franjas no colarinho/mangas do atleta HD (fronteira camisa/pele, 11 ossos); HD só para futebol e hóquei.
 * **Hardware do usuário:** RX 6600 8 GB; sem medição por enquanto (decisão do usuário). Qualidade padrão "média".
 
 ## 9. Pendências do usuário

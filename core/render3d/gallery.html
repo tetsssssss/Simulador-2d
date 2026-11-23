@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Galeria 3D dos atletas</title>
+<style>html,body{margin:0;height:100%;background:#070b11;color:#cfd9e6;font:13px system-ui}canvas{width:100%;height:100%;display:block}#hud{position:fixed;left:10px;top:8px;pointer-events:none;text-shadow:0 1px 2px #000}</style></head>
+<body><canvas id="c"></canvas><div id="hud">Galeria 3D · atletas, cores de 2 times e transições de animação (idle → correr → comemorar)</div>
+<script type="module">
+// Dev page (Etapa 2): every 3D kit, two team colour sets, clips cross-fading. Open /core/render3d/gallery.html on a local server. Not part of the game UI.
+import { createStage } from './stage.js';
+import { createAthleteFactory } from './athletes.js';
+const q = new URLSearchParams(location.search), quality = q.get('quality') || 'medium';
+const stage = await createStage(document.getElementById('c'), { quality });
+const resize = () => stage.resize(innerWidth, innerHeight); addEventListener('resize', resize); resize();
+const factory = createAthleteFactory(stage, { base: new URL('../../', import.meta.url).pathname });
+const KITS = [['football', true], ['football', false], ['hockey', true], ['goalie', false], ['ref', false], ['baseball', false]];
+const CLIPS = { football: ['mv_idle', 'mv_run', 'gs_arms_up'], hockey: ['hk_glide', 'hk_skate', 'gs_arms_up'], goalie: ['gk_ready', 'gk_butterfly', 'gk_ready'], ref: ['mv_idle', 'mv_jog', 'rf_touchdown'], baseball: ['mv_idle', 'mv_run', 'gs_arms_up'] };
+const TEAMS = [['#0a2870', '#ffd23f'], ['#b3141d', '#ffffff']];
+const athletes = [];
+for (let r = 0; r < TEAMS.length; r++) for (let c = 0; c < KITS.length; c++) {
+  const [kit, hd] = KITS[c], a = await factory.spawn(kit, { hd, color: TEAMS[r][0], color2: TEAMS[r][1], name: `${kit}${hd ? '-hd' : ''}-${r}` });
+  a.entity.setPosition((c - (KITS.length - 1) / 2) * 1.7, 0, r === 0 ? 0 : -2.2); a.entity.setEulerAngles(0, -35, 0); a.play(CLIPS[kit][0]); athletes.push({ a, kit, hd, r });
+}
+stage.root.children.filter(c => c.name === 'marker').forEach(m => m.destroy());   // stand-in poles of the empty scene
+stage.camera.setPosition(0, 2.4, 7.5); stage.camera.lookAt(0, 0.9, -1.1);
+let step = 0; const advance = () => { step++; for (const { a, kit } of athletes) { const c = CLIPS[kit][step % 3]; a.play(c, { loop: c !== 'gs_arms_up' && c !== 'rf_touchdown', blend: 0.2 }); } };
+if (q.get('auto') !== '0') setInterval(advance, 1800);   // ?auto=0 for tests: advance only by hand
+window.__gallery = { ready: true, count: athletes.length, quality: stage.quality.level, athletes: () => athletes.map(x => ({ kit: x.kit, hd: x.hd, row: x.r, clip: x.a.clip })), advance, stage };
+</script></body></html>

@@ -5,7 +5,7 @@
 //  * cross-origin requests (player photos, logos from external APIs) are left to the browser.
 importScripts('sw-precache.js');
 const { version, urls } = self.ASU_SW, SHELL = `asu-shell-${version}`, ASSETS = 'asu-assets-v1';
-const isAsset = u => /\/assets\/(sprites|models)\//.test(u.pathname);
+const isAsset = u => /\/assets\/(sprites|models|models3d)\//.test(u.pathname);
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
