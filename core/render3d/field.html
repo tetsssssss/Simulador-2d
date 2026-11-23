@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Campo 3D da NFL</title>
+<style>html,body{margin:0;height:100%;background:#070b11;color:#cfd9e6;font:13px system-ui}canvas{width:100%;height:100%;display:block}#hud{position:fixed;left:10px;top:8px;pointer-events:none;text-shadow:0 1px 2px #000}</style></head>
+<body><canvas id="c"></canvas><div id="hud">Campo 3D da NFL · jogada real do motor (formação inicial) · ?cam=broadcast|tactical|end &amp;seed=…</div>
+<script type="module">
+// Dev page (Etapa 3): a real NFL play from the simulation engine, frozen at the snap, on the 3D field with 22 athletes and the ball. Not part of the game UI.
+import { createStage } from './stage.js';
+import { createAthleteFactory, worldFromSim } from './athletes.js';
+import { createNflField, broadcastTarget, FIELD } from './nflField.js';
+import { parseCSV, normalizePlayer } from '../../nfl/src/dataService.js';
+import { buildLineups } from '../../nfl/src/nflEngine.js';
+import { createPlay } from '../../nfl/src/sim/playSim.js';
+const q = new URLSearchParams(location.search), seed = q.get('seed') || 'field3d', camMode = q.get('cam') || 'broadcast';
+const stage = await createStage(document.getElementById('c'), { quality: q.get('quality') || 'medium' });
+stage.root.children.filter(c => c.name === 'marker').forEach(m => m.destroy());
+const resize = () => stage.resize(innerWidth, innerHeight); addEventListener('resize', resize); resize();
+const TEAMS = { SEA: ['#002244', '#69be28'], NE: ['#0c2340', '#c60c30'] };
+const field = await createNflField(stage, { homeColor: TEAMS.SEA[0], awayColor: TEAMS.NE[0], homeAbbr: 'SEA', awayAbbr: 'NE' });
+const roster = parseCSV(await (await fetch('../../nfl/data/roster_2026.csv')).text()).map(normalizePlayer).filter(p => p.full_name && p.team);
+const ls = buildLineups(roster, 'SEA', 'NE');
+const sim = createPlay({ offense: ls.offense, defense: ls.defense, ballOn: 35, down: 2, distance: 7, playType: 'pass', seed });
+const factory = createAthleteFactory(stage, { base: new URL('../../', import.meta.url).pathname });
+const athletes = [];
+for (const e of sim.ents) {
+  const [c1, c2] = e.side === 'off' ? TEAMS.SEA : TEAMS.NE, a = await factory.spawn('football', { color: c1, color2: c2, name: e.id });
+  a.setPosition('nfl', e.pos.x, e.pos.y); a.setFacing(e.facing || 0); a.play(e.side === 'def' ? 'mv_athletic_ready' : 'mv_idle'); athletes.push({ a, e });
+}
+field.setBall(sim.qb.pos.x - 0.2, sim.qb.pos.y, 0.9); field.setLines(sim.losX, sim.losX + sim.distance);
+const tgt = camMode === 'tactical' ? { pos: [sim.losX * 0.9144, 55, 8], look: [sim.losX * 0.9144, 0, -22] } : camMode === 'end' ? { pos: [-14, 9, -24.4], look: [sim.losX * 0.9144, 1.5, -24.4] } : broadcastTarget('nfl', sim.losX);
+stage.camera.setPosition(...tgt.pos); stage.camera.lookAt(...tgt.look);
+window.__field = { ready: true, seed, losX: sim.losX, distance: sim.distance, count: athletes.length, fieldLen: FIELD.length,
+  list: () => athletes.map(({ a, e }) => ({ id: e.id, side: e.side, sim: [e.pos.x, e.pos.y], world: (p => [p.x, p.y, p.z])(a.entity.getPosition()), want: worldFromSim('nfl', e.pos.x, e.pos.y), clip: a.clip })), stage };
+</script></body></html>

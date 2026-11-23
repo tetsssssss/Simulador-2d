@@ -49,7 +49,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 * **Entrega:** galeria de teste com os kits em pé, correndo e comemorando, com cores de 2 times.
 * **Prova:** captura de tela comparada; teste unitário do mapeamento de clipes (nenhum clipe usado pelo jogo fica sem animação).
 
-### Etapa 3 · Campo da NFL e bola ☐
+### Etapa 3 · Campo da NFL e bola ☑ (2026-11-23)
 * Gramado com faixas, linhas de jarda e números (textura gerada em canvas, sem logos de terceiros), end zones, traves, bola com rotação no ar, marcador de first down.
 * Câmera "broadcast" seguindo a bola.
 * **Prova:** captura de uma jogada parada, com as 22 posições batendo com o 2D.
@@ -99,7 +99,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 | 0 Viabilidade | ☑ | 2026-11-23 |
 | 1 Base 3D | ☑ | 2026-11-23 |
 | 2 Atletas | ☑ | 2026-11-23 |
-| 3 Campo NFL | ☐ | — |
+| 3 Campo NFL | ☑ | 2026-11-23 |
 | 4 NFL jogável | ☐ | — |
 | 5 Câmeras e replay | ☐ | — |
 | 6 Gráficos | ☐ | — |
@@ -112,6 +112,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 
 * **2026-11-23 (Etapa 1):** engine 2.24.3 embutida em `vendor/playcanvas/` (MIT + LICENSE), carregada sob demanda. `core/render3d/{quality,stage,overlay}.js`: palco com céu, chão, sol com sombra (shadowBias 0,25 / normalOffsetBias 0,08: **sem listras**, conferido por captura) e 3 marcadores provisórios. Opção "3D (PlayCanvas)" no menu Visual dos 3 jogos; o 2D roda escondido por baixo (opacidade 0) e continua recebendo cliques. Níveis de qualidade baixa/média/alta (puro, testado). Fallback para o 2D se não houver WebGL2. **Provas:** `tests/browser/render3d.mjs` 17/17 (monta em NFL, NHL e MLB; 10 ciclos de abrir/fechar sem canvas sobrando nem crescimento de memória; sem erros nem avisos de contexto WebGL); suíte 190/0; smoke 2D 33/33. Achado: a lista do modo offline incluía `android/build` (19 MB): corrigido (agora 6 MB, com o 3D).
 * **2026-11-23 (Etapa 2):** `assets/models3d/` com 7 glTF (football_hd, hockey_hd, football, hockey, goalie, ref, baseball: 11 ossos, **147 animações cada**, materiais por zona). `core/render3d/athletes.js`: fábrica de atletas (clipe por nome `resource.name`, mistura suave com `baseLayer.transition`, cor do time por **material clonado por zona**, HD com queda para low-poly, mapeamento sim→mundo: jardas ×0,9144, pés ×0,3048, y→−Z). Galeria de teste `core/render3d/gallery.html` (12 atletas, 2 times, idle → correr → comemorar). **Provas:** `tests/models3d.test.mjs` (todo clipe de cada atlas 2D existe no glTF correspondente; zonas de cor presentes), `tests/browser/athletes3d.mjs` 5/5 (troca de clipes verificada, sem erros), suíte 194/0, smoke 33/33, render3d 17/17. **Bug achado e corrigido:** o canvas 3D ficava em 300×150 px esticado (o `resizeCanvas` da aplicação era no-op): agora `graphicsDevice.resizeCanvas` (css × pixel ratio). **Limites vistos na captura:** franjas no colarinho/mangas do atleta HD (fronteira camisa/pele, 11 ossos); HD só para futebol e hóquei.
+* **2026-11-23 (Etapa 3):** `core/render3d/nflField.js`: gramado listrado gerado em canvas (2400×1067 px; linhas a cada 5 jd, números 10-50-10 com a fileira de cima invertida, hash marks a 70'9" e 18'6", end zones nas cores dos times com a abreviação, círculo no meio sem logo), traves amarelas, bola (esfera achatada 28 cm), linha de scrimmage (azul) e de first down (amarela), câmera broadcast (`broadcastTarget`/`followStep`: movimento suave independente da taxa de quadros). Página de teste `core/render3d/field.html` com **jogada real do motor** (elenco SEA×NE, formação do snap). **Provas:** `tests/nflfield3d.test.mjs` (dimensões oficiais, 21 linhas, hash marks, câmera sem overshoot), `tests/browser/field3d.mjs` 4/4 (22 atletas, **erro de posição 0,000 cm** em relação ao motor, posturas, sem erros), suíte e smoke verdes. Observações: números "próximos" invertidos como na TV; bola pequena em câmera longa; estádio/arquibancada só na Etapa 6.
 * **Hardware do usuário:** RX 6600 8 GB; sem medição por enquanto (decisão do usuário). Qualidade padrão "média".
 
 ## 9. Pendências do usuário
