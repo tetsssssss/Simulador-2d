@@ -23,6 +23,7 @@ import { NFL_ATMOSPHERE, nflStands } from '../presentation/atmosphere.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { TEAM_COLORS } from './teamColors.js';
+import { mount3dOverlay } from '../../../core/render3d/overlay.js';
 import { createRecorder } from './replay.js';
 import { createDirector } from './director.js';
 import { attachPinchZoom, ladderStep } from '../../../core/ui/touchZoom.js';
@@ -431,6 +432,7 @@ export function mountGame(root, deps) {
   $('#speedSeg').onclick = e => { const v = e.target.dataset.speed; if (v) { view.speed = +v; syncControls(); } };
   $('#zoomSeg').onclick = e => { const v = e.target.dataset.zoom; if (v) { view.zoom = v; view.camera = null; syncControls(); } }; // classic zoom leaves any preset
   $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.director = false; try { localStorage.setItem('asu_nfl_director', '0'); } catch { /* private */ } view.camera = view.camera === v ? null : v; syncControls(); } };
+  const un3d = mount3dOverlay({ canvas, sport: 'nfl', onFallback: () => { view.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['close', 'medium', 'full'], view.zoom, s); root.querySelector(`#zoomSeg [data-zoom="${next}"]`)?.click(); });   // two-finger pinch = next zoom preset
   $('#dirBtn').onclick = () => { view.director = !view.director; try { localStorage.setItem('asu_nfl_director', view.director ? '1' : '0'); } catch { /* private */ } syncControls(); };
   $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
@@ -467,7 +469,7 @@ export function mountGame(root, deps) {
   $('#btnFoul').onclick = () => { renderer.demoPenalty($('#optFoul').value); };
   $('#optStyle').onchange = e => { setAvatarStyle(e.target.value); };
   $('#optVisual').onchange = e => { view.visual = e.target.value; setVisualMode(view.visual); };
-  function cleanup() { clearTimeout(view.finalT); unPinch?.(); unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
+  function cleanup() { clearTimeout(view.finalT); un3d?.(); unPinch?.(); unfocus(); cancelAnimationFrame(view.raf); renderer.dispose(); unmountComm(); presentation.dispose(); window.removeEventListener('keydown', onKey); if (activeCleanup === cleanup) activeCleanup = null; }
   activeCleanup = cleanup;
   let hudTick = 0;
   function frame(ts) {

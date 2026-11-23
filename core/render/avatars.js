@@ -48,10 +48,13 @@ export function positionBuild(sport, slot) {
   return null;
 }
 export function avatarFor(sport, id, slot) { const base = getAvatar(sport, id), b = positionBuild(sport, slot); return !hasCustomAvatar(sport, id) && b != null ? { ...base, build: b } : base; }
-export const VISUAL_MODES = [['avatar', 'Bonecos'], ['sheet', 'Sprites 3D'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
-export const isAvatarMode = m => m === 'avatar' || m === 'sheet';   // both draw athletes (procedural or Blender sprite sheet)
-export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain' || v === 'sheet') return v; return 'avatar'; } catch { return 'avatar'; } }
-export function setVisualMode(v) { try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ } }
+export const VISUAL_MODES = [['avatar', 'Bonecos'], ['sheet', 'Sprites 3D'], ['3d', '3D (PlayCanvas)'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
+export const isAvatarMode = m => m === 'avatar' || m === 'sheet' || m === '3d';   // draw athletes (procedural or Blender sprite sheet); in '3d' the 2D layer runs hidden under the 3D canvas
+export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain' || v === 'sheet' || v === '3d') return v; return 'avatar'; } catch { return 'avatar'; } }
+export function setVisualMode(v) {
+  try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ }
+  try { window.dispatchEvent(new CustomEvent('asu-visual-mode', { detail: v })); } catch { /* no window (tests) */ }
+}
 
 const shade = (hex, f) => { const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16); const c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; };
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }

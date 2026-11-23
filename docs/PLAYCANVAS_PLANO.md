@@ -36,7 +36,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 ### Etapa 0 · Viabilidade ☑
 * Teste de fumaça: engine 2.24.3 + atleta HD + animação + sombra no navegador sem GPU. **Feito em 2026-11-23.**
 
-### Etapa 1 · Base 3D no projeto ☐
+### Etapa 1 · Base 3D no projeto ☑ (2026-11-23)
 * Incorporar `vendor/playcanvas/playcanvas.min.mjs` (+ `LICENSE`) e registrá-lo no cache offline (`tools/build_sw_manifest.mjs`).
 * `core/render3d/stage.js`: cria a aplicação PlayCanvas num `<canvas>`, céu, luz direcional com sombra (bias ajustado), câmera, redimensionamento e **descarte completo** (sem vazar contexto WebGL ao trocar de esporte ou de modo).
 * Opção "**3D (PlayCanvas)**" no seletor *Visual* dos três jogos; se o WebGL2 não existir, avisa e volta ao 2D.
@@ -97,7 +97,7 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 | Etapa | Estado | Última atualização |
 |---|---|---|
 | 0 Viabilidade | ☑ | 2026-11-23 |
-| 1 Base 3D | ☐ | — |
+| 1 Base 3D | ☑ | 2026-11-23 |
 | 2 Atletas | ☐ | — |
 | 3 Campo NFL | ☐ | — |
 | 4 NFL jogável | ☐ | — |
@@ -110,8 +110,11 @@ Legenda: ☐ a fazer · ◐ em andamento · ☑ feito
 ## 8. Diário
 * **2026-11-23:** PlayCanvas escolhida. Engine 2.24.3 verificada (MIT, 2,9 MB). Teste de fumaça: atleta HD com 147 animações animando com sombra no navegador sem GPU (15,7 fps por software). Achados: mapear clipes pelo nome do recurso; ajustar bias da sombra.
 
+* **2026-11-23 (Etapa 1):** engine 2.24.3 embutida em `vendor/playcanvas/` (MIT + LICENSE), carregada sob demanda. `core/render3d/{quality,stage,overlay}.js`: palco com céu, chão, sol com sombra (shadowBias 0,25 / normalOffsetBias 0,08: **sem listras**, conferido por captura) e 3 marcadores provisórios. Opção "3D (PlayCanvas)" no menu Visual dos 3 jogos; o 2D roda escondido por baixo (opacidade 0) e continua recebendo cliques. Níveis de qualidade baixa/média/alta (puro, testado). Fallback para o 2D se não houver WebGL2. **Provas:** `tests/browser/render3d.mjs` 17/17 (monta em NFL, NHL e MLB; 10 ciclos de abrir/fechar sem canvas sobrando nem crescimento de memória; sem erros nem avisos de contexto WebGL); suíte 190/0; smoke 2D 33/33. Achado: a lista do modo offline incluía `android/build` (19 MB): corrigido (agora 6 MB, com o 3D).
+* **Hardware do usuário:** RX 6600 8 GB; sem medição por enquanto (decisão do usuário). Qualidade padrão "média".
+
 ## 9. Pendências do usuário
-1. Especificação do PC onde vai jogar o 3D (placa de vídeo, memória) — define o nível de qualidade padrão.
+1. ~~Especificação do PC~~ recebida: RX 6600 8 GB. Falta a memória RAM e a CPU (só para registro).
 2. Medir fps no seu aparelho ao fim das Etapas 4, 6 e 8.
 3. Decidir, na Etapa 9, se o 3D entra no APK.
 

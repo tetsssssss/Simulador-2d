@@ -4,7 +4,7 @@
 import { readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname;
-const SKIP_DIR = new Set(['.git', 'node_modules', 'tests', 'tools', 'docs', 'exports', '__pycache__']);
+const SKIP_DIR = new Set(['.git', 'node_modules', 'tests', 'tools', 'docs', 'exports', '__pycache__', 'android', 'unreal']);
 const SKIP_PREFIX = ['assets/sprites/', 'assets/models/'];
 const EXT = /\.(html|js|mjs|css|json|csv|webmanifest|png|svg|webp|jpg|woff2?)$/i;
 const out = [];
