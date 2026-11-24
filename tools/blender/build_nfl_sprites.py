@@ -145,7 +145,9 @@ def main():
     bpy.ops.object.mode_set(mode='OBJECT')
     if a['glb']:
         os.makedirs(os.path.dirname(os.path.abspath(a['glb'])), exist_ok=True)
-        bpy.ops.export_scene.gltf(filepath=a['glb'], export_format='GLB', export_animations=True, export_animation_mode='ACTIONS', export_apply=False)
+        kw = dict(filepath=a['glb'], export_format='GLB', export_animations=True, export_animation_mode='ACTIONS', export_apply=False)
+        try: bpy.ops.export_scene.gltf(export_vertex_color='ACTIVE', **kw)   # keeps the baked AO colour attribute (HD models)
+        except TypeError: bpy.ops.export_scene.gltf(**kw)
         print(f"[asu] glb -> {a['glb']} ({os.path.getsize(a['glb']) // 1024} KB, {len(done)} animations)")
 
 

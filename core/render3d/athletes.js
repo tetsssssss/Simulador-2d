@@ -47,7 +47,7 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
   let whiteTex = null; const white = () => whiteTex || (whiteTex = (() => { const t = new pc.Texture(app.graphicsDevice, { width: 2, height: 2, format: pc.PIXELFORMAT_SRGBA8, mipmaps: false }); const d = t.lock(); d.fill(255); t.unlock(); return t; })());   // the engine only applies a detail map on top of a base diffuse map
   const tinted = (mat, zone, rgb, cloth = false) => {
     const key = `${zone}|${rgb.map(v => v.toFixed(3)).join(',')}|${cloth ? 'f' : ''}`; let m = teamMats.get(key);
-    if (!m) { m = mat.clone(); const g = cloth ? 1.06 : 1; m.diffuse = new pc.Color(Math.min(1, rgb[0] * g), Math.min(1, rgb[1] * g), Math.min(1, rgb[2] * g));
+    if (!m) { m = mat.clone(); if (cloth) m.diffuseVertexColor = true; const g = cloth ? 1.06 : 1; m.diffuse = new pc.Color(Math.min(1, rgb[0] * g), Math.min(1, rgb[1] * g), Math.min(1, rgb[2] * g));
       if (cloth && FABRIC_ZONES.has(zone) && fabric()) { m.diffuseMap = white(); m.diffuseDetailMap = fabric(); m.diffuseDetailMapTiling = new pc.Vec2(6, 6); m.diffuseDetailMode = pc.DETAILMODE_MUL; }
       m.update(); teamMats.set(key, m); clones.push(m); }
     return m;
@@ -57,7 +57,7 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
     const entity = model.asset.resource.instantiateRenderEntity({ castShadows: true, receiveShadows: true }); entity.name = name; parent.addChild(entity);
     entity.addComponent('anim', { activate: true });
     const zc = zoneColors(kit, color, color2), cloth = /_hd\.glb/.test(model.url || '');
-    entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const z = mi.material?.name; if (zc[z]) mi.material = tinted(mi.material, z, zc[z], cloth); }));
+    entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const z = mi.material?.name; if (zc[z]) mi.material = tinted(mi.material, z, zc[z], cloth); if (cloth && !mi.material.diffuseVertexColor) { mi.material.diffuseVertexColor = true; mi.material.update(); } }));   // baked ambient occlusion (COLOR_0) multiplies every material
     const states = new Set(); let current = null;
     // Identity decals (back number + name, chest number, face plate), created on the first setIdentity() call; the rig has no UVs so they are quads on the bones.
     let dec = null, decKey = '', jerseyCss = color;

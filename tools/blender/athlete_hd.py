@@ -127,6 +127,27 @@ def bake(parts, name='asu_athlete'):
     return obj, mats, vinfo
 
 
+def bake_ao(obj, rays=18, dist=0.16, floor=0.52):
+    """Vertex ambient occlusion in the rest pose (ray cast against the whole body) -> colour attribute 'AO' (glTF COLOR_0): armpits, neck, under the helmet, between the legs and
+    behind the pads get darker, for free at run time."""
+    import mathutils; from mathutils.bvhtree import BVHTree
+    me = obj.data; bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table(); bm.faces.ensure_lookup_table()
+    tree = BVHTree.FromBMesh(bm); dirs = []; ga = math.pi * (3 - math.sqrt(5))
+    for i in range(rays):                                   # fixed hemisphere sample set (z-up), cosine-weighted
+        r = math.sqrt((i + 0.5) / rays); th = i * ga; dirs.append(mathutils.Vector((r * math.cos(th), r * math.sin(th), math.sqrt(max(0.0, 1 - r * r)))))
+    vals = []
+    for v in bm.verts:
+        n = v.normal.normalized(); t = n.cross(mathutils.Vector((0, 0, 1)) if abs(n.z) < 0.9 else mathutils.Vector((1, 0, 0))).normalized(); b = n.cross(t); hit = 0
+        for d in dirs:
+            w = t * d.x + b * d.y + n * d.z
+            if tree.ray_cast(v.co + n * 0.006, w, dist)[0] is not None: hit += 1
+        vals.append(floor + (1 - floor) * (1 - hit / rays))
+    bm.free()
+    ca = me.color_attributes.new('AO', 'FLOAT_COLOR', 'POINT')
+    ca.data.foreach_set('color', [c for a in vals for c in (a, a, a, 1.0)])
+    me.color_attributes.active_color = ca
+
+
 def skin_mesh(obj, rig, vinfo, power=5.0):
     bones = {b.name: (b.head_local.copy(), b.tail_local.copy()) for b in rig.data.bones}; groups = {n: obj.vertex_groups.new(name=n) for n in bones}
     for v in obj.data.vertices:
@@ -231,6 +252,8 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
             P.add(ball((0.06, SH_HALF, zh - 0.07), 0.12, 0.45, 1.0, 1.15, 2), 'fore_B', 'leather')   # catcher (big glove)
     obj, mats, vinfo = bake(P)
     for name, idx in sorted(mats.items(), key=lambda kv: kv[1]): obj.data.materials.append(bpy.data.materials[f'asu_{name}'])
+    try: bake_ao(obj)
+    except Exception as e: print('[asu] AO skipped:', e)
     rig = _armature(); skin_mesh(obj, rig, vinfo)
     # UVs are made in bake() (box projection in metres)
     prop = None
