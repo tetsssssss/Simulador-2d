@@ -14,12 +14,23 @@ export function fieldLayout() {
 }
 
 // Draws the field into `canvas` (PX_PER_YD pixels per yard). Colours are CSS strings.
+import { grainPass, wear } from './surfaces.js';
 export const PX_PER_YD = 20;
-export function drawFieldTexture(canvas, { homeColor = '#0a2870', awayColor = '#b3141d', homeAbbr = 'HOME', awayAbbr = 'AWAY' } = {}) {
+const texCache = new Map();   // the grain pass is per-pixel (slow, big garbage): keep the finished picture per team colours / names
+export function drawFieldTexture(canvas, opts = {}) {
+  const key = JSON.stringify(opts), hit = texCache.get(key);
+  if (hit) return hit;   // shared, read-only picture (callers only upload it to the GPU)
+  drawFieldTextureRaw(canvas, opts);
+  if (typeof document !== 'undefined' && canvas.getContext && canvas.getContext('2d').getImageData) { const k = document.createElement('canvas'); k.width = canvas.width; k.height = canvas.height; k.getContext('2d').drawImage(canvas, 0, 0); texCache.set(key, k); if (texCache.size > 6) texCache.delete(texCache.keys().next().value); }
+  return canvas;
+}
+function drawFieldTextureRaw(canvas, { homeColor = '#0a2870', awayColor = '#b3141d', homeAbbr = 'HOME', awayAbbr = 'AWAY' } = {}) {
   const W = FIELD.length * PX_PER_YD, H = Math.round(FIELD.width * PX_PER_YD); canvas.width = W; canvas.height = H;
   const c = canvas.getContext('2d'), L = fieldLayout(), px = v => v * PX_PER_YD;
   for (let x = 0; x < FIELD.length; x += L.stripeEvery) { c.fillStyle = ((x / L.stripeEvery) | 0) % 2 ? '#2c7a32' : '#2f8236'; c.fillRect(px(x), 0, px(L.stripeEvery), H); }
   for (const z of L.endZones) { c.fillStyle = z.side === 'home' ? homeColor : awayColor; c.fillRect(px(z.x0), 0, px(z.x1 - z.x0), H); c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(px(z.x0), 0, px(z.x1 - z.x0), H); }
+  for (const x of [20, 40, 60, 80, 100]) for (const y of [L.hashY ? L.hashY[0] : 23, L.hashY ? L.hashY[1] : 30]) wear(c, px(x + (x % 40 ? 1 : -1) * 2), px(y), px(5), 'rgba(70,50,25,.16)');   // worn patches between the hashes
+  if (c.getImageData) grainPass(c, W, H, { seed: 21, ppu: PX_PER_YD, dirt: 0 });
   c.strokeStyle = '#f4f4f0'; c.lineCap = 'butt';
   for (const l of L.lines) { c.lineWidth = px(l.goal ? 0.33 : l.kind === 'major' ? 0.22 : 0.14); c.beginPath(); c.moveTo(px(l.x), 0); c.lineTo(px(l.x), H); c.stroke(); }
   c.lineWidth = px(0.4); c.strokeRect(px(0.2), px(0.2), W - px(0.4), H - px(0.4));            // end lines and sidelines
@@ -43,7 +54,7 @@ export function followStep(cur, target, dt, smooth = 0.18) {   // smooth = secon
 
 export async function createNflField(stage, opts = {}) {
   const { pc, app, root } = stage;
-  const cv = document.createElement('canvas'); drawFieldTexture(cv, opts);
+  const cv = drawFieldTexture(document.createElement('canvas'), opts);
   const tex = new pc.Texture(app.graphicsDevice, { width: cv.width, height: cv.height, format: pc.PIXELFORMAT_SRGBA8, mipmaps: true, minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR, anisotropy: 8 }); tex.setSource(cv);
   const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseMap = tex; mat.gloss = 0.08; mat.metalness = 0; mat.useMetalness = true; mat.update();
   stage.ground.enabled = false;     // the stand-in plane of the empty scene

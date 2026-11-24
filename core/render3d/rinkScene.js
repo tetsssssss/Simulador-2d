@@ -1,5 +1,6 @@
 // NHL rink in the PlayCanvas stage (world metres: x 0..60.96, z 0..-25.9; sim feet * 0.3048, y -> -z). Pure layout/camera maths + drawing.
 import { RINK, MIDY, FACEOFF_DOTS, goalX } from '../../nhl/src/rink/geometry.js';
+import { iceMarks } from './surfaces.js';
 export const FT = 0.3048, LEN = RINK.L * FT, WID = RINK.W * FT;
 
 // Boards follow a rounded rectangle (corner radius 28 ft). Returns a closed list of {x,y} points in feet.
@@ -25,7 +26,7 @@ export function drawIceTexture(cv, ppf = 12) {
   const { L, W, cornerR: r } = RINK; cv.width = L * ppf; cv.height = W * ppf; const c = cv.getContext('2d'); c.scale(ppf, ppf);
   c.fillStyle = '#12151b'; c.fillRect(0, 0, L, W);   // apron colour outside the rounded boards
   c.save(); c.beginPath(); c.roundRect(0, 0, L, W, r); c.clip();
-  c.fillStyle = '#d9ebf5'; c.fillRect(0, 0, L, W);
+  c.fillStyle = '#d9ebf5'; c.fillRect(0, 0, L, W); iceMarks(c, L, W);
   const line = (x, col, w) => { c.fillStyle = col; c.fillRect(x - w / 2, 0, w, W); };
   line(RINK.center, '#c8202d', 1); line(RINK.goalLine, '#c8202d', 0.35); line(L - RINK.goalLine, '#c8202d', 0.35); line(RINK.blueLine, '#1f4fb4', 1); line(L - RINK.blueLine, '#1f4fb4', 1);
   const circle = (x, y, rad, col, lw) => { c.strokeStyle = col; c.lineWidth = lw; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.stroke(); };

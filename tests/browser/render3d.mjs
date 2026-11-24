@@ -14,7 +14,7 @@ for (const [sport, route, canvasSel, start] of [['nfl', '#play', '#fieldCanvas',
   const f = frame(); await f.evaluate(r => { location.hash = r; }, route); await page.waitForTimeout(1800);
   if (start) { await f.click('text=Iniciar Quick Game').catch(() => {}); await page.waitForTimeout(2500); }
   check(`${sport}: "3D (PlayCanvas)" is in the Visual menu`, await f.evaluate(() => [...document.querySelectorAll('#optVisual option')].some(o => o.value === '3d')));
-  await f.selectOption('#optVisual', '3d'); await page.waitForFunction(() => true); await page.waitForTimeout(2500);
+  await f.selectOption('#optVisual', '3d'); await f.waitForFunction(() => window.__asu3d, null, { timeout: 12000 }).catch(() => {}); await page.waitForTimeout(1500);   // first mount builds the grain textures (slower in software GL)
   const info = await f.evaluate(() => window.__asu3d); const c = await f.evaluate(() => { const e = document.querySelector('.asu-3d-canvas'); return e ? { w: e.width, h: e.height, op2d: getComputedStyle(document.querySelector('canvas:not(.asu-3d-canvas)')).opacity } : null; });
   check(`${sport}: 3D stage mounted (WebGL2, engine ${info?.version})`, !!info && info.device === 'webgl2' && !!c && c.w > 100 && c.h > 100, JSON.stringify(info));
   if (sport === 'nfl' && OUT) await page.screenshot({ path: `${OUT}/render3d_stage.png` });
