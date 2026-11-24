@@ -14,23 +14,24 @@ export const RINK_CAMERAS = ['PUCK', 'BROADCAST', 'TACTICAL', 'FULL'];
 export function rinkCamera(preset, px = RINK.center) {
   const bx = Math.max(10, Math.min(LEN - 10, px * FT)), mz = -WID / 2;
   switch (preset) {
-    case 'PUCK': return { pos: [bx, 5.5, 7], look: [bx, 0.4, mz + 2] };
+    case 'PUCK': return { pos: [bx, 6.5, 9], look: [bx, 0.4, mz + 2] };
     case 'TACTICAL': return { pos: [LEN / 2, 46, mz + 6], look: [LEN / 2, 0, mz] };
     case 'FULL': return { pos: [LEN / 2, 30, 24], look: [LEN / 2, 0, mz] };
-    default: return { pos: [bx, 11, 15], look: [bx, 0, mz + 3] };
+    default: return { pos: [bx, 15, 21], look: [bx, 0, mz + 1] };
   }
 }
 
 export function drawIceTexture(cv, ppf = 12) {
   const { L, W, cornerR: r } = RINK; cv.width = L * ppf; cv.height = W * ppf; const c = cv.getContext('2d'); c.scale(ppf, ppf);
+  c.fillStyle = '#12151b'; c.fillRect(0, 0, L, W);   // apron colour outside the rounded boards
+  c.save(); c.beginPath(); c.roundRect(0, 0, L, W, r); c.clip();
   c.fillStyle = '#d9ebf5'; c.fillRect(0, 0, L, W);
   const line = (x, col, w) => { c.fillStyle = col; c.fillRect(x - w / 2, 0, w, W); };
   line(RINK.center, '#c8202d', 1); line(RINK.goalLine, '#c8202d', 0.35); line(L - RINK.goalLine, '#c8202d', 0.35); line(RINK.blueLine, '#1f4fb4', 1); line(L - RINK.blueLine, '#1f4fb4', 1);
   const circle = (x, y, rad, col, lw) => { c.strokeStyle = col; c.lineWidth = lw; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.stroke(); };
   for (const d of FACEOFF_DOTS) { c.fillStyle = d.kind === 'center' ? '#1f4fb4' : '#c8202d'; c.beginPath(); c.arc(d.x, d.y, d.kind === 'neutral' ? 0.7 : 1, 0, Math.PI * 2); c.fill(); if (d.kind !== 'neutral') circle(d.x, d.y, RINK.circleR, d.kind === 'center' ? '#1f4fb4' : '#c8202d', 0.2); }
   for (const s of [-1, 1]) { const gx = goalX(s); c.fillStyle = 'rgba(80,140,230,.45)'; c.beginPath(); c.arc(gx, MIDY, RINK.creaseR, s < 0 ? -Math.PI / 2 : Math.PI / 2, s < 0 ? Math.PI / 2 : -Math.PI / 2 + Math.PI * 2 - Math.PI * 2, false); c.fill(); }
-  // outside the rounded boards the ice is dark (apron) — drawn as a mask of the rounded rectangle
-  c.globalCompositeOperation = 'destination-in'; c.beginPath(); c.roundRect(0, 0, L, W, r); c.fill();
+  c.restore();
 }
 
 export function createRink(stage) {
@@ -38,7 +39,7 @@ export function createRink(stage) {
   const mat = (fn) => { const m = new pc.StandardMaterial(); fn(m); m.update(); mats.push(m); return m; };
   const cv = document.createElement('canvas'); drawIceTexture(cv);
   const tex = new pc.Texture(app.graphicsDevice, { width: cv.width, height: cv.height, format: pc.PIXELFORMAT_SRGBA8, mipmaps: true, minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR, anisotropy: 8 }); tex.setSource(cv);
-  const ice = mat(m => { m.diffuse = new pc.Color(1, 1, 1); m.diffuseMap = tex; m.opacityMap = tex; m.opacityMapChannel = 'a'; m.blendType = pc.BLEND_NORMAL; m.alphaTest = 0.5; m.opacityMapChannel = 'a'; m.useMetalness = true; m.metalness = 0.0; m.gloss = 0.85; });
+  const ice = mat(m => { m.diffuse = new pc.Color(1, 1, 1); m.diffuseMap = tex; m.useMetalness = true; m.metalness = 0.0; m.gloss = 0.85; });
   const add = (e, name) => { e.name = name; root.addChild(e); parts.push(e); return e; };
   const mk = (type, material, shadow = false) => { const e = new pc.Entity(); e.addComponent('render', { type, material, castShadows: shadow, receiveShadows: true }); return e; };
   const apron = mk('plane', mat(m => { m.diffuse = new pc.Color(0.07, 0.08, 0.1); m.gloss = 0.1; m.useMetalness = true; m.metalness = 0; })); apron.setLocalScale(LEN + 40, 1, WID + 40); apron.setPosition(LEN / 2, -0.02, -WID / 2); add(apron, 'apron');
