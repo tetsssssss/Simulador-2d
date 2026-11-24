@@ -24,10 +24,24 @@ class Parts:
     def add(self, bm, bone, mat, soft=False): self.items.append((bm, bone, mat, soft))
 
 
+DENSIFY = 2   # extra smooth cross-sections between each pair of rings of a loft (Catmull-Rom): rounder silhouettes for ~2x the triangles of the lofted parts
+
+
+def _dense(rings, sub):
+    """Insert `sub-1` Catmull-Rom interpolated rings between the given ones (only when there are 4+ rings: short lofts are deliberate bands / cylinders)."""
+    if sub <= 1 or len(rings) < 4: return list(rings)
+    out = []; n = len(rings)
+    for i in range(n - 1):
+        p0, p1, p2, p3 = rings[max(i - 1, 0)], rings[i], rings[i + 1], rings[min(i + 2, n - 1)]
+        for t in [j / sub for j in range(sub)]:
+            out.append(tuple(0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t ** 3) for a, b, c, d in zip(p0, p1, p2, p3)))
+    out.append(tuple(rings[-1])); return out
+
+
 def loft_z(rings, seg=16, caps=(True, True)):
     """Vertical loft. rings: [(z, cx, cy, rx, ry)] -> elliptical cross-sections (x radius rx, y radius ry) stacked along z."""
     bm = bmesh.new(); rs = []
-    for (z, cx, cy, rx, ry) in rings:
+    for (z, cx, cy, rx, ry) in _dense(rings, DENSIFY):
         rs.append([bm.verts.new((cx + math.cos(a * math.tau / seg) * rx, cy + math.sin(a * math.tau / seg) * ry, z)) for a in range(seg)])
     for i in range(len(rs) - 1):
         for a in range(seg): bm.faces.new((rs[i][a], rs[i][(a + 1) % seg], rs[i + 1][(a + 1) % seg], rs[i + 1][a]))
@@ -39,7 +53,7 @@ def loft_z(rings, seg=16, caps=(True, True)):
 def loft_x(rings, seg=12):
     """Loft along +X (boots / forearm props). rings: [(x, cy, cz, ry, rz)]."""
     bm = bmesh.new(); rs = []
-    for (x, cy, cz, ry, rz) in rings:
+    for (x, cy, cz, ry, rz) in _dense(rings, DENSIFY):
         rs.append([bm.verts.new((x, cy + math.cos(a * math.tau / seg) * ry, cz + math.sin(a * math.tau / seg) * rz)) for a in range(seg)])
     for i in range(len(rs) - 1):
         for a in range(seg): bm.faces.new((rs[i][a], rs[i][(a + 1) % seg], rs[i + 1][(a + 1) % seg], rs[i + 1][a]))
@@ -115,7 +129,9 @@ def skin_mesh(obj, rig, vinfo, power=5.0):
     for v in obj.data.vertices:
         bone, soft = vinfo[v.index]
         if not soft: groups[bone].add([v.index], 1.0, 'REPLACE'); continue
-        allow = soft if isinstance(soft, (tuple, list, set)) else None   # soft may name the bones this part is allowed to blend between (stops left/right-leg flips at the hem)
+        allow = soft if isinstance(soft, (tuple, list, set)) else None
+        if allow is None and bone.startswith(('upper_', 'fore_')): allow = ('spine', f'upper_{bone[-1]}', f'fore_{bone[-1]}')       # a limb only blends with its own chain: no flips between overlapping surfaces ("fur" at knees / cuffs)
+        elif allow is None and bone.startswith(('thigh_', 'shin_')): allow = ('hips', f'thigh_{bone[-1]}', f'shin_{bone[-1]}')   # soft may name the bones this part is allowed to blend between (stops left/right-leg flips at the hem)
         ds = sorted(((_seg_dist(v.co, a, b), n) for n, (a, b) in bones.items() if allow is None or n in allow), key=lambda t: t[0])[:2]
         ws = [1.0 / max(1e-4, d) ** power for d, _ in ds]; tot = sum(ws)
         for (d, n), w in zip(ds, ws):
@@ -142,7 +158,7 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     P.add(loft_z([(HIP_Z + 0.04, 0, 0, 0.12 * k, 0.19 * k), (HIP_Z - 0.10, 0, 0, 0.125 * k, 0.2 * k)], 20, (False, False)), 'hips', 'pants', ('hips', 'thigh_F', 'thigh_B', 'spine'))
     for s, y in (('F', -HIP_HALF), ('B', HIP_HALF)):
         P.add(loft_z([(HIP_Z - 0.04, 0, y * 0.97, 0.112 * k, 0.1 * k), (HIP_Z - 0.20, 0, y, 0.105 * k, 0.098 * k), (HIP_Z - THIGH, 0, y, 0.078 * k, 0.074 * k)], 14, (False, False)), f'thigh_{s}', 'pants', ('hips', f'thigh_{s}', f'shin_{s}'))
-        P.add(ball((0.01, y, HIP_Z - THIGH), 0.08 * k, 1.0, 0.95, 1.0, 2), f'shin_{s}', 'pants', True)
+        P.add(ball((0.01, y, HIP_Z - THIGH), 0.09 * k, 1.0, 0.95, 1.0, 2), f'shin_{s}', 'pants', True)
         P.add(loft_z([(HIP_Z - THIGH, 0, y, 0.074 * k, 0.07 * k), (0.34, 0, y, 0.062 * k, 0.058 * k), (0.12, 0, y, 0.05, 0.05)], 14, (False, False)), f'shin_{s}', 'pants' if hock else 'trim', True)
         P.add(loft_x([(-0.07, y, 0.07, 0.045, 0.06), (0.02, y, 0.05, 0.052, 0.05), (0.12, y, 0.04, 0.05, 0.04), (0.2, y, 0.03, 0.04, 0.028)], 12), f'shin_{s}', 'boots', True)
         if hock: P.add(tube((-0.05, y, -0.0), (0.2, y, 0.0), 0.008, 4), f'shin_{s}', 'metal')
@@ -155,7 +171,7 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
         z0 = SH_Z - 0.04; z1 = z0 - UPPER; z2 = z1 - FORE; sg = -1 if s == 'F' else 1
         P.add(loft_z([(z0 + 0.02, 0, y, 0.07 * k, 0.07 * k), (z0 - 0.12, 0, y, 0.066 * k, 0.064 * k), (z1, 0, y, 0.056 * k, 0.054 * k)], 14, (False, False)), f'upper_{s}', 'jersey', True)
         P.add(loft_z([(z0 - 0.17, 0, y, 0.069 * k, 0.067 * k), (z0 - 0.21, 0, y, 0.068 * k, 0.066 * k)], 14, (False, False)), f'upper_{s}', 'accent', True)          # sleeve band
-        P.add(ball((0, y, z1), 0.056 * k, 1, 1, 1, 2), f'fore_{s}', 'skin', True)
+        P.add(ball((0, y, z1), 0.062 * k, 1, 1, 1, 2), f'fore_{s}', 'skin', True)   # slightly bigger than the sleeve rim: a crisp seam instead of z-fighting "fuzz"
         P.add(loft_z([(z1, 0, y, 0.052 * k, 0.05 * k), (z1 - 0.12, 0, y, 0.048 * k, 0.046 * k), (z2, 0, y, 0.038, 0.036)], 12, (False, False)), f'fore_{s}', 'skin', True)
         P.add(ball((0.005, y, z2 - 0.045), 0.05, 0.9, 0.75, 1.15, 2), f'fore_{s}', 'trim' if (fb or hock) else ('leather' if (bb and s == 'B') else 'skin'), True)                  # hand / glove (baseball: leather glove on the far hand)
     # ---- neck + head (skin) with a geometric face ----
