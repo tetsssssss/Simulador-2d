@@ -44,6 +44,7 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - 3D Etapa 8 lote 1 FEITO: qualidade automática + seletor no menu (autoq3d.mjs 4/4). PRÓXIMO: orçamento de draw calls/triângulos (medir em página de teste), LOD, depois Etapa 9 (zip, cache offline, decisão APK) e Etapa 6 restante (telão, luz auto, banco).
 - 3D: limite de FPS 30-100 (menu 🔊 'FPS do 3D') FEITO. Smoke: regex de 'live commentary' agora com \b (falso positivo 'nullified').
 - 3D Etapa 8 FEITA (budget3d.mjs 10/10: tris NFL 320k Alta/70k Baixa, NHL 123k/9k, MLB 7k; LOD ao vivo por qualidade). PRÓXIMO: Etapa 9 (docs LANCAMENTO + zip + cache offline + decisão APK).
+- 3D Etapa 9 FEITA: zip v7_3D gerado e provado (render3d 17/17 no zip extraído). PLANO 0-9 CONCLUÍDO. Backlog 3D (opcional): bloom, telão, luz auto por quarto, banco de reservas, estádio/torcida NHL e MLB, LOD por distância, replay NHL/MLB, textura/rosto nos atletas HD. Usuário: medir fps (RX 6600), testar no celular.
 
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
