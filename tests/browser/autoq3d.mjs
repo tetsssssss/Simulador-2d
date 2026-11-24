@@ -8,7 +8,7 @@ async function run(q) {
   const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto(`http://localhost:${PORT}/#nhl`); await page.waitForTimeout(2500);
   const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(() => { location.hash = '#rink'; }); await page.waitForTimeout(2500);
-  const t0 = await f.evaluate(() => window.__asu3d?.quality); await page.waitForTimeout(60000);
+  const t0 = await f.evaluate(() => window.__asu3d?.quality); await page.waitForTimeout(130000);
   const r = await f.evaluate(() => window.__asu3d && { q: window.__asu3d.quality, ch: window.__asu3d.autoChanges || 0 }); await ctx.close(); return { t0, r, errs };
 }
 const a = await run(null), h = await run('high');

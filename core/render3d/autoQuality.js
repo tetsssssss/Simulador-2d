@@ -4,7 +4,7 @@
 // A frame longer than `hitchMs` counts as `hitchMs` (one outlier = one slow frame, harmless; a device that really runs at 3 fps still downgrades).
 // The caller skips hidden-tab / long-pause gaps (see overlay.js).
 import { QUALITY_LEVELS } from './quality.js';
-export function createAutoQuality({ start = 'medium', window: W = 90, slowMs = 28, fastMs = 15, slowShare = 0.6, cooldown = 600, hitchMs = 250, max = 'high' } = {}) {
+export function createAutoQuality({ start = 'medium', window: W = 60, slowMs = 28, fastMs = 15, slowShare = 0.6, cooldown = 600, hitchMs = 250, max = 'high' } = {}) {
   let level = start, buf = [], since = 0; const idx = l => QUALITY_LEVELS.indexOf(l);
   return {
     get level() { return level; },
