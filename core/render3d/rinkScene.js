@@ -60,7 +60,8 @@ export function createRink(stage) {
     const back = mk('box', netM); back.setLocalScale(Math.abs(d), h, hw * 2); back.setPosition(gx + d / 2, h / 2, z0); add(back, 'net');
   }
   const wasGround = stage.ground.enabled; stage.ground.enabled = false;
+  const markers = root.children.filter(e => e.name === 'marker' && e.enabled); markers.forEach(m => { m.enabled = false; });   // the stand-in poles of the empty scene
   const sc = app.scene; sc.fog.density = 0; stage.camera.camera.clearColor = new pc.Color(0.05, 0.06, 0.09); sc.ambientLight = new pc.Color(0.5, 0.52, 0.58);
   stage.sun.light.intensity = 1.2; stage.sun.light.color = new pc.Color(1, 1, 1); stage.sun.setEulerAngles(78, 10, 0);
-  return { dispose() { parts.forEach(p => p.destroy()); mats.forEach(m => m.destroy()); tex.destroy(); stage.ground.enabled = wasGround; } };
+  return { dispose() { parts.forEach(p => p.destroy()); mats.forEach(m => m.destroy()); tex.destroy(); stage.ground.enabled = wasGround; markers.forEach(m => { if (m.root) m.enabled = true; }); } };
 }

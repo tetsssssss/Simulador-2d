@@ -39,6 +39,7 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - 3D Etapa 5 FEITA: cams3d.mjs 7/7 (presets, diretor, replay); corrigido bug do árbitro assíncrono. PRÓXIMO: Etapa 6 (salto visual: luz dia/noite, pós-processamento, estádio, torcida, clima).
 - 3D Etapa 6 lote 1 FEITO: look.js (dia/tarde/noite), stadium.js (arquibancada+torcida 1 malha+refletores), botão Luz; stadium3d.mjs 4/4. PRÓXIMO: bloom/CameraFrame, clima, telão, luz automática por quarto; depois Etapa 7 (NHL/MLB).
 - 3D Etapa 6 lote 2 FEITO: clima 3D (weather3d.mjs 4/4). Bloom adiado p/ Etapa 8. PRÓXIMO: Etapa 7 (NHL e MLB em 3D) — começar pelo NHL: rinque, goleiro/atletas hockey_hd, disco, adaptador matchView.
+- 3D Etapa 7 NHL FEITA (nhl3d.mjs 4/4, rink3d.test). PRÓXIMO: MLB em 3D (diamante, montinho, rebatedor, trajetória da bola, adaptador mlb/src/game/matchView.js), depois teste seed 3D×2D no NHL e Etapa 8.
 
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
