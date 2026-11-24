@@ -3,6 +3,8 @@
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createDiamond, diamondCamera, FT } from '../../../core/render3d/diamondScene.js';
 import { followStep } from '../../../core/render3d/nflField.js';
+import { createCrowdStands, arcStands } from '../../../core/render3d/crowdStands.js';
+import { parseColor } from '../../../core/render/spriteSheet.js';
 import { runGait } from '../../../core/anim/locomotion.js';
 
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -18,7 +20,7 @@ export const roleOf = (e, kind) => e.role || (kind === 'batter' ? 'batter' : kin
 
 export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage;
-  let factory = null, field = null, pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, ballE = null;
+  let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, ballE = null;
   const slot = new Map(), acts = new Map(), wall = () => performance.now() / 1000;
   async function init() {
     factory = createAthleteFactory(stage, { base }); field = createDiamond(stage);
@@ -33,8 +35,8 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
       const set = (id, type, dt0, dur) => acts.set(id, { type, t0: t0 + dt0, dur, token: `${t0}|${type}|${id}` });
       if (e.type === 'PITCH') { set(e.pitcher, 'throw', 0, 0.85); if (e.decision && e.decision !== 'TAKE') set(e.batter, 'swing', 0.45, 0.55); }
       else if (e.type === 'PICKOFF_ATTEMPT') { set(e.pitcher, 'throw', 0, 0.7); set(e.runner, 'dive', 0.3, 0.7); }
-      else if (e.type === 'HOME_RUN') set(e.by, 'celebrate', 0, 3);
-      else if (e.type === 'RUN_SCORES') set(e.runner, 'celebrate', 0, 1.6);
+      else if (e.type === 'HOME_RUN') { set(e.by, 'celebrate', 0, 3); crowd?.cheer(1); }
+      else if (e.type === 'RUN_SCORES') { set(e.runner, 'celebrate', 0, 1.6); crowd?.cheer(0.6); }
     }
   }
   const actOf = (id, state) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return A; };
@@ -43,6 +45,8 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     if (!ready) { initP ||= init().catch(e => console.error('3D MLB init failed', e)); return; }
     if (!state) return; if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); } pump(state);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
+    if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...arcStands(undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), home: c(state.home?.color), away: c(state.away?.color) }); }
+    crowd.update(dt, now);
     const items = [...(state.fielders || []).map(e => [e, 'fielder']), ...(state.batter ? [[state.batter, 'batter']] : []), ...(state.runners || []).map(e => [e, 'runner'])];
     const present = new Set();
     for (const [e, kind] of items) {
@@ -69,7 +73,7 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     render,
     pick(px, py) { let best = null, bd = 34; for (const a of pool) { if (!a.e) continue; const s = project(a); if (!s) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < bd) { bd = d; best = a.e; } } return best; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
-    get ready() { return ready; }, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
-    dispose() { field?.dispose(); ballE?.destroy(); ballE?.mat?.destroy(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
+    get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
+    dispose() { crowd?.dispose(); field?.dispose(); ballE?.destroy(); ballE?.mat?.destroy(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
   };
 }

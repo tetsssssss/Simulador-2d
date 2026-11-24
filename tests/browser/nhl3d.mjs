@@ -16,6 +16,8 @@ const worst = Math.max(...sim.map(a => Math.hypot(a.wx - a.sx, a.wz - a.sy)));
 check('athletes within 1 m of the simulation positions (interpolation)', worst < 1, worst.toFixed(3) + ' m');
 const clips = new Set(); for (let i = 0; i < 25; i++) { await page.waitForTimeout(500); (await info())?.clips.forEach(c => clips.add(c)); }
 check('skating clips play (glide / skate / goalie ready …)', clips.size >= 2, [...clips].join(','));
+const seats = await f.evaluate(() => window.__asu3dRenderer.crowdSeats());
+check('crowd stands built (thousands of seats, 2 meshes)', seats > 1000, seats + ' seats');
 if (OUT) await page.screenshot({ path: `${OUT}/nhl3d.png` });
 check('no JS errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 console.log(`\n${pass}/${pass + fail} checks passed`); await b.close(); process.exit(fail ? 1 : 0);
