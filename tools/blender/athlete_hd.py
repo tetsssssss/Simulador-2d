@@ -166,8 +166,13 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     # hockey stick: part of the skinned mesh, rigid on the front forearm (follows every pose; the shaft runs along the forearm like the low-poly prop did)
     if with_prop and hock:
         hy = -SH_HALF; hz0 = SH_Z - 0.04 - UPPER - FORE - 0.04; Ls = 1.25 if kit == 'hockey' else 1.1
-        P.add(loft_z([(hz0 + 0.03, 0, hy, 0.016, 0.016), (hz0 - Ls, 0, hy, 0.016, 0.016)], 8, (True, True)), 'fore_F', 'metal')
-        P.add(loft_x([(0.0, hy, hz0 - Ls + 0.035, 0.011, 0.04), (0.30, hy, hz0 - Ls + 0.035, 0.011, 0.04)], 8), 'fore_F', 'dark')
+        # shaft (slight taper toward the blade), butt-end grip tape, hosel and a CURVED blade with white tape
+        P.add(loft_z([(hz0 + 0.05, 0, hy, 0.0175, 0.0135), (hz0 - 0.3, 0, hy, 0.0175, 0.0135), (hz0 - Ls + 0.1, 0, hy, 0.0155, 0.012), (hz0 - Ls, 0, hy, 0.0155, 0.012)], 8, (True, True)), 'fore_F', 'metal')
+        P.add(loft_z([(hz0 + 0.052, 0, hy, 0.0195, 0.0155), (hz0 - 0.2, 0, hy, 0.0195, 0.0155)], 8, (True, True)), 'fore_F', 'dark')   # grip tape
+        zb = hz0 - Ls + 0.035; xs = [0.0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.325]
+        P.add(loft_x([(x, hy, zb + 0.016 * (x / 0.325) ** 2.2, 0.0095, 0.043 - 0.012 * (x / 0.325) ** 2) for x in xs], 8), 'fore_F', 'dark')            # blade (toe curls up and narrows)
+        P.add(loft_x([(x, hy, zb + 0.016 * (x / 0.325) ** 2.2, 0.0105, 0.0445 - 0.012 * (x / 0.325) ** 2) for x in xs[1:6]], 8), 'fore_F', 'trim')      # tape wrap on the blade
+        P.add(loft_z([(zb + 0.07, 0, hy, 0.0155, 0.012), (zb - 0.02, 0, hy, 0.022, 0.016)], 8, (True, True)), 'fore_F', 'dark')                         # hosel
     # ---- baseball: cap with a brim, leather glove, belt; the BAT is its own material (asu_bat) so the game can show it on the batter only ----
     if bb:
         cap = uvball((-0.008, 0, hz + 0.02), 0.123, 1.02, 0.98, 1.0, 40, 26); bmesh.ops.delete(cap, geom=[f for f in cap.faces if f.calc_center_median().z < (hz + 0.068 if f.calc_center_median().x > 0.02 else hz - 0.005)], context='FACES'); P.add(cap, 'head', 'helmet')
@@ -176,7 +181,8 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
         P.add(ball((0.01, SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.06), 0.085, 0.65, 1.0, 1.05, 3), 'fore_B', 'leather')   # glove
         P.add(loft_z([(HIP_Z + 0.05, 0, 0, 0.1305 * k, 0.1945 * k), (HIP_Z + 0.02, 0, 0, 0.1305 * k, 0.1945 * k)], 20, (False, False)), 'spine', 'dark', True)   # belt
         bz = SH_Z - 0.04 - UPPER - FORE - 0.04
-        P.add(loft_z([(bz + 0.03, 0, -SH_HALF, 0.017, 0.017), (bz - 0.12, 0, -SH_HALF, 0.016, 0.016), (bz - 0.55, 0, -SH_HALF, 0.022, 0.022), (bz - 0.86, 0, -SH_HALF, 0.036, 0.036)], 12, (True, True)), 'fore_F', 'bat')
+        bat_r = [(0.05, 0.008), (0.04, 0.021), (0.02, 0.022), (0.005, 0.0145), (-0.2, 0.0155), (-0.45, 0.025), (-0.62, 0.033), (-0.80, 0.036), (-0.87, 0.034), (-0.885, 0.02), (-0.89, 0.006)]   # knob, handle, flared barrel, rounded end
+        P.add(loft_z([(bz + dz, 0, -SH_HALF, r, r) for dz, r in bat_r], 14, (True, True)), 'fore_F', 'bat')
     # ---- kit ----
     if fb:
         for sg in (-1, 1): P.add(ball((0, sg * (SH_HALF + 0.015), SH_Z - 0.005), 0.1, 1.0, 1.35 * k, 0.72, 3), 'spine', 'jersey')   # shoulder pads

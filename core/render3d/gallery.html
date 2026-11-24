@@ -10,7 +10,7 @@ const q = new URLSearchParams(location.search), quality = q.get('quality') || 'm
 const stage = await createStage(document.getElementById('c'), { quality });
 const resize = () => stage.resize(innerWidth, innerHeight); addEventListener('resize', resize); resize();
 const factory = createAthleteFactory(stage, { base: new URL('../../', import.meta.url).pathname });
-const KITS = [['football', true], ['football', false], ['hockey', true], ['goalie', false], ['ref', false], ['baseball', false]];
+const KITS = [['football', true], ['football', false], ['hockey', true], ['goalie', false], ['ref', false], ['baseball', true]];
 const CLIPS = { football: ['mv_idle', 'mv_run', 'gs_arms_up'], hockey: ['hk_glide', 'hk_skate', 'gs_arms_up'], goalie: ['gk_ready', 'gk_butterfly', 'gk_ready'], ref: ['mv_idle', 'mv_jog', 'rf_touchdown'], baseball: ['mv_idle', 'mv_run', 'gs_arms_up'] };
 const TEAMS = [['#0a2870', '#ffd23f'], ['#b3141d', '#ffffff']];
 const athletes = [];
@@ -22,5 +22,5 @@ stage.root.children.filter(c => c.name === 'marker').forEach(m => m.destroy()); 
 stage.camera.setPosition(0, 2.4, 7.5); stage.camera.lookAt(0, 0.9, -1.1);
 let step = 0; const advance = () => { step++; for (const { a, kit } of athletes) { const c = CLIPS[kit][step % 3]; a.play(c, { loop: c !== 'gs_arms_up' && c !== 'rf_touchdown', blend: 0.2 }); } };
 if (q.get('auto') !== '0') setInterval(advance, 1800);   // ?auto=0 for tests: advance only by hand
-window.__gallery = { ready: true, count: athletes.length, quality: stage.quality.level, athletes: () => athletes.map(x => ({ kit: x.kit, hd: x.hd, row: x.r, clip: x.a.clip })), advance, stage };
+window.__gallery = { athletesRaw: athletes.map(x => x.a), ready: true, count: athletes.length, quality: stage.quality.level, athletes: () => athletes.map(x => ({ kit: x.kit, hd: x.hd, row: x.r, clip: x.a.clip })), advance, stage };
 </script></body></html>
