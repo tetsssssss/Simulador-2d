@@ -115,7 +115,7 @@ export function mountMatch(root, deps = {}) {
   const replay = createInstantReplay({ adapter: { snap: S => ({ t: S.t, lists: { players: S.players }, objs: { puck: S.puck } }), build: (S, l, o, t) => ({ ...S, players: l.players, puck: o.puck, t }) } });
   const replayUi = mountReplayControls(root.querySelector('.nhl-ice-wrap'), { onReplay: () => view.state && !view.simming && replay.now(view.state), onSkip: () => replay.skip() });
   // two-finger pinch = next camera on the ladder (closest -> widest), through the same buttons the user taps
-  const un3d = mount3dOverlay({ canvas, sport: 'nhl', onFallback: () => { pref.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
+  const un3d = mount3dOverlay({ canvas, sport: 'nhl', createRenderer: (stage, c3d) => import('../rink/rinkRenderer3d.js').then(m => m.createNhlRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { pref.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['PUCK', 'BROADCAST', 'TACTICAL', 'FULL'], pref.camera, s); root.querySelector(`#camSeg [data-cam="${next}"]`)?.click(); });
   // ---------- frame loop ----------
   function frame(ts) {
@@ -126,6 +126,7 @@ export function mountMatch(root, deps = {}) {
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     const rp = view.state && !view.simming ? replay.step(dt, view.state) : null; replayUi.sync(!!rp, !!view.state && !view.simming);
     if (view.state) renderer.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state) un3d.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { camera: pref.camera, selected: view.selected });   // 3D mode (no-op otherwise)
     if (view.state?.players && !view.paused) { let v = 0, n = 0; for (const q of view.state.players) { if (q.onBench || q.goalie) continue; v += Math.hypot(q.vx || 0, q.vy || 0); n++; } audio.setBedLevel('skates', n ? Math.min(1, v / n / 24) : 0); } else audio.setBedLevel('skates', 0);
     drainEvents();
     pres.engine?.tick(dt);
@@ -146,7 +147,7 @@ export function mountMatch(root, deps = {}) {
   $('#homeSel').onchange = e => { pref.home = e.target.value; store.set('asu_nhl_home', pref.home); restart(); };
   $('#awaySel').onchange = e => { pref.away = e.target.value; store.set('asu_nhl_away', pref.away); restart(); };
   canvas.addEventListener('click', ev => {
-    const r = canvas.getBoundingClientRect(); const p = renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
+    const r = canvas.getBoundingClientRect(); const p = un3d.active ? un3d.pick(ev.clientX - r.left, ev.clientY - r.top) : renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
     view.selected = p && view.selected !== p.id ? p.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
