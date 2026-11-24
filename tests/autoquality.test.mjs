@@ -16,3 +16,12 @@ test('isolated hitches do not change the level; a device that really runs at ~3 
   const bi = createAutoQuality({ start: 'medium' }); let r = null; for (let i = 0; i < 120; i++) r = bi.push(i % 4 === 0 ? 900 : 4) || r; assert.equal(r, 'low', 'bimodal GPU stalls (average ~60 ms) step down');
 });
 test('readQualityMode defaults to auto without storage', () => { assert.equal(readQualityMode(), 'auto'); });
+import { FPS_CAPS, DEFAULT_FPS_CAP, readFpsCap, shouldDraw, autoThresholds } from '../core/render3d/quality.js';
+test('fps cap: options 30..100, default 60, gate lets through ~cap frames per second and tolerates timer jitter', () => {
+  assert.deepEqual(FPS_CAPS, [30, 45, 60, 75, 90, 100]); assert.equal(DEFAULT_FPS_CAP, 60); assert.equal(readFpsCap(), 60);
+  for (const cap of FPS_CAPS) { let last = 0, n = 0; for (let t = 1000; t < 2000; t += 1) if (shouldDraw(t, last, cap)) { last = t; n++; } assert.ok(n >= cap * 0.85 && n <= cap * 1.15 + 2, `cap ${cap} -> ${n}`); }
+  assert.equal(shouldDraw(1016.6, 1000, 60), true, '60 Hz display, 60 cap: jitter does not skip');
+});
+test('auto thresholds follow the cap (30 fps cap = 33 ms frames are normal)', () => {
+  assert.ok(autoThresholds(30).slowMs > 33 && autoThresholds(100).slowMs === 28 && autoThresholds(30).fastMs < 30);
+});

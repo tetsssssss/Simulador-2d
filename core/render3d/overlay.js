@@ -1,7 +1,7 @@
 // Mounts the 3D stage over a game's 2D canvas when the visual mode is "3d". The 2D renderer keeps running underneath (invisible, still receiving clicks)
 // so selection, labels and the simulation loop are untouched; later stages replace the stand-in scene with the real match renderer.
 import { getVisualMode } from '../render/avatars.js';
-import { readQuality, readQualityMode, supportsWebGL2 } from './quality.js';
+import { readQuality, readQualityMode, readFpsCap, shouldDraw, autoThresholds, supportsWebGL2 } from './quality.js';
 import { createAutoQuality } from './autoQuality.js';
 
 export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, onFallback = () => {} } = {}) {
@@ -17,7 +17,7 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
     canvas3d.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2';
     canvas.after(canvas3d); canvas.style.opacity = '0';
     try {
-      const { createStage } = await import('./stage.js'); const mode = readQualityMode(), s = await createStage(canvas3d, { quality: mode === 'auto' ? 'medium' : mode }); auto = mode === 'auto' ? createAutoQuality({ start: 'medium' }) : null; lastT = 0;
+      const { createStage } = await import('./stage.js'); const mode = readQualityMode(), s = await createStage(canvas3d, { quality: mode === 'auto' ? 'medium' : mode }); cap = readFpsCap(); s.app.autoRender = false; auto = mode === 'auto' ? createAutoQuality({ start: 'medium', ...autoThresholds(cap) }) : null; lastT = 0; lastDraw = 0;
       if (my !== token || disposed) { s.dispose(); canvas3d?.remove(); canvas3d = null; return; }   // mode changed while the engine was loading
       stage = s; const [w, h] = size(); stage.resize(w, h);
       if (createRenderer) { renderer = await createRenderer(stage, canvas3d); if (my !== token || disposed) { renderer.dispose?.(); renderer = null; stage.dispose(); stage = null; canvas3d?.remove(); canvas3d = null; return; } }
@@ -30,8 +30,8 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
     token++; ro?.disconnect(); ro = null; renderer?.dispose?.(); renderer = null; stage?.dispose(); stage = null; canvas3d?.remove(); canvas3d = null; canvas.style.opacity = '';
     if (window.__asu3d) window.__asu3d = { ...window.__asu3d, active: false };
   }
-  let auto = null, lastT = 0;
-  const onQ = e => { if (!e.key || e.key === 'asu_3d_quality') { const m = readQualityMode(); auto = m === 'auto' ? createAutoQuality({ start: stage?.quality?.level || 'medium' }) : null; if (stage && m !== 'auto') stage.setQuality(m); if (window.__asu3d && stage) window.__asu3d = { ...window.__asu3d, quality: stage.quality.level }; } };
+  let auto = null, lastT = 0, lastDraw = 0, cap = 60;
+  const onQ = e => { if (!e.key || e.key === 'asu_3d_fps') cap = readFpsCap(); if (!e.key || e.key === 'asu_3d_quality' || e.key === 'asu_3d_fps') { const m = readQualityMode(); auto = m === 'auto' ? createAutoQuality({ start: stage?.quality?.level || 'medium', ...autoThresholds(cap) }) : null; if (stage && m !== 'auto') stage.setQuality(m); if (window.__asu3d && stage) window.__asu3d = { ...window.__asu3d, quality: stage.quality.level }; } };
   window.addEventListener('storage', onQ);
   const sync = () => (getVisualMode() === '3d' ? enter() : leave());
   const onMode = () => sync();
@@ -39,8 +39,9 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
   const api = () => { disposed = true; window.removeEventListener('storage', onQ); window.removeEventListener('asu-visual-mode', onMode); leave(); };
   // The game loop calls these every frame / on clicks; they do nothing while the 3D mode is off.
   api.render = (sim, alpha, opts) => {
-    if (!renderer) return; renderer.render(sim, alpha, opts);
-    const now = performance.now(); if (auto && lastT && stage && !document.hidden && now - lastT < 2000) { const lvl = auto.push(now - lastT); if (lvl) { stage.setQuality(lvl); if (window.__asu3d) window.__asu3d = { ...window.__asu3d, quality: lvl, autoChanges: (window.__asu3d.autoChanges || 0) + 1 }; } } lastT = now;
+    if (!renderer) return; const now = performance.now();
+    if (!shouldDraw(now, lastDraw, cap)) return; lastDraw = now; renderer.render(sim, alpha, opts); stage.app.renderNextFrame = true;   // autoRender is off: one engine frame per allowed draw
+    if (auto && lastT && stage && !document.hidden && now - lastT < 2000) { const lvl = auto.push(now - lastT); if (lvl) { stage.setQuality(lvl); if (window.__asu3d) window.__asu3d = { ...window.__asu3d, quality: lvl, autoChanges: (window.__asu3d.autoChanges || 0) + 1 }; } } lastT = now;
   };
   api.pick = (px, py) => (renderer?.pick ? renderer.pick(px, py) : null);
   api.beginReplay = sim => renderer?.beginReplay?.(sim); api.endReplay = sim => renderer?.endReplay?.(sim);

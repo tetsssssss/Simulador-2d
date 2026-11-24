@@ -41,6 +41,7 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - 3D Etapa 6 lote 2 FEITO: clima 3D (weather3d.mjs 4/4). Bloom adiado p/ Etapa 8. PRÓXIMO: Etapa 7 (NHL e MLB em 3D) — começar pelo NHL: rinque, goleiro/atletas hockey_hd, disco, adaptador matchView.
 - 3D Etapa 7 NHL FEITA (nhl3d.mjs 4/4, rink3d.test). PRÓXIMO: MLB em 3D (diamante, montinho, rebatedor, trajetória da bola, adaptador mlb/src/game/matchView.js), depois teste seed 3D×2D no NHL e Etapa 8.
 - 3D Etapa 7 MLB FEITA (mlb3d.mjs 4/4, diamond3d.test). Etapa 7 completa. PRÓXIMO: teste seed 3D×2D no NHL/MLB, Etapa 6 restante (telão, luz auto, banco), Etapa 8 (desempenho/LOD/qualidade auto; bloom), Etapa 9 (zip/entrega).
+- 3D Etapa 8 lote 1 FEITO: qualidade automática + seletor no menu (autoq3d.mjs 4/4). PRÓXIMO: orçamento de draw calls/triângulos (medir em página de teste), LOD, depois Etapa 9 (zip, cache offline, decisão APK) e Etapa 6 restante (telão, luz auto, banco).
 
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
