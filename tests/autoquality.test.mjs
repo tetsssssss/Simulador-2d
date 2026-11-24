@@ -11,7 +11,8 @@ test('fast frames raise it only after the cooldown and never above max', () => {
 });
 test('isolated hitches do not change the level; a device that really runs at ~3 fps still steps down', () => {
   const q = createAutoQuality({ start: 'medium' }); for (let i = 0; i < 600; i++) assert.equal(q.push(i % 50 === 0 ? 1000 : 16), null);
-  for (let i = 0; i < 300; i++) assert.equal(q.push(i % 3 === 0 ? 40 : 16), null);   // 33 % slow < 60 %
+  for (let i = 0; i < 300; i++) assert.equal(q.push(i % 3 === 0 ? 40 : 16), null);   // average ~24 ms < 28
   assert.equal(q.level, 'medium'); assert.equal(feed(createAutoQuality({ start: 'medium' }), 340, 60), 'low');
+  const bi = createAutoQuality({ start: 'medium' }); let r = null; for (let i = 0; i < 120; i++) r = bi.push(i % 4 === 0 ? 900 : 4) || r; assert.equal(r, 'low', 'bimodal GPU stalls (average ~60 ms) step down');
 });
 test('readQualityMode defaults to auto without storage', () => { assert.equal(readQualityMode(), 'auto'); });
