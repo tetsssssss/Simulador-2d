@@ -31,12 +31,13 @@ LEG_SCALE = 1.3      # same stride exaggeration as the 2D "athlete" style (legS)
 def parse_args():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     a = {'clips': 'exports/anim/nfl_clips.json', 'out': 'exports/anim/frames', 'size': 128, 'only': None, 'step': 1, 'render': True, 'kit': 'football',
-         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True, 'yaws': [0.0], 'elevation': 0.0, 'model': None}
+         'azimuth': 30.0, 'engine': 'workbench', 'glb': None, 'build': 1, 'skin': 1, 'jersey': None, 'pants': None, 'layer': 'color', 'prop': True, 'yaws': [0.0], 'elevation': 0.0, 'model': None, 'hd': False}
     i = 0
     while i < len(argv):
         k = argv[i]
         if k == '--no-render': a['render'] = False; i += 1; continue
         if k == '--no-prop': a['prop'] = False; i += 1; continue
+        if k == '--hd': a['hd'] = True; i += 1; continue          # the from-scratch HD athlete (tools/blender/athlete_hd.py)
         v = argv[i + 1] if i + 1 < len(argv) else None
         if k == '--only': a['only'] = set(v.split(','))
         elif k == '--size': a['size'] = int(v)
@@ -105,6 +106,9 @@ def main():
     if a['model']:      # external athlete mesh (e.g. Meshy .glb) rigged to the game armature: tools/blender/athlete_import.py
         from athlete_import import import_athlete
         obj, rig, prop = import_athlete(a['model'], kit=a['kit'], colors=colors, skin=a['skin'])
+    elif a['hd']:
+        from athlete_hd import build_athlete_hd
+        obj, rig, prop = build_athlete_hd(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
     else: obj, rig, prop = build_athlete(kit=a['kit'], colors=colors, build=a['build'], skin=a['skin'], with_prop=a['prop'])
     print(f"[asu] athlete kit={a['kit']} tris={triangle_count(obj)} layer={a['layer']}")
     if a['kit'] == 'ref':       # referee: fixed black/white stripes, never tinted (mask pass = all black)

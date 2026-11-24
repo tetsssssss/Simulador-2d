@@ -46,6 +46,7 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - 3D Etapa 8 FEITA (budget3d.mjs 10/10: tris NFL 320k Alta/70k Baixa, NHL 123k/9k, MLB 7k; LOD ao vivo por qualidade). PRÓXIMO: Etapa 9 (docs LANCAMENTO + zip + cache offline + decisão APK).
 - 3D Etapa 9 FEITA: zip v7_3D gerado e provado (render3d 17/17 no zip extraído). PLANO 0-9 CONCLUÍDO. Backlog 3D (opcional): bloom, telão, luz auto por quarto, banco de reservas, estádio/torcida NHL e MLB, LOD por distância, replay NHL/MLB, textura/rosto nos atletas HD. Usuário: medir fps (RX 6600), testar no celular.
 - 3D backlog: telão+luz auto, torcida NHL/MLB, replay NHL/MLB corrigido (replay3d.mjs 8/8). Banco de reservas NFL FEITO. Torcida NHL lado oposto: 2 tentativas, ainda fraca (precisa billboards/textura). Restam: bloom, textura/rosto HD, fileira oposta do NHL.
+- 3D: ATLETAS HD PRÓPRIOS (tools/blender/athlete_hd.py, --hd): football_hd/hockey_hd.glb substituíram os do Meshy; decalques de número/nome (decals.js). Usuário: SEM publicação (docs de licença/loja removidos). Regerar: xvfb-run -a bpyenv/python run_bpy.py tools/blender/build_nfl_sprites.py -- --kit football --hd --no-render --glb assets/models3d/football_hd.glb. Próximo possível: textura de tecido via UV, goleiro/baseball/árbitro HD próprios, mais detalhe.
 
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.

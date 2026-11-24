@@ -62,7 +62,8 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     for (const p of state.players || []) {
       if (p.onBench) continue; present.add(p.id);
       let a = slot.get(p.id); if (!a) { const pool = p.goalie ? goalies : skaters; a = pool.find(x => !x.used) || null; if (!a) continue; a.used = true; a.pid = p.id; slot.set(p.id, a); a.entity.enabled = true; }
-      const team = state[p.team] || {}, tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; }
+      const team = state[p.team] || {}, tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; a.idk = ''; }
+      if (a.idk !== `${p.num}|${p.last}`) { a.idk = `${p.num}|${p.last}`; a.setIdentity?.({ number: p.num, name: p.last, jersey: team.color }); }
       a.p = p; a.setPosition('nhl', lerp(p.px ?? p.x, p.x, k), lerp(p.py ?? p.y, p.y, k)); a.setFacing(p.facing || 0);
       const want = skaterClip(p, actOf(p.id, state));
       if (a.has(want.clip) && (want.oneShot ? a.token !== want.token : a.clip !== want.clip)) { a.play(want.clip, { loop: want.loop, blend: want.oneShot ? 0.06 : 0.15 }); a.token = want.token || null; }

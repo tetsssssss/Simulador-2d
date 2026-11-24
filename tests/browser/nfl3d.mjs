@@ -34,6 +34,8 @@ check('3D mode ran: renderer ready and 22 athletes sampled many times', d3.sampl
 check('athletes within 0.6 m of the simulation positions in every sample (measured after the huddle; interpolation + contact pull)', d3.worst < 0.6, `${d3.worst.toFixed(3)} m ${d3.worstWho || ''} | ${d3.dump || ''}`);
 check('several different clips played (locomotion + actions)', d3.clips.size >= 4, [...d3.clips].join(','));
 check('clicking in the 3D view selects an athlete (player card opens with a name, position and number)', !!d3.picked && /#\d+/.test(d3.picked.shown) && /energia/.test(d3.picked.shown), JSON.stringify(d3.picked)?.slice(0, 100));
+const dec = await d3.f.evaluate(() => window.__asu3dRenderer.athletes().filter(a => a.decals).length);
+check('own HD athletes carry number / name decals (>= 20 of the 22)', dec >= 20, dec + ' athletes');
 check('no JS errors in 3D mode', d3.errs.length === 0, d3.errs.slice(0, 2).join(' | '));
 const d2 = await run('sheet');
 const L3 = d3.logs.slice(-PLAYS).reverse().slice(0, PLAYS), L2 = d2.logs.slice(-PLAYS).reverse().slice(0, PLAYS), k = Math.min(d3.logs.length, d2.logs.length, PLAYS);

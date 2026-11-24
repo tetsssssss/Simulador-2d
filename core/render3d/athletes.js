@@ -2,6 +2,7 @@
 // instanced per player; team colours are applied by ZONE material (asu_jersey / asu_helmet / asu_pants / asu_accent), not by texture; clips switch with a cross-fade.
 // Pure helpers (zoneColors, buildClipIndex, modelUrl, worldFromSim) are unit-tested without WebGL.
 import { parseColor, pantsColorFor } from '../render/spriteSheet.js';
+import { DECAL_SPECS, drawBack, drawFront, drawFace } from './decals.js';
 
 // kit -> glTF. "hd" = skinned Meshy models (football, hockey skaters), "lo" = the low-poly athletes (also the fallback / far LOD).
 export const MODELS = Object.freeze({
@@ -50,7 +51,21 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
     const zc = zoneColors(kit, color, color2);
     entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const z = mi.material?.name; if (zc[z]) mi.material = tinted(mi.material, z, zc[z]); }));
     const states = new Set(); let current = null;
+    // Identity decals (back number + name, chest number, face plate), created on the first setIdentity() call; the rig has no UVs so they are quads on the bones.
+    let dec = null, decKey = '', jerseyCss = color;
+    const spec = DECAL_SPECS[kit] || {};
+    function makeDecal(def, cv, order) {
+      const bone = entity.findByName(def.bone); if (!bone) return null;
+      const tex = new pc.Texture(stage.app.graphicsDevice, { width: 8, height: 8, format: pc.PIXELFORMAT_RGBA8, mipmaps: true, minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR });
+      const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseMap = tex; mat.opacityMap = tex; mat.opacityMapChannel = 'a'; mat.blendType = pc.BLEND_NORMAL; mat.depthWrite = false; mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
+      const e = new pc.Entity('decal'); e.addComponent('render', { type: 'plane', material: mat, castShadows: false, receiveShadows: false }); bone.addChild(e);
+      e.setLocalPosition(...def.pos); e.setLocalScale(def.size[0], 1, def.size[1]);
+      const q = new pc.Quat().setFromEulerAngles(0, def.yaw, 0), qx = new pc.Quat().setFromEulerAngles(90, 0, 0); e.setLocalRotation(q.mul(qx));
+      return { e, tex, mat, cv, def };
+    }
+    const upload = d => { d.tex.resize(d.cv.width, d.cv.height); d.tex.setSource(d.cv); d.tex.upload(); };
     const api = {
+
       entity, kit, clips: model.clips, get clip() { return current; },
       has: id => model.clips.has(id),
       // play(id, { loop, blend (s), speed }): cross-fades from the current clip; replays a finished one-shot; unknown ids are ignored (returns false).
@@ -62,8 +77,17 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
       },
       setPosition(sport, x, y, h = 0) { entity.setPosition(...worldFromSim(sport, x, y, h)); },
       setFacing(f) { entity.setEulerAngles(0, yawFromFacing(f), 0); },
-      setTeam(color, color2) { const z = zoneColors(kit, color, color2); entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const n = mi.material?.name; /* clones keep the zone name */ if (z[n]) mi.material = tinted(mi.material, n, z[n]); })); },
-      dispose() { entity.destroy(); },
+      // number / name on the jersey, chest number, face plate. Cheap no-op when nothing changed or when the kit has no decal spec.
+      setIdentity({ number = '', name = '', jersey = jerseyCss } = {}) {
+        if (!spec.back && !spec.front && !spec.face) return false;
+        const key = `${number}|${name}|${jersey}`; if (key === decKey && dec) return true; decKey = key;
+        if (!dec) { dec = { back: spec.back && makeDecal(spec.back, document.createElement('canvas')), front: spec.front && makeDecal(spec.front, document.createElement('canvas')), face: spec.face && makeDecal(spec.face, document.createElement('canvas')) }; if (dec.face) { drawFace(dec.face.cv, kit); upload(dec.face); } }
+        if (dec.back) { drawBack(dec.back.cv, { number, name, jersey }); upload(dec.back); } if (dec.front) { drawFront(dec.front.cv, { number, jersey }); upload(dec.front); }
+        return true;
+      },
+      get decals() { return !!dec; },
+      setTeam(color, color2) { jerseyCss = color; if (dec) { decKey = ''; } const z = zoneColors(kit, color, color2); entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const n = mi.material?.name; /* clones keep the zone name */ if (z[n]) mi.material = tinted(mi.material, n, z[n]); })); },
+      dispose() { if (dec) for (const d of Object.values(dec)) if (d) { d.tex.destroy(); d.mat.destroy(); } entity.destroy(); },
     };
     return api;
   }

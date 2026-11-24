@@ -47,6 +47,7 @@ export async function createNflField(stage, opts = {}) {
   const tex = new pc.Texture(app.graphicsDevice, { width: cv.width, height: cv.height, format: pc.PIXELFORMAT_SRGBA8, mipmaps: true, minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR, anisotropy: 8 }); tex.setSource(cv);
   const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseMap = tex; mat.gloss = 0.08; mat.metalness = 0; mat.useMetalness = true; mat.update();
   stage.ground.enabled = false;     // the stand-in plane of the empty scene
+  const markers = root.children.filter(e => e.name === 'marker' && e.enabled); markers.forEach(m => { m.enabled = false; });   // the 3 stand-in poles of the empty scene (a white pillar stood on the 50-yard line)
   const L = FIELD.length * YD, Wd = FIELD.width * YD, field = new pc.Entity('field'); root.addChild(field);
   const turf = new pc.Entity('turf'); turf.addComponent('render', { type: 'plane', material: mat, castShadows: false, receiveShadows: true });
   turf.setLocalScale(L, 1, Wd); turf.setPosition(L / 2, 0, -Wd / 2); field.addChild(turf);
@@ -67,6 +68,6 @@ export async function createNflField(stage, opts = {}) {
     setBall(x, y, z = 0.14, yaw = 0) { ball.enabled = true; ball.setPosition(...worldFromSim('nfl', x, y, z)); ball.setEulerAngles(0, yaw, 0); },
     hideBall() { ball.enabled = false; },
     setLines(losX, fdX) { for (const [e, x] of [[los, losX], [fd, fdX]]) { e.enabled = Number.isFinite(x) && x >= 0 && x <= FIELD.length; if (e.enabled) e.setPosition(x * YD, 0.03, -Wd / 2); } },
-    dispose() { tex.destroy(); mat.destroy(); apronMat.destroy(); yellow.destroy(); brown.destroy(); field.destroy(); stage.ground.enabled = true; },
+    dispose() { tex.destroy(); mat.destroy(); apronMat.destroy(); yellow.destroy(); brown.destroy(); field.destroy(); stage.ground.enabled = true; markers.forEach(m => { if (m.root) m.enabled = true; }); },
   };
 }

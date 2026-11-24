@@ -52,7 +52,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     const sc = sideColors(opts.teams?.off, opts.teams?.def), key = `${opts.teams?.off}|${opts.teams?.def}`;
     sim.ents.forEach((e, i) => { const a = pool[i]; if (!a) return; byId.set(e.id, a); a.e = e; a.token = null;
       const side = e.side; if (tintKey !== key || a.side !== side) { a.setTeam(...sc[side]); a.side = side; }
-      a.number = e.jersey ?? e.p?.jersey_number ?? ''; a.name = e.name || e.p?.full_name || ''; });
+      a.number = e.jersey ?? e.p?.jersey_number ?? ''; a.name = e.name || e.p?.full_name || ''; a.setIdentity?.({ number: a.number, name: a.name, jersey: sc[side][0] }); });
     tintKey = key; field.setLines(sim.losX, sim.losX + sim.distance);
   }
 
