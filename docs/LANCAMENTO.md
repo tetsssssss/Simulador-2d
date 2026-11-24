@@ -68,4 +68,4 @@ Recomendação prática para uma versão pública: modo "genérico" com times/jo
 
 **👤 Só você consegue:** (1) medir fps no PC (RX 6600) por nível de qualidade e me passar; (2) testar o 3D no celular, se quiser; (3) decidir se o 3D entra num futuro APK; (4) licenças: PlayCanvas Engine é MIT (arquivo em `vendor/playcanvas/LICENSE`); os modelos 3D HD vêm do Meshy (ver seção 4).
 
-**Limites conhecidos do 3D:** sem banco de reservas/dugouts/bullpen; torcida do NHL (lado oposto) pouco convincente; atletas HD sem textura/rosto, com franjas no colarinho/mangas; replay do NHL/MLB sem os ganchos do NFL; sem bloom; LOD só por qualidade (não por distância); banco de reservas e bloom não feitos.
+**Limites conhecidos do 3D:** sem banco de reservas/dugouts/bullpen; torcida do NHL (lado oposto) pouco convincente; atletas HD sem textura/rosto, com franjas no colarinho/mangas; sem bloom; LOD só por qualidade (não por distância); banco de reservas e bloom não feitos.
