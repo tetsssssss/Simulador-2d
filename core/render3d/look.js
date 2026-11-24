@@ -9,11 +9,11 @@ export const lookFor = name => LOOKS[name] || LOOKS.day;
 // "auto" picks by game clock: Q1-Q2 day, Q3 dusk, Q4/OT night (pure, testable).
 export function lookByQuarter(q) { return q >= 4 ? 'night' : q === 3 ? 'dusk' : 'day'; }
 
-export function applyLook(stage, name, floods = []) {
+export function applyLook(stage, name, floods = [], fogMul = 1) {
   const L = lookFor(name), { pc, app, camera, sun } = stage, C = a => new pc.Color(a[0], a[1], a[2]);
   camera.camera.clearColor = C(L.sky); app.scene.ambientLight = C(L.ambient);
   sun.light.color = C(L.sun.color); sun.light.intensity = L.sun.intensity; sun.setEulerAngles(...L.sun.euler);
-  app.scene.fog.type = pc.FOG_EXP2; app.scene.fog.color = C(L.fog.color); app.scene.fog.density = L.fog.density;
+  app.scene.fog.type = pc.FOG_EXP2; app.scene.fog.color = C(L.fog.color); app.scene.fog.density = L.fog.density * fogMul;
   camera.camera.toneMapping = pc.TONEMAP_ACES2; app.scene.exposure = L.exposure;
   for (const f of floods) f.enabled = L.flood > 0, f.light && (f.light.intensity = 22 * L.flood);
   return L;

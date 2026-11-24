@@ -2,6 +2,7 @@
 // Nothing here changes the simulation. Decisions are in render3dLogic.js (pure, tested); animation events reuse animationMap.js; fouls / signals reuse penalties.js.
 //   render(sim, alpha, opts)  opts: { teams:{off,def,home,away}, camera (preset|null), huddle (0..1|null), selected (id) }
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
+import { createWeather, weatherPref } from '../../../core/render/weather.js';
 import { createStadium } from '../../../core/render3d/stadium.js';
 import { applyLook, LOOK_NAMES } from '../../../core/render3d/look.js';
 import { createNflField, followStep } from '../../../core/render3d/nflField.js';
@@ -19,6 +20,16 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
   let lastHk = null, simRef = null, evIdx = 0, replaying = false, teamKey = '', cam = null, last = 0, tintKey = '';
   const acts = new Map(), contacts = new Map(), byId = new Map(); let refAct = null, refUntil = 0;
   const labels = document.createElement('div'); labels.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3;font:700 11px system-ui,sans-serif'; wrap.appendChild(labels);
+  const wxCv = document.createElement('canvas'); wxCv.id = 'wx3d'; wxCv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2'; wrap.appendChild(wxCv);
+  let wx = null, wxSeed = '', wxKind = 'clear', fogMul = 1;
+  function drawWeather(opts, dt) {
+    const seed = `${opts.teams?.home || ''}@${opts.teams?.away || ''}`, w = wrap.clientWidth, h = wrap.clientHeight; if (!(w > 0 && h > 0)) return;
+    if (!wx || wxSeed !== seed) { wx = createWeather({ sport: 'nfl', seed }); wxSeed = seed; }
+    wx.setMode(weatherPref()); const k = wx.kind;
+    if (wxCv.width !== w || wxCv.height !== h) { wxCv.width = w; wxCv.height = h; }
+    const c = wxCv.getContext('2d'); c.clearRect(0, 0, w, h); wx.draw(c, w, h, dt);
+    if (k !== wxKind) { wxKind = k; fogMul = k === 'fog' ? 4 : k === 'rain' ? 1.8 : 1; if (stadium) applyLook(stage, lookName, stadium.floods, fogMul); }
+  }
   const ring = (r, g, b) => { const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(0, 0, 0); m.emissive = new pc.Color(r, g, b); m.update(); const e = new pc.Entity('ring'); e.addComponent('render', { type: 'cylinder', material: m, castShadows: false, receiveShadows: false }); e.setLocalScale(1.5, 0.03, 1.5); e.enabled = false; stage.root.addChild(e); return { e, m }; };
   const selRing = ring(1, 1, 1), carRing = ring(1, 0.78, 0.2);
 
@@ -84,7 +95,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
         if (Math.abs((a.speed || 1) - want.speed) > 0.04) { a.entity.anim.speed = want.speed; a.speed = want.speed; }
       }
     }
-    showRef(sim); stadium?.update(dt, wall());
+    showRef(sim); stadium?.update(dt, wall()); drawWeather(opts, dt);
     const bp = ballPlacement(sim); if (bp) field.setBall(bp.x, bp.y, bp.z, (bp.yaw * 180) / Math.PI); else field.hideBall();
     // camera: preset target, smoothed
     const r = cameraRig(opts.camera || 'BROADCAST', { ballX: bp ? bp.x : sim.losX, qb: sim.qb ? { x: sim.qb.pos.x, y: sim.qb.pos.y } : null, losX: sim.losX });
@@ -115,10 +126,10 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); contacts.clear(); },
     endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     get ready() { return ready; },
-    setLook(n) { if (!LOOK_NAMES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) applyLook(stage, n, stadium.floods); return true; },
-    get look() { return lookName; }, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length },
+    setLook(n) { if (!LOOK_NAMES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) applyLook(stage, n, stadium.floods, fogMul); return true; },
+    get look() { return lookName; }, weather: () => wxKind, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length },
     cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     athletes: () => pool,
-    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); factory?.dispose(); },
+    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); wxCv.remove(); factory?.dispose(); },
   };
 }
