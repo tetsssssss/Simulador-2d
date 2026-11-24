@@ -22,9 +22,10 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const slot = new Map(), acts = new Map(), tint = new Map();
   const wall = () => performance.now() / 1000;
 
+  let hdOn = stage.quality?.level !== 'low';   // LOD by quality (HD skater = 12 000 triangles, low-poly ~650)
   async function init() {
     factory = createAthleteFactory(stage, { base }); rink = createRink(stage);
-    for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
+    for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
     for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
     const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(0.02, 0.02, 0.02); m.update(); puckE = new pc.Entity('puck'); puckE.addComponent('render', { type: 'cylinder', material: m, castShadows: true }); puckE.setLocalScale(0.2, 0.05, 0.2); stage.root.addChild(puckE); puckE.mat = m;
     ready = true;
@@ -70,6 +71,12 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     pick(px, py) { let best = null, bd = 34; for (const a of [...skaters, ...goalies]) { if (!a.p) continue; const s = project(a); if (!s) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < bd) { bd = d; best = a.p; } } return best; },
     screenOf(id) { const a = slot.get(id); return a ? project(a) : null; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
+    async setQuality(level) {
+      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false; const old = skaters; skaters = [];
+      for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
+      old.forEach(a => a.dispose()); for (const [id, a] of slot) if (!a.pid || old.includes(a)) slot.delete(id); goalies.forEach(a => { if (!a.p) a.used = false; }); simRef = null; ready = true;
+    },
+    get hd() { return hdOn; },
     get ready() { return ready; }, athletes: () => [...skaters, ...goalies].filter(a => a.p), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     dispose() { rink?.dispose(); puckE?.destroy(); puckE?.mat?.destroy(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
   };

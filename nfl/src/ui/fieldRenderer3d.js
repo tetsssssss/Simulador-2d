@@ -33,13 +33,14 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
   const ring = (r, g, b) => { const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(0, 0, 0); m.emissive = new pc.Color(r, g, b); m.update(); const e = new pc.Entity('ring'); e.addComponent('render', { type: 'cylinder', material: m, castShadows: false, receiveShadows: false }); e.setLocalScale(1.5, 0.03, 1.5); e.enabled = false; stage.root.addChild(e); return { e, m }; };
   const selRing = ring(1, 1, 1), carRing = ring(1, 0.78, 0.2);
 
+  let hdOn = stage.quality?.level !== 'low';   // LOD by quality: HD athletes are 12 000 triangles each, the low-poly ones ~630
   async function init(opts) {
     factory = createAthleteFactory(stage, { base });
     const t = opts.teams || {}, home = t.home || 'HOME', away = t.away || 'AWAY';
     field = await createNflField(stage, { homeColor: TEAM_COLORS[home] || '#0a2870', awayColor: TEAM_COLORS[away] || '#b3141d', homeAbbr: home, awayAbbr: away });
     stadium = createStadium(stage, { density: { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8 }); applyLook(stage, lookName, stadium.floods);
     const sc = sideColors(t.off, t.def);
-    for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
+    for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
     ready = true;
   }
   const label = a => { if (!a.label) { const s = document.createElement('span'); s.style.cssText = 'position:absolute;transform:translate(-50%,-100%);padding:0 4px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;white-space:nowrap'; labels.appendChild(s); a.label = s; } return a.label; };
@@ -76,7 +77,9 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     if (cur && now >= cur.t0) { const id = cur.type.slice(5); if (ref.clip !== id) ref.play(id, { loop: false, blend: 0.1 }); } else if (ref.clip !== 'mv_idle') ref.play('mv_idle');
   }
 
+  let lastOpts = null;
   function render(sim, alpha, opts = {}) {
+    lastOpts = opts;
     if (!ready) { initP ||= init(opts).catch(e => { console.error('3D renderer init failed', e); }); return; }
     if (!sim) return; if (sim !== simRef) bind(sim, opts); pump(sim);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
@@ -125,6 +128,14 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     screenOf(id) { const a = byId.get(id); return a ? project(a, 1.1) : null; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); contacts.clear(); },
     endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
+    // Quality changed (user or auto): Low swaps the 22 athletes to the low-poly models (and back), keeping the simulation binding.
+    async setQuality(level) {
+      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false;
+      const old = pool, sc = sideColors(simRef ? lastOpts?.teams?.off : null, simRef ? lastOpts?.teams?.def : null); pool = [];
+      for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
+      old.forEach(a => { a.label?.remove(); a.dispose(); }); byId.clear(); simRef = null; tintKey = ''; ready = true;
+    },
+    get hd() { return hdOn; },
     get ready() { return ready; },
     setLook(n) { if (!LOOK_NAMES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) applyLook(stage, n, stadium.floods, fogMul); return true; },
     get look() { return lookName; }, weather: () => wxKind, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length },
