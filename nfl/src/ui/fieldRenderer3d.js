@@ -2,6 +2,8 @@
 // Nothing here changes the simulation. Decisions are in render3dLogic.js (pure, tested); animation events reuse animationMap.js; fouls / signals reuse penalties.js.
 //   render(sim, alpha, opts)  opts: { teams:{off,def,home,away}, camera (preset|null), huddle (0..1|null), selected (id) }
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
+import { createStadium } from '../../../core/render3d/stadium.js';
+import { applyLook, LOOK_NAMES } from '../../../core/render3d/look.js';
 import { createNflField, followStep } from '../../../core/render3d/nflField.js';
 import { actionsFor, huddlePose, contactPull, CONTACT_CLIPS, smooth01 } from './animationMap.js';
 import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
@@ -13,7 +15,7 @@ const wall = () => performance.now() / 1000;
 
 export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc, app } = stage, wrap = canvas3d.parentElement;
-  let factory = null, field = null, pool = [], ref = null, ready = false, initP = null;
+  let factory = null, field = null, stadium = null, lookName = (() => { try { const v = localStorage.getItem('asu_3d_look'); return LOOK_NAMES.includes(v) ? v : 'day'; } catch { return 'day'; } })(), pool = [], ref = null, ready = false, initP = null;
   let lastHk = null, simRef = null, evIdx = 0, replaying = false, teamKey = '', cam = null, last = 0, tintKey = '';
   const acts = new Map(), contacts = new Map(), byId = new Map(); let refAct = null, refUntil = 0;
   const labels = document.createElement('div'); labels.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3;font:700 11px system-ui,sans-serif'; wrap.appendChild(labels);
@@ -24,6 +26,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     factory = createAthleteFactory(stage, { base });
     const t = opts.teams || {}, home = t.home || 'HOME', away = t.away || 'AWAY';
     field = await createNflField(stage, { homeColor: TEAM_COLORS[home] || '#0a2870', awayColor: TEAM_COLORS[away] || '#b3141d', homeAbbr: home, awayAbbr: away });
+    stadium = createStadium(stage, { density: { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8 }); applyLook(stage, lookName, stadium.floods);
     const sc = sideColors(t.off, t.def);
     for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
     ready = true;
@@ -43,7 +46,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx]; if (replaying && e.t > (sim.t ?? 0)) break;
-      if (e.type === 'WHISTLE') { for (const [id, A] of acts) if (A.loop) acts.delete(id); if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: sim.t ?? 0, dur: 1.6, loop: true }); }
+      if (e.type === 'WHISTLE') { for (const [id, A] of acts) if (A.loop) acts.delete(id); if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: sim.t ?? 0, dur: 1.6, loop: true }); stadium?.cheer(1); }
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop });
       if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
       const sg = e.type === 'PENALTY' ? buildPenalty(e.foul, sim, { by: e.by, on: e.on, now: wall() }) : SIGNALS[e.type] ? buildSignal(e.type, sim, { now: wall() }) : null;
@@ -81,7 +84,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
         if (Math.abs((a.speed || 1) - want.speed) > 0.04) { a.entity.anim.speed = want.speed; a.speed = want.speed; }
       }
     }
-    showRef(sim);
+    showRef(sim); stadium?.update(dt, wall());
     const bp = ballPlacement(sim); if (bp) field.setBall(bp.x, bp.y, bp.z, (bp.yaw * 180) / Math.PI); else field.hideBall();
     // camera: preset target, smoothed
     const r = cameraRig(opts.camera || 'BROADCAST', { ballX: bp ? bp.x : sim.losX, qb: sim.qb ? { x: sim.qb.pos.x, y: sim.qb.pos.y } : null, losX: sim.losX });
@@ -112,8 +115,10 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); contacts.clear(); },
     endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     get ready() { return ready; },
+    setLook(n) { if (!LOOK_NAMES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) applyLook(stage, n, stadium.floods); return true; },
+    get look() { return lookName; }, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length },
     cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     athletes: () => pool,
-    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); factory?.dispose(); },
+    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); factory?.dispose(); },
   };
 }

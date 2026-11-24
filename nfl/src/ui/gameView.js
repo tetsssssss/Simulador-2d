@@ -77,7 +77,7 @@ export function mountGame(root, deps) {
           ${sandbox ? '' : '<button id="simEndBtn" title="Simula o resto do jogo com o motor (sem animação)">Sim to end ⏭</button>'}
           <span class="grow"></span>
           <div class="seg" id="zoomSeg"><button data-zoom="close">Close</button><button data-zoom="medium" class="on">Mid</button><button data-zoom="full">Full</button></div>
-          <button id="dirBtn" class="toggle ${view.director ? 'on' : ''}" title="Câmera diretora: troca de ângulo sozinha (huddle, QB, bola no ar, replay)">🎬 Dir</button>
+          <button id="lightBtn" title="Luz do estádio no modo 3D: dia → tarde → noite">🌗 Luz</button><button id="dirBtn" class="toggle ${view.director ? 'on' : ''}" title="Câmera diretora: troca de ângulo sozinha (huddle, QB, bola no ar, replay)">🎬 Dir</button>
           <button id="camBtn" class="toggle ${view.follow ? 'on' : ''}" title="Câmera segue a bola">Cam</button>
           <div class="seg" id="camSeg" title="Câmeras (C alterna)">${Object.entries(CAMERAS).map(([k, c]) => `<button data-camera="${k}" title="${c.label}">${c.label}</button>`).join('')}</div>
           <button id="hlBtn" class="toggle on" title="Destaques discretos: QB, portador, alvo e defensor mais próximo">Destaques</button>
@@ -434,6 +434,7 @@ export function mountGame(root, deps) {
   $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.director = false; try { localStorage.setItem('asu_nfl_director', '0'); } catch { /* private */ } view.camera = view.camera === v ? null : v; syncControls(); } };
   const un3d = mount3dOverlay({ canvas, sport: 'nfl', createRenderer: (stage, c3d) => import('./fieldRenderer3d.js').then(m => m.createNflRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { view.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['close', 'medium', 'full'], view.zoom, s); root.querySelector(`#zoomSeg [data-zoom="${next}"]`)?.click(); });   // two-finger pinch = next zoom preset
+  $('#lightBtn').onclick = () => { const r = window.__asu3dRenderer; if (!r?.setLook) return; const L = ['day', 'dusk', 'night']; r.setLook(L[(L.indexOf(r.look) + 1) % 3]); };
   $('#dirBtn').onclick = () => { view.director = !view.director; try { localStorage.setItem('asu_nfl_director', view.director ? '1' : '0'); } catch { /* private */ } syncControls(); };
   $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
   $('#viewSeg').onclick = e => { const v = e.target.dataset.view; if (v) { view.debug = v === 'debug'; syncControls(); drawDebug(); drawPlayerCard(); } };
