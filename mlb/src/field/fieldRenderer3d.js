@@ -1,5 +1,6 @@
 // MLB renderer on the PlayCanvas stage: reads the SAME state the 2D renderer reads (state.fielders / batter / runners / ball / events) and draws it in 3D.
 //   render(state, alpha, opts)  opts: { camera: BROADCAST|BATTER|PITCHER|INFIELD|BALL|TACTICAL|FULL, selected }     pick(px,py) -> entity | null
+import { createProps } from '../../../core/render3d/props.js';
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createDiamond, diamondCamera, FT } from '../../../core/render3d/diamondScene.js';
 import { replayStart, replayDue } from '../../../core/render3d/replayEvents.js';
@@ -21,13 +22,13 @@ export const roleOf = (e, kind) => e.role || (kind === 'batter' ? 'batter' : kin
 
 export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage;
-  let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, ballE = null;
+  let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, ballE = null, props = null;
   const slot = new Map(), acts = new Map(), wall = () => performance.now() / 1000;
   let hdOn = stage.quality?.level !== 'low';   // LOD by quality (HD player ~4 000 triangles, low-poly ~620)
   async function init() {
     factory = createAthleteFactory(stage, { base }); field = createDiamond(stage);
     for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { hd: hdOn, name: 'p' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); pool.push(a); }
-    const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(1, 1, 1); m.update(); ballE = new pc.Entity('ball'); ballE.addComponent('render', { type: 'sphere', material: m, castShadows: true }); ballE.setLocalScale(0.16, 0.16, 0.16); stage.root.addChild(ballE); ballE.mat = m;
+    props = createProps(stage); ballE = props.baseball(); stage.root.addChild(ballE);
     ready = true;
   }
   function pump(state) {
@@ -71,7 +72,7 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     if (!b || b.hidden) ballE.enabled = false;
     else { const h = b.holder ? slot.get(b.holder) : null; ballE.enabled = true;
       if (h?.e) { const p = h.entity.getPosition(); ballE.setPosition(p.x, 1.2, p.z); bp = { x: h.e.x, y: h.e.y, z: 1 }; }
-      else { const x = lerp(b.px ?? b.x, b.x, k), y = lerp(b.py ?? b.y, b.y, k), z = Math.max(0, lerp(b.pz ?? b.z ?? 0, b.z ?? 0, k)); ballE.setPosition(...worldFromSim('mlb', x, y, 0.1 + z * FT)); bp = { x, y, z }; } }
+      else { const x = lerp(b.px ?? b.x, b.x, k), y = lerp(b.py ?? b.y, b.y, k), z = Math.max(0, lerp(b.pz ?? b.z ?? 0, b.z ?? 0, k)); ballE.setPosition(...worldFromSim('mlb', x, y, 0.1 + z * FT)); ballE.setEulerAngles((performance.now() * 1.1) % 360, 0, (performance.now() * 0.6) % 360); bp = { x, y, z }; } }
     const r = diamondCamera(opts.camera || 'BROADCAST', bp && state.phase === 'PLAY' ? { ...bp, hidden: false } : null);
     if (!cam) cam = { pos: r.pos.slice(), look: r.look.slice() }; else { cam.pos = followStep(cam.pos, r.pos, dt, 0.5); cam.look = followStep(cam.look, r.look, dt, 0.35); }
     stage.camera.setPosition(...cam.pos); stage.camera.lookAt(...cam.look);
@@ -89,6 +90,6 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
       old.forEach(a => a.dispose()); slot.clear(); simRef = null; ready = true;
     },
     get hd() { return hdOn; }, get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
-    dispose() { crowd?.dispose(); field?.dispose(); ballE?.destroy(); ballE?.mat?.destroy(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
+    dispose() { crowd?.dispose(); field?.dispose(); props?.dispose(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
   };
 }

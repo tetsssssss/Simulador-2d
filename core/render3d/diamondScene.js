@@ -1,6 +1,7 @@
 // MLB ballpark in the PlayCanvas stage (world metres; sim feet * 0.3048, home plate at the origin, +y (centre field) -> -z). Pure layout/camera maths + drawing.
 import { BASE, MOUND, BASES, FENCE, fencePoint } from '../../mlb/src/field/geometry.js';
 import { grainPass, rakeDirt, wear } from './surfaces.js';
+import { createProps } from './props.js';
 export const FT = 0.3048;
 export const TEX = { x0: -440, x1: 440, y0: -70, y1: 450, ppf: 2.4 };
 
@@ -47,7 +48,7 @@ function drawFieldTextureRaw(cv) {
   grainPass(c, cv.width, cv.height, { seed: 5, ppu: ppf });
   c.strokeStyle = '#fff'; c.lineWidth = R(0.45); for (const sg of [-1, 1]) { const e = fencePoint(sg * Math.PI / 4); c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(e.x), Y(e.y)); c.stroke(); }   // foul lines
   c.fillStyle = '#fff'; for (const b of [BASES.first, BASES.second, BASES.third]) { c.save(); c.translate(X(b.x), Y(b.y)); c.rotate(Math.PI / 4); c.fillRect(-R(0.75), -R(0.75), R(1.5), R(1.5)); c.restore(); }
-  c.fillRect(X(-0.7), Y(-0.35), R(1.4), R(0.7)); c.strokeStyle = '#fff'; c.lineWidth = R(0.3);                              // plate + batter's boxes
+  c.strokeStyle = '#fff'; c.lineWidth = R(0.3);                              // plate + batter's boxes
   for (const sx of [-1, 1]) c.strokeRect(X(sx * 3.5 - 2), Y(-3), R(4), R(6));
   void BASE; void FENCE;
 }
@@ -70,9 +71,9 @@ export function createDiamond(stage) {
   for (const sg of [-1, 1]) { const e = fencePoint(sg * Math.PI / 4), p = mk('cylinder', poleM); p.setLocalScale(0.2, 12, 0.2); p.setPosition(e.x * FT, 6, -e.y * FT); add(p, 'pole'); }
   const white = mat(m => { m.diffuse = new pc.Color(0.97, 0.97, 0.97); });
   for (const b of [BASES.first, BASES.second, BASES.third]) { const e = mk('box', white); e.setLocalScale(0.38, 0.08, 0.38); e.setPosition(b.x * FT, 0.04, -b.y * FT); e.setEulerAngles(0, 45, 0); add(e, 'base'); }
-  const pl = mk('box', white); pl.setLocalScale(0.43, 0.05, 0.43); pl.setPosition(0, 0.03, 0); add(pl, 'plate');
-  const mound = mk('cylinder', mat(m => { m.diffuse = new pc.Color(0.65, 0.47, 0.27); })); mound.setLocalScale(MOUND.r * 2 * FT, 0.25, MOUND.r * 2 * FT); mound.setPosition(0, 0.12, -MOUND.y * FT); add(mound, 'mound');
+  const props = createProps(stage); props.homePlate();
+  const mound = mk('cylinder', mat(m => { m.diffuse = new pc.Color(0.65, 0.47, 0.27); })); mound.setLocalScale(MOUND.r * 2 * FT, 0.25, MOUND.r * 2 * FT); mound.setPosition(0, 0.12, -MOUND.y * FT); add(mound, 'mound'); props.pitcherRubber(root, 0.26).setPosition(0, 0.262, -MOUND.y * FT);
   const wasGround = stage.ground.enabled; stage.ground.enabled = false;
   const markers = root.children.filter(e => e.name === 'marker' && e.enabled); markers.forEach(m => { m.enabled = false; });
-  return { dispose() { parts.forEach(p => p.destroy()); mats.forEach(m => m.destroy()); tex.destroy(); stage.ground.enabled = wasGround; markers.forEach(m => { if (m.root) m.enabled = true; }); } };
+  return { dispose() { props.dispose(); parts.forEach(p => p.destroy()); mats.forEach(m => m.destroy()); tex.destroy(); stage.ground.enabled = wasGround; markers.forEach(m => { if (m.root) m.enabled = true; }); } };
 }

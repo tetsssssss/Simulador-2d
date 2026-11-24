@@ -11,7 +11,7 @@ const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(() =
 await f.fill('#seedIn', 'CAM3D').catch(() => {}); await f.click('text=Iniciar Quick Game'); await page.waitForTimeout(3500);
 const cam = () => f.evaluate(() => window.__asu3dRenderer?.cameraState());
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-await page.waitForTimeout(2000); check('3D renderer ready with a camera', !!(await cam()));
+await f.waitForFunction(() => window.__asu3dRenderer?.cameraState?.(), null, { timeout: 25000 }).catch(() => {}); await page.waitForTimeout(500); check('3D renderer ready with a camera', !!(await cam()));
 const seen = {};
 for (const k of ['TACTICAL', 'QB', 'ENDZONE', 'BROADCAST']) {
   await f.click(`#camSeg button[data-camera="${k}"]`); let prev = null; for (let j = 0; j < 14; j++) { await page.waitForTimeout(500); seen[k] = await cam(); if (prev && dist(prev, seen[k].pos) < 0.05) break; prev = seen[k].pos; }

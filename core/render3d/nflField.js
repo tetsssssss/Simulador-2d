@@ -15,6 +15,7 @@ export function fieldLayout() {
 
 // Draws the field into `canvas` (PX_PER_YD pixels per yard). Colours are CSS strings.
 import { grainPass, wear } from './surfaces.js';
+import { createProps } from './props.js';
 export const PX_PER_YD = 20;
 const texCache = new Map();   // the grain pass is per-pixel (slow, big garbage): keep the finished picture per team colours / names
 export function drawFieldTexture(canvas, opts = {}) {
@@ -69,8 +70,8 @@ export async function createNflField(stage, opts = {}) {
   const part = (type, s, p) => { const e = new pc.Entity('post'); e.addComponent('render', { type, material: yellow, castShadows: true }); e.setLocalScale(...s); e.setPosition(...p); field.addChild(e); return e; };
   for (const x of [0, L]) { const dir = x === 0 ? -0.5 : 0.5, w = (18.5 / 3) * YD; part('cylinder', [0.25, 3.05, 0.25], [x + dir, 1.5, -Wd / 2]); part('box', [0.12, 0.12, w], [x + dir, 3.05, -Wd / 2]); for (const s of [-1, 1]) part('cylinder', [0.1, 6.5, 0.1], [x + dir, 3.05 + 3.25, -Wd / 2 + s * w / 2]); }
   // ball (NFL ball ~28 cm long): a flattened sphere along the throw direction
-  const brown = new pc.StandardMaterial(); brown.diffuse = new pc.Color(0.42, 0.2, 0.09); brown.gloss = 0.35; brown.update();
-  const ball = new pc.Entity('ball'); ball.addComponent('render', { type: 'sphere', material: brown, castShadows: true }); ball.setLocalScale(0.28, 0.17, 0.17); ball.enabled = false; field.addChild(ball);
+  const props = createProps(stage), ball = props.football(); ball.enabled = false; field.addChild(ball);
+  props.pylons(L, Wd, YD); const chains = props.chainMarkers();
   // line of scrimmage (blue) and first-down line (yellow): thin boxes across the field
   const mk = (r, g, b) => { const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(r, g, b); m.emissive = new pc.Color(r * .6, g * .6, b * .6); m.update(); const e = new pc.Entity('line'); e.addComponent('render', { type: 'box', material: m, castShadows: false }); e.setLocalScale(0.25, 0.03, Wd); e.setPosition(0, 0.03, -Wd / 2); e.enabled = false; field.addChild(e); return e; };
   const los = mk(0.2, 0.5, 1), fd = mk(1, 0.85, 0.1);
@@ -78,7 +79,7 @@ export async function createNflField(stage, opts = {}) {
     field, ball,
     setBall(x, y, z = 0.14, yaw = 0) { ball.enabled = true; ball.setPosition(...worldFromSim('nfl', x, y, z)); ball.setEulerAngles(0, yaw, 0); },
     hideBall() { ball.enabled = false; },
-    setLines(losX, fdX) { for (const [e, x] of [[los, losX], [fd, fdX]]) { e.enabled = Number.isFinite(x) && x >= 0 && x <= FIELD.length; if (e.enabled) e.setPosition(x * YD, 0.03, -Wd / 2); } },
-    dispose() { tex.destroy(); mat.destroy(); apronMat.destroy(); yellow.destroy(); brown.destroy(); field.destroy(); stage.ground.enabled = true; markers.forEach(m => { if (m.root) m.enabled = true; }); },
+    setLines(losX, fdX) { for (const [e, x] of [[los, losX], [fd, fdX]]) { e.enabled = Number.isFinite(x) && x >= 0 && x <= FIELD.length; if (e.enabled) e.setPosition(x * YD, 0.03, -Wd / 2); } chains.set(losX * YD, fdX * YD, -Wd - 1.8); },
+    dispose() { tex.destroy(); mat.destroy(); apronMat.destroy(); yellow.destroy(); props.dispose(); field.destroy(); stage.ground.enabled = true; markers.forEach(m => { if (m.root) m.enabled = true; }); },
   };
 }

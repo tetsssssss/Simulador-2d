@@ -1,5 +1,6 @@
 // NHL renderer on the PlayCanvas stage: reads the SAME state the 2D rink renderer reads (state.players, state.puck, state.events) and draws it in 3D.
 //   render(state, alpha, opts)  opts: { camera: PUCK|BROADCAST|TACTICAL|FULL, selected (id) }     pick(px,py) -> player object | null
+import { createProps } from '../../../core/render3d/props.js';
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createRink, rinkCamera, FT } from '../../../core/render3d/rinkScene.js';
 import { replayStart, replayDue } from '../../../core/render3d/replayEvents.js';
@@ -21,7 +22,7 @@ export function skaterClip(p, act) {
 
 export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage, wrap = canvas3d.parentElement;
-  let factory = null, rink = null, crowd = null, crowdKey = '', skaters = [], goalies = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, puckE = null;
+  let factory = null, rink = null, crowd = null, crowdKey = '', skaters = [], goalies = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, puckE = null, props = null;
   const slot = new Map(), acts = new Map(), tint = new Map();
   const wall = () => performance.now() / 1000;
 
@@ -30,7 +31,7 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     factory = createAthleteFactory(stage, { base }); rink = createRink(stage);
     for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
     for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
-    const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(0.02, 0.02, 0.02); m.update(); puckE = new pc.Entity('puck'); puckE.addComponent('render', { type: 'cylinder', material: m, castShadows: true }); puckE.setLocalScale(0.2, 0.05, 0.2); stage.root.addChild(puckE); puckE.mat = m;
+    props = createProps(stage); puckE = props.puck(); stage.root.addChild(puckE);
     ready = true;
   }
   function pump(state) {
@@ -92,6 +93,6 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     get hd() { return hdOn; }, crowdSeats: () => crowd?.seats || 0,
     replayInfo: () => ({ replaying, evIdx, t: replayT }),
     get ready() { return ready; }, athletes: () => [...skaters, ...goalies].filter(a => a.p), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
-    dispose() { crowd?.dispose(); rink?.dispose(); puckE?.destroy(); puckE?.mat?.destroy(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
+    dispose() { crowd?.dispose(); rink?.dispose(); props?.dispose(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
   };
 }
