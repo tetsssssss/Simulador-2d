@@ -2,6 +2,7 @@
 //   render(state, alpha, opts)  opts: { camera: PUCK|BROADCAST|TACTICAL|FULL, selected (id) }     pick(px,py) -> player object | null
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createRink, rinkCamera, FT } from '../../../core/render3d/rinkScene.js';
+import { replayStart, replayDue } from '../../../core/render3d/replayEvents.js';
 import { followStep } from '../../../core/render3d/nflField.js';
 import { createCrowdStands, rinkStands } from '../../../core/render3d/crowdStands.js';
 import { parseColor } from '../../../core/render/spriteSheet.js';
@@ -20,7 +21,7 @@ export function skaterClip(p, act) {
 
 export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage, wrap = canvas3d.parentElement;
-  let factory = null, rink = null, crowd = null, crowdKey = '', skaters = [], goalies = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, puckE = null;
+  let factory = null, rink = null, crowd = null, crowdKey = '', skaters = [], goalies = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, puckE = null;
   const slot = new Map(), acts = new Map(), tint = new Map();
   const wall = () => performance.now() / 1000;
 
@@ -36,7 +37,7 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx], t0 = state.t ?? 0;
-      if (replaying && e.t > t0) break;
+      if (replaying && !replayDue(e, t0)) break;
       if (e.type === 'GOAL') crowd?.cheer(1);
       if (e.type === 'SHOT') acts.set(e.by, { clip: SHOT_CLIP[e.shotType] || 'hk_wrist', t0, dur: 0.6, token: `${t0}|shot` });
       else if (e.type === 'HIT') acts.set(e.by, { clip: 'hk_check', t0, dur: 0.45, token: `${t0}|hit` });
@@ -47,7 +48,13 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
 
   function render(state, alpha, opts = {}) {
     if (!ready) { initP ||= init().catch(e => console.error('3D NHL init failed', e)); return; }
-    if (!state) return; if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); } pump(state);
+    if (!state) return;
+    if (opts.replay) {   // instant replay: a new state object per frame over a past interval -> follow the replay clock, never reset per frame
+      if (!replaying || (state.t ?? 0) < replayT - 0.5) { replaying = true; acts.clear(); evIdx = replayStart(state.events, state.t ?? 0); }
+      replayT = state.t ?? 0;
+    } else if (replaying) { replaying = false; acts.clear(); simRef = state; evIdx = (state.events || []).length; }
+    else if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); }
+    pump(state);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
     if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...rinkStands(undefined, undefined, undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), home: c(state.home?.color), away: c(state.away?.color) }); }
     crowd.update(dt, now);
@@ -82,6 +89,7 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
       old.forEach(a => a.dispose()); for (const [id, a] of slot) if (!a.pid || old.includes(a)) slot.delete(id); goalies.forEach(a => { if (!a.p) a.used = false; }); simRef = null; ready = true;
     },
     get hd() { return hdOn; }, crowdSeats: () => crowd?.seats || 0,
+    replayInfo: () => ({ replaying, evIdx, t: replayT }),
     get ready() { return ready; }, athletes: () => [...skaters, ...goalies].filter(a => a.p), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     dispose() { crowd?.dispose(); rink?.dispose(); puckE?.destroy(); puckE?.mat?.destroy(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
   };

@@ -2,6 +2,7 @@
 //   render(state, alpha, opts)  opts: { camera: BROADCAST|BATTER|PITCHER|INFIELD|BALL|TACTICAL|FULL, selected }     pick(px,py) -> entity | null
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createDiamond, diamondCamera, FT } from '../../../core/render3d/diamondScene.js';
+import { replayStart, replayDue } from '../../../core/render3d/replayEvents.js';
 import { followStep } from '../../../core/render3d/nflField.js';
 import { createCrowdStands, arcStands } from '../../../core/render3d/crowdStands.js';
 import { parseColor } from '../../../core/render/spriteSheet.js';
@@ -20,7 +21,7 @@ export const roleOf = (e, kind) => e.role || (kind === 'batter' ? 'batter' : kin
 
 export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage;
-  let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, ballE = null;
+  let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, ballE = null;
   const slot = new Map(), acts = new Map(), wall = () => performance.now() / 1000;
   async function init() {
     factory = createAthleteFactory(stage, { base }); field = createDiamond(stage);
@@ -31,7 +32,7 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   function pump(state) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
-      const e = ev[evIdx], t0 = state.t ?? 0; if (replaying && e.t > t0) break;
+      const e = ev[evIdx], t0 = state.t ?? 0; if (replaying && !replayDue(e, t0)) break;
       const set = (id, type, dt0, dur) => acts.set(id, { type, t0: t0 + dt0, dur, token: `${t0}|${type}|${id}` });
       if (e.type === 'PITCH') { set(e.pitcher, 'throw', 0, 0.85); if (e.decision && e.decision !== 'TAKE') set(e.batter, 'swing', 0.45, 0.55); }
       else if (e.type === 'PICKOFF_ATTEMPT') { set(e.pitcher, 'throw', 0, 0.7); set(e.runner, 'dive', 0.3, 0.7); }
@@ -43,7 +44,13 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
 
   function render(state, alpha, opts = {}) {
     if (!ready) { initP ||= init().catch(e => console.error('3D MLB init failed', e)); return; }
-    if (!state) return; if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); } pump(state);
+    if (!state) return;
+    if (opts.replay) {   // instant replay: a new state object per frame over a past interval -> follow the replay clock, never reset per frame
+      if (!replaying || (state.t ?? 0) < replayT - 0.5) { replaying = true; acts.clear(); evIdx = replayStart(state.events, state.t ?? 0); }
+      replayT = state.t ?? 0;
+    } else if (replaying) { replaying = false; acts.clear(); simRef = state; evIdx = (state.events || []).length; }
+    else if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); }
+    pump(state);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
     if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...arcStands(undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), home: c(state.home?.color), away: c(state.away?.color) }); }
     crowd.update(dt, now);
@@ -73,6 +80,7 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     render,
     pick(px, py) { let best = null, bd = 34; for (const a of pool) { if (!a.e) continue; const s = project(a); if (!s) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < bd) { bd = d; best = a.e; } } return best; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
+    replayInfo: () => ({ replaying, evIdx, t: replayT }),
     get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     dispose() { crowd?.dispose(); field?.dispose(); ballE?.destroy(); ballE?.mat?.destroy(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
   };

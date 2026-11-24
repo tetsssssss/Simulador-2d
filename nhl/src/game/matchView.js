@@ -126,7 +126,7 @@ export function mountMatch(root, deps = {}) {
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     const rp = view.state && !view.simming ? replay.step(dt, view.state) : null; replayUi.sync(!!rp, !!view.state && !view.simming);
     if (view.state) renderer.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
-    if (view.state) un3d.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { camera: pref.camera, selected: view.selected });   // 3D mode (no-op otherwise)
+    if (view.state) un3d.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, selected: view.selected });   // 3D mode (no-op otherwise)
     if (view.state?.players && !view.paused) { let v = 0, n = 0; for (const q of view.state.players) { if (q.onBench || q.goalie) continue; v += Math.hypot(q.vx || 0, q.vy || 0); n++; } audio.setBedLevel('skates', n ? Math.min(1, v / n / 24) : 0); } else audio.setBedLevel('skates', 0);
     drainEvents();
     pres.engine?.tick(dt);
