@@ -208,6 +208,14 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
         P.add(ball((-0.005, sgn * 0.106, hz - 0.005), 0.026, 0.5, 0.28, 1.0, 1), 'head', 'skin')                # ear
     P.add(ball((0.112, 0, hz - 0.012), 0.017, 1.1, 0.8, 1.2, 1), 'head', 'skin')                                  # nose
     P.add(tube((0.104, -0.03, hz - 0.052), (0.104, 0.03, hz - 0.052), 0.0055, 4), 'head', 'dark')               # mouth
+    # ---- hair / helmet details (Etapa D): dark hair at the nape under hockey helmets, caps and the ref cap; football helmet gets ear holes + a chin strap ----
+    if not fb:
+        P.add(ball((-0.092, 0, hz - 0.055), 0.062, 0.75, 1.15, 0.9, 2), 'head', 'dark')                           # hair at the nape
+    else:
+        for sgn in (-1, 1):
+            P.add(ball((-0.005, sgn * 0.119, hz - 0.004), 0.034, 0.4, 0.22, 1.0, 1), 'head', 'dark')                 # ear hole
+            P.add(tube((0.05, sgn * 0.112, hz - 0.03), (0.105, sgn * 0.046, hz - 0.098), 0.0055, 4), 'head', 'trim')  # chin strap
+        P.add(tube((0.105, -0.046, hz - 0.098), (0.105, 0.046, hz - 0.098), 0.0055, 4), 'head', 'trim')
     # hockey stick: part of the skinned mesh, rigid on the front forearm (follows every pose; the shaft runs along the forearm like the low-poly prop did)
     if with_prop and hock:
         hy = -SH_HALF; hz0 = SH_Z - 0.04 - UPPER - FORE - 0.04; Ls = 1.25 if kit == 'hockey' else 1.1
