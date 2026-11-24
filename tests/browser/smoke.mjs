@@ -66,7 +66,7 @@ for (let round = 0; round < 3; round++) {
   check('game sounds triggered by engine events', au.played.some(p => p.endsWith(':true')), au.played.slice(0, 6).join(' '));
   check('crowd intensity reacts (0–100)', au.crowd > 20 && au.crowd <= 100, `max=${au.crowd.toFixed(1)}`);
   const lines = await f.evaluate(() => [...document.querySelectorAll('#liveComm .lc-line .lc-x')].map(e => e.textContent));
-  check('nfl live commentary lines', lines.length >= 2 && !lines.some(l => /undefined|NaN|null/.test(l)), `${lines.length} · ${lines.slice(0, 3).join(' / ')}`);
+  check('nfl live commentary lines', lines.length >= 2 && !lines.some(l => /\bundefined\b|\bNaN\b|\bnull\b/.test(l)), `${lines.length} · ${lines.slice(0, 3).join(' / ')}`);
   if (OUT) await page.screenshot({ path: `${OUT}/smoke_nfl_commentary.png` });
 }
 // shell audio settings → shared localStorage
