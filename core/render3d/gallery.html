@@ -10,7 +10,7 @@ const q = new URLSearchParams(location.search), quality = q.get('quality') || 'm
 const stage = await createStage(document.getElementById('c'), { quality });
 const resize = () => stage.resize(innerWidth, innerHeight); addEventListener('resize', resize); resize();
 const factory = createAthleteFactory(stage, { base: new URL('../../', import.meta.url).pathname });
-const KITS = [['football', true], ['football', false], ['hockey', true], ['goalie', false], ['ref', false], ['baseball', true]];
+const KITS = [['football', true], ['football', false], ['hockey', true], ['goalie', true], ['ref', false], ['baseball', true]];
 const CLIPS = { football: ['mv_idle', 'mv_run', 'gs_arms_up'], hockey: ['hk_glide', 'hk_skate', 'gs_arms_up'], goalie: ['gk_ready', 'gk_butterfly', 'gk_ready'], ref: ['mv_idle', 'mv_jog', 'rf_touchdown'], baseball: ['mv_idle', 'mv_run', 'gs_arms_up'] };
 const TEAMS = [['#0a2870', '#ffd23f'], ['#b3141d', '#ffffff']];
 const athletes = [];

@@ -8,7 +8,7 @@ import { DECAL_SPECS, drawBack, drawFront, drawFace } from './decals.js';
 export const MODELS = Object.freeze({
   football: { hd: 'assets/models3d/football_hd.glb', lo: 'assets/models3d/football.glb' },
   hockey: { hd: 'assets/models3d/hockey_hd.glb', lo: 'assets/models3d/hockey.glb' },
-  goalie: { lo: 'assets/models3d/goalie.glb' },
+  goalie: { hd: 'assets/models3d/goalie_hd.glb', lo: 'assets/models3d/goalie.glb' },
   ref: { lo: 'assets/models3d/ref.glb' },
   baseball: { hd: 'assets/models3d/baseball_hd.glb', lo: 'assets/models3d/baseball.glb' },
 });

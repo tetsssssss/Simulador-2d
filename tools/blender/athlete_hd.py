@@ -115,7 +115,8 @@ def skin_mesh(obj, rig, vinfo, power=5.0):
     for v in obj.data.vertices:
         bone, soft = vinfo[v.index]
         if not soft: groups[bone].add([v.index], 1.0, 'REPLACE'); continue
-        ds = sorted(((_seg_dist(v.co, a, b), n) for n, (a, b) in bones.items()), key=lambda t: t[0])[:2]
+        allow = soft if isinstance(soft, (tuple, list, set)) else None   # soft may name the bones this part is allowed to blend between (stops left/right-leg flips at the hem)
+        ds = sorted(((_seg_dist(v.co, a, b), n) for n, (a, b) in bones.items() if allow is None or n in allow), key=lambda t: t[0])[:2]
         ws = [1.0 / max(1e-4, d) ** power for d, _ in ds]; tot = sum(ws)
         for (d, n), w in zip(ds, ws):
             if w / tot > 0.02: groups[n].add([v.index], w / tot, 'REPLACE')
@@ -132,11 +133,11 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     P = Parts(); hock = kit in ('hockey', 'goalie'); fb = kit == 'football'; bb = kit == 'baseball'
     # ---- torso (jersey): hips -> shoulders, V taper; hockey sweater is looser and longer ----
     loose = 1.12 if hock else 1.0; low = HIP_Z - (0.12 if hock else 0.06)
-    P.add(loft_z([(low, 0, 0, 0.14 * k * loose, 0.2 * k * loose), (HIP_Z + 0.14, 0, 0, 0.128 * k * loose, 0.19 * k * loose), (HIP_Z + 0.30, 0, 0, 0.13 * k, 0.19 * k), (SH_Z - 0.14, 0, 0, 0.145 * k, 0.215 * k), (SH_Z - 0.04, 0, 0, 0.14 * k, 0.225 * k), (SH_Z + 0.02, 0, 0, 0.1 * k, 0.17 * k)], 20, (True, True)), 'spine', 'jersey', True)
+    P.add(loft_z([(low, 0, 0, 0.14 * k * loose, 0.2 * k * loose), (HIP_Z + 0.14, 0, 0, 0.128 * k * loose, 0.19 * k * loose), (HIP_Z + 0.30, 0, 0, 0.13 * k, 0.19 * k), (SH_Z - 0.14, 0, 0, 0.145 * k, 0.215 * k), (SH_Z - 0.04, 0, 0, 0.14 * k, 0.225 * k), (SH_Z + 0.02, 0, 0, 0.1 * k, 0.17 * k)], 20, (True, True)), 'spine', 'jersey', ('spine', 'hips'))
     # ---- pelvis + legs (pants), knees, socks / shins, boots ----
-    P.add(loft_z([(HIP_Z + 0.04, 0, 0, 0.12 * k, 0.19 * k), (HIP_Z - 0.10, 0, 0, 0.125 * k, 0.2 * k)], 20, (False, False)), 'hips', 'pants', True)
+    P.add(loft_z([(HIP_Z + 0.04, 0, 0, 0.12 * k, 0.19 * k), (HIP_Z - 0.10, 0, 0, 0.125 * k, 0.2 * k)], 20, (False, False)), 'hips', 'pants', ('hips', 'thigh_F', 'thigh_B', 'spine'))
     for s, y in (('F', -HIP_HALF), ('B', HIP_HALF)):
-        P.add(loft_z([(HIP_Z - 0.04, 0, y * 0.97, 0.112 * k, 0.1 * k), (HIP_Z - 0.20, 0, y, 0.105 * k, 0.098 * k), (HIP_Z - THIGH, 0, y, 0.078 * k, 0.074 * k)], 14, (False, False)), f'thigh_{s}', 'pants', True)
+        P.add(loft_z([(HIP_Z - 0.04, 0, y * 0.97, 0.112 * k, 0.1 * k), (HIP_Z - 0.20, 0, y, 0.105 * k, 0.098 * k), (HIP_Z - THIGH, 0, y, 0.078 * k, 0.074 * k)], 14, (False, False)), f'thigh_{s}', 'pants', ('hips', f'thigh_{s}', f'shin_{s}'))
         P.add(ball((0.01, y, HIP_Z - THIGH), 0.08 * k, 1.0, 0.95, 1.0, 2), f'shin_{s}', 'pants', True)
         P.add(loft_z([(HIP_Z - THIGH, 0, y, 0.074 * k, 0.07 * k), (0.34, 0, y, 0.062 * k, 0.058 * k), (0.12, 0, y, 0.05, 0.05)], 14, (False, False)), f'shin_{s}', 'pants' if hock else 'trim', True)
         P.add(loft_x([(-0.07, y, 0.07, 0.045, 0.06), (0.02, y, 0.05, 0.052, 0.05), (0.12, y, 0.04, 0.05, 0.04), (0.2, y, 0.03, 0.04, 0.028)], 12), f'shin_{s}', 'boots', True)
@@ -179,7 +180,7 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
         P.add(ball((0.118, 0, hz + 0.07), 0.1, 0.9, 1.0, 0.1, 3), 'head', 'helmet')                                   # brim
         P.add(ball((-0.008, 0, hz + 0.158), 0.016, 1, 1, 0.8, 1), 'head', 'accent')                                    # cap button
         P.add(ball((0.01, SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.06), 0.085, 0.65, 1.0, 1.05, 3), 'fore_B', 'leather')   # glove
-        P.add(loft_z([(HIP_Z + 0.05, 0, 0, 0.1305 * k, 0.1945 * k), (HIP_Z + 0.02, 0, 0, 0.1305 * k, 0.1945 * k)], 20, (False, False)), 'spine', 'dark', True)   # belt
+        P.add(loft_z([(HIP_Z + 0.05, 0, 0, 0.1305 * k, 0.1945 * k), (HIP_Z + 0.02, 0, 0, 0.1305 * k, 0.1945 * k)], 20, (False, False)), 'spine', 'dark', ('spine', 'hips'))   # belt
         bz = SH_Z - 0.04 - UPPER - FORE - 0.04
         bat_r = [(0.05, 0.008), (0.04, 0.021), (0.02, 0.022), (0.005, 0.0145), (-0.2, 0.0155), (-0.45, 0.025), (-0.62, 0.033), (-0.80, 0.036), (-0.87, 0.034), (-0.885, 0.02), (-0.89, 0.006)]   # knob, handle, flared barrel, rounded end
         P.add(loft_z([(bz + dz, 0, -SH_HALF, r, r) for dz, r in bat_r], 14, (True, True)), 'fore_F', 'bat')
@@ -192,10 +193,18 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
             P.add(tube((0.135, sgn * 0.09, hz + 0.05), (0.15, sgn * 0.03, hz - 0.075), 0.0075, 6), 'head', 'metal'); P.add(tube((0.15, sgn * 0.03, hz - 0.075), (0.13, sgn * 0.0, hz - 0.1), 0.0075, 6), 'head', 'metal')
         P.add(tube((0.15, 0, hz + 0.045), (0.15, 0, hz - 0.085), 0.0075, 6), 'head', 'metal')
     elif hock:
-        P.add(loft_z([(HIP_Z - 0.118, 0, 0, 0.1595 * k, 0.2275 * k), (HIP_Z - 0.075, 0, 0, 0.1575 * k, 0.2245 * k)], 20, (False, False)), 'spine', 'accent', True)   # sweater hem band
+        P.add(loft_z([(HIP_Z - 0.118, 0, 0, 0.1595 * k, 0.2275 * k), (HIP_Z - 0.075, 0, 0, 0.1575 * k, 0.2245 * k)], 20, (False, False)), 'spine', 'accent', ('spine', 'hips'))   # sweater hem band
         sh = uvball((-0.01, 0, hz + 0.02), 0.13, 1.03, 0.96, 0.96, 48, 32); cut_front(sh, (0.0, hz - 0.03), 0.09, 0.075, 0.03); P.add(sh, 'head', 'helmet')
         if kit == 'goalie':
             for dz in (0.04, 0.0, -0.04): P.add(tube((0.145, -0.085, hz + dz), (0.145, 0.085, hz + dz), 0.0075, 6), 'head', 'metal')
+            # goalie gear: big leg pads (rigid on the shins, with straps), chest protector, blocker (stick hand) and catcher (glove hand)
+            for sgn, y in (('F', -HIP_HALF), ('B', HIP_HALF)):
+                P.add(loft_z([(0.56, 0.015, y, 0.068, 0.1), (0.46, 0.02, y, 0.08, 0.118), (0.26, 0.022, y, 0.088, 0.125), (0.09, 0.02, y, 0.078, 0.108), (0.04, 0.02, y, 0.07, 0.1)], 14, (True, True)), f'shin_{sgn}', 'trim')
+                for zz in (0.46, 0.30, 0.16): P.add(loft_z([(zz + 0.012, 0.02, y, 0.0885, 0.1265), (zz - 0.012, 0.02, y, 0.0885, 0.1265)], 14, (False, False)), f'shin_{sgn}', 'accent')   # pad straps / stripes
+            P.add(loft_z([(SH_Z - 0.42, 0, 0, 0.17 * k, 0.245 * k), (SH_Z - 0.2, 0, 0, 0.18 * k, 0.26 * k), (SH_Z - 0.04, 0, 0, 0.15 * k, 0.24 * k)], 20, (True, True)), 'spine', 'jersey')   # chest protector bulk
+            zh = SH_Z - 0.04 - UPPER - FORE
+            P.add(ball((0.045, -SH_HALF, zh - 0.07), 0.085, 0.3, 1.0, 1.15, 2), 'fore_F', 'dark')    # blocker (flat pad on the stick hand)
+            P.add(ball((0.06, SH_HALF, zh - 0.07), 0.12, 0.45, 1.0, 1.15, 2), 'fore_B', 'leather')   # catcher (big glove)
     obj, mats, vinfo = bake(P)
     for name, idx in sorted(mats.items(), key=lambda kv: kv[1]): obj.data.materials.append(bpy.data.materials[f'asu_{name}'])
     rig = _armature(); skin_mesh(obj, rig, vinfo)

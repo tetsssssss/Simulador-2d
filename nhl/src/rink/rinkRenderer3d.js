@@ -30,7 +30,7 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   async function init() {
     factory = createAthleteFactory(stage, { base }); rink = createRink(stage);
     for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
-    for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
+    for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { hd: hdOn, name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
     props = createProps(stage); puckE = props.puck(); stage.root.addChild(puckE);
     ready = true;
   }
@@ -86,9 +86,10 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     screenOf(id) { const a = slot.get(id); return a ? project(a) : null; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     async setQuality(level) {
-      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false; const old = skaters; skaters = [];
+      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false; const old = [...skaters, ...goalies]; skaters = []; goalies = [];
       for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
-      old.forEach(a => a.dispose()); for (const [id, a] of slot) if (!a.pid || old.includes(a)) slot.delete(id); goalies.forEach(a => { if (!a.p) a.used = false; }); simRef = null; ready = true;
+      for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { hd: hdOn, name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
+      old.forEach(a => a.dispose()); for (const [id, a] of slot) if (old.includes(a) || !a.pid) slot.delete(id); simRef = null; ready = true;
     },
     get hd() { return hdOn; }, crowdSeats: () => crowd?.seats || 0,
     replayInfo: () => ({ replaying, evIdx, t: replayT }),

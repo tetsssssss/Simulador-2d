@@ -23,7 +23,7 @@ test('zoneColors: jersey = helmet, pants follow the 2D rules, accent = secondary
 test('clip index uses the track name (the game clip id) and ignores duplicates / junk; modelUrl prefers HD and rejects unknown kits', () => {
   const idx = buildClipIndex([{ name: 'f.glb/animation/0', resource: { name: 'mv_run' } }, { name: 'f.glb/animation/1', resource: { name: 'mv_run' } }, { name: 'plain' }, null, {}]);
   assert.deepEqual([...idx.keys()].sort(), ['mv_run', 'plain']); assert.equal(buildClipIndex(null).size, 0);
-  assert.match(modelUrl('football'), /football_hd\.glb$/); assert.match(modelUrl('football', false), /football\.glb$/); assert.match(modelUrl('goalie'), /goalie\.glb$/); assert.throws(() => modelUrl('golf'));
+  assert.match(modelUrl('football'), /football_hd\.glb$/); assert.match(modelUrl('football', false), /football\.glb$/); assert.match(modelUrl('goalie'), /goalie_hd\.glb$/); assert.throws(() => modelUrl('golf'));
 });
 test('world mapping: yards/feet to metres, sim +y -> world -Z, facing in degrees', () => {
   assert.deepEqual(worldFromSim('nfl', 10, 5, 2).map(v => +v.toFixed(3)), [9.144, 2, -4.572]); assert.deepEqual(worldFromSim('nhl', 100, 42.5).map(v => +v.toFixed(3)), [30.48, 0, -12.954]);

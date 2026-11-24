@@ -16,6 +16,7 @@ for (const [sport, route, start] of [['nfl', '#play', true], ['nhl', '#rink', fa
   if (sport !== 'mlb') {   // live LOD: switch to Low through the same storage event the menu uses
     await f.evaluate(() => { localStorage.setItem('asu_3d_quality', 'low'); window.dispatchEvent(new StorageEvent('storage', { key: 'asu_3d_quality' })); });
     let lo = null; for (let i = 0; i < 30; i++) { await page.waitForTimeout(2000); lo = await meas(); if (lo.ready && lo.hd === false) break; }
+    await page.waitForTimeout(2500); lo = await meas();   // athletes are re-assigned on the first frame after the swap
     check(`${sport}: switching to Low swaps athletes to low-poly live (triangles < ${LOW_TRIS / 1000}k, athletes still on the field)`, lo.ready && lo.hd === false && lo.tris < LOW_TRIS && lo.ath >= (sport === 'nfl' ? 22 : 10), JSON.stringify(lo));
     await f.evaluate(() => { localStorage.setItem('asu_3d_quality', 'high'); window.dispatchEvent(new StorageEvent('storage', { key: 'asu_3d_quality' })); });
     let hi = null; for (let i = 0; i < 30; i++) { await page.waitForTimeout(2000); hi = await meas(); if (hi.ready && hi.hd === true) break; }
