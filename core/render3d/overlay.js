@@ -22,7 +22,7 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
       stage = s; const [w, h] = size(); stage.resize(w, h);
       if (createRenderer) { renderer = await createRenderer(stage, canvas3d); if (my !== token || disposed) { renderer.dispose?.(); renderer = null; stage.dispose(); stage = null; canvas3d?.remove(); canvas3d = null; return; } }
       ro = new ResizeObserver(() => { const [a, b] = size(); stage?.resize(a, b); }); ro.observe(wrap);
-      window.__asu3dRenderer = renderer;   // test hook
+      window.__asu3dRenderer = renderer; window.__asu3dStage = stage.app;   // test hooks
       window.__asu3d = { sport, version: stage.pc.version, device: stage.app.graphicsDevice.deviceType, quality: stage.quality.level, mounts: (window.__asu3d?.mounts || 0) + 1 };
     } catch (e) { console.error('3D mode failed:', e); leave(); note('Não foi possível iniciar o 3D. Voltando ao 2D.'); onFallback(); }
   }
