@@ -23,9 +23,10 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage;
   let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, ballE = null;
   const slot = new Map(), acts = new Map(), wall = () => performance.now() / 1000;
+  let hdOn = stage.quality?.level !== 'low';   // LOD by quality (HD player ~4 000 triangles, low-poly ~620)
   async function init() {
     factory = createAthleteFactory(stage, { base }); field = createDiamond(stage);
-    for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { name: 'p' + i }); a.entity.enabled = false; pool.push(a); }
+    for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { hd: hdOn, name: 'p' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); pool.push(a); }
     const m = new pc.StandardMaterial(); m.diffuse = new pc.Color(1, 1, 1); m.update(); ballE = new pc.Entity('ball'); ballE.addComponent('render', { type: 'sphere', material: m, castShadows: true }); ballE.setLocalScale(0.16, 0.16, 0.16); stage.root.addChild(ballE); ballE.mat = m;
     ready = true;
   }
@@ -59,8 +60,9 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     for (const [e, kind] of items) {
       if (!e || e.id == null) continue; present.add(e.id);
       let a = slot.get(e.id); if (!a) { a = pool.find(x => !x.used); if (!a) continue; a.used = true; slot.set(e.id, a); a.entity.enabled = true; }
-      const team = state[e.team] || {}, tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; }
-      const px = e.px ?? e.x, py = e.py ?? e.y; a.e = e; a.setPosition('mlb', lerp(px, e.x, k), lerp(py, e.y, k)); a.setFacing(e.facing ?? 0);
+      const team = state[e.team] || {}, tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; a.idk = ''; }
+      const px = e.px ?? e.x, py = e.py ?? e.y; a.e = e; a.setPartVisible('asu_bat', kind === 'batter');
+      if (a.idk !== `${e.num}|${e.last}`) { a.idk = `${e.num}|${e.last}`; a.setIdentity?.({ number: e.num, name: e.last, jersey: team.color }); } a.setPosition('mlb', lerp(px, e.x, k), lerp(py, e.y, k)); a.setFacing(e.facing ?? 0);
       const role = roleOf(e, kind), speed = (Math.hypot(e.x - px, e.y - py) * 30) / 3, want = playerClip(e, role, { speed, hasBall: state.ball?.holder === e.id }, actOf(e.id, state));
       if (a.has(want.clip) && (want.oneShot ? a.token !== want.token : a.clip !== want.clip)) { a.play(want.clip, { loop: want.loop, blend: want.oneShot ? 0.06 : 0.15 }); a.token = want.token || null; }
     }
@@ -81,7 +83,12 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     pick(px, py) { let best = null, bd = 34; for (const a of pool) { if (!a.e) continue; const s = project(a); if (!s) continue; const d = Math.hypot(s.x - px, s.y - py); if (d < bd) { bd = d; best = a.e; } } return best; },
     beginReplay(sim) { replaying = true; simRef = sim; evIdx = 0; acts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     replayInfo: () => ({ replaying, evIdx, t: replayT }),
-    get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
+    async setQuality(level) {
+      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false; const old = pool; pool = [];
+      for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { hd: hdOn, name: 'p' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); pool.push(a); }
+      old.forEach(a => a.dispose()); slot.clear(); simRef = null; ready = true;
+    },
+    get hd() { return hdOn; }, get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     dispose() { crowd?.dispose(); field?.dispose(); ballE?.destroy(); ballE?.mat?.destroy(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
   };
 }

@@ -10,7 +10,7 @@ export const MODELS = Object.freeze({
   hockey: { hd: 'assets/models3d/hockey_hd.glb', lo: 'assets/models3d/hockey.glb' },
   goalie: { lo: 'assets/models3d/goalie.glb' },
   ref: { lo: 'assets/models3d/ref.glb' },
-  baseball: { lo: 'assets/models3d/baseball.glb' },
+  baseball: { hd: 'assets/models3d/baseball_hd.glb', lo: 'assets/models3d/baseball.glb' },
 });
 export const ZONES = ['asu_jersey', 'asu_pants', 'asu_skin', 'asu_boots', 'asu_helmet', 'asu_trim', 'asu_accent', 'asu_dark'];   // zones are matched by material NAME (guarded by tests/models3d.test.mjs)
 export const modelUrl = (kit, hd = true, base = '/') => { const m = MODELS[kit]; if (!m) throw new Error(`unknown 3D kit "${kit}"`); return base + ((hd && m.hd) || m.lo); };
@@ -86,6 +86,8 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
         return true;
       },
       get decals() { return !!dec; },
+      // show / hide the mesh parts that use a given material (e.g. the bat 'asu_bat': only the batter holds it). Returns how many parts were found.
+      setPartVisible(materialName, visible) { let n = 0; entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { if (mi.material?.name === materialName) { mi.visible = !!visible; n++; } })); return n; },
       setTeam(color, color2) { jerseyCss = color; if (dec) { decKey = ''; } const z = zoneColors(kit, color, color2); entity.findComponents('render').forEach(r => r.meshInstances.forEach(mi => { const n = mi.material?.name; /* clones keep the zone name */ if (z[n]) mi.material = tinted(mi.material, n, z[n]); })); },
       dispose() { if (dec) for (const d of Object.values(dec)) if (d) { d.tex.destroy(); d.mat.destroy(); } entity.destroy(); },
     };

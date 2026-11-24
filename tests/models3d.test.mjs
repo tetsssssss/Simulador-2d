@@ -11,7 +11,7 @@ test('every 3D model file exists, is skinned (11 joints), has the team-colour zo
   for (const [kit, files] of Object.entries(MODELS)) for (const [lod, path] of Object.entries(files)) {
     const j = glb(path), names = new Set(j.animations.map(a => a.name)), joints = j.skins[0].joints.length;
     assert.equal(joints, 11, `${path} joints`); assert.ok(j.animations.length >= 147, `${path}: ${j.animations.length} animations`);
-    const mats = j.materials.map(m => m.name); assert.ok(mats.includes('asu_jersey') && mats.includes('asu_pants'), `${path} lacks the team-colour zones`); assert.ok(mats.every(n => ZONES.includes(n) || n === 'asu_metal'), `${path} unexpected material ${mats}`);
+    const mats = j.materials.map(m => m.name); assert.ok(mats.includes('asu_jersey') && mats.includes('asu_pants'), `${path} lacks the team-colour zones`); assert.ok(mats.every(n => ZONES.includes(n) || ['asu_metal', 'asu_leather', 'asu_bat'].includes(n)), `${path} unexpected material ${mats}`);
     for (const k of PLAN_KIT[kit]) for (const pg of plan.kits[k].pages) for (const c of pg.clips) assert.ok(names.has(c), `${path} lacks clip "${c}" used by atlas ${k}`);
   }
 });
