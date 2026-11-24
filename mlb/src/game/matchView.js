@@ -142,7 +142,7 @@ export function mountMatch(root, deps = {}) {
   const replay = createInstantReplay({ seconds: 7, after: 2.2, adapter: { snap: S => ({ t: S.t, lists: { fielders: S.fielders || [], runners: S.runners || [] }, objs: { batter: S.batter, ball: S.ball } }), build: (S, l, o, t) => ({ ...S, fielders: l.fielders, runners: l.runners, batter: o.batter, ball: o.ball, t }) } });
   const replayUi = mountReplayControls(root.querySelector('.mlb-field-wrap2'), { onReplay: () => view.state && !view.simming && replay.now(view.state), onSkip: () => replay.skip() });
   // two-finger pinch = next camera on the ladder (closest -> widest), through the same buttons the user taps
-  const un3d = mount3dOverlay({ canvas, sport: 'mlb', onFallback: () => { pref.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
+  const un3d = mount3dOverlay({ canvas, sport: 'mlb', createRenderer: (stage, c3d) => import('../field/fieldRenderer3d.js').then(m => m.createMlbRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { pref.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['INFIELD', 'BROADCAST', 'TACTICAL', 'FULL'], pref.camera, s); root.querySelector(`#camSeg [data-cam="${next}"]`)?.click(); });
   function frame(ts) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
@@ -152,6 +152,7 @@ export function mountMatch(root, deps = {}) {
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); drawPitchInfo(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
     const rp = view.state && !view.simming ? replay.step(dt, view.state) : null; replayUi.sync(!!rp, !!view.state && !view.simming);
     if (view.state) renderer.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, cameraTarget: view.engine?.cameraTarget?.(pref.camera), showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state) un3d.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { camera: pref.camera, selected: view.selected });   // 3D mode (no-op otherwise)
     drainEvents();
     pres.engine?.tick(dt);
     if (view.engine?.state.over && !view.finalShown && !view.simming) showFinalCard();
@@ -178,7 +179,7 @@ export function mountMatch(root, deps = {}) {
     } catch { return ''; }
   }
   canvas.addEventListener('click', ev => {
-    const r = canvas.getBoundingClientRect(); const e = renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
+    const r = canvas.getBoundingClientRect(); const e = un3d.active ? un3d.pick(ev.clientX - r.left, ev.clientY - r.top) : renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
     view.selected = e && view.selected !== e.id ? e.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
