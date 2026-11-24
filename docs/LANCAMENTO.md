@@ -1,6 +1,6 @@
 # Lançamento (Etapa 9): Android, instalação, desempenho e direitos
 
-Estado em 2026-11-17. O que está **feito e testado aqui** está marcado ✅; o que **só você consegue fazer ou confirmar** está marcado 👤; riscos jurídicos estão em 4.
+Estado em 2026-11-24 (seção 5 = modo 3D). O que está **feito e testado aqui** está marcado ✅; o que **só você consegue fazer ou confirmar** está marcado 👤; riscos jurídicos estão em 4.
 
 ## 1. Como instalar no Android hoje (sem loja)
 
@@ -46,3 +46,26 @@ Não é parecer jurídico: é um mapa dos pontos de atenção para levar a um ad
 | **Dados pessoais** | tudo fica no aparelho (localStorage); nada é enviado | Sem coleta de dados pelo jogo. Se hospedar com analytics/anúncios, a LGPD passa a valer: política de privacidade. |
 
 Recomendação prática para uma versão pública: modo "genérico" com times/jogadores fictícios (o importador de elencos e o editor de avatares já permitem), mantendo o modo com dados reais só para uso pessoal.
+
+## 5. Modo 3D (PlayCanvas) — como usar, desempenho e o que não está no Android
+
+**O que é:** um modo visual extra, "3D (PlayCanvas)", no menu *Visual* dos 3 esportes. Reaproveita os mesmos motores de simulação (mesma seed ⇒ mesmos lances, testado). O 2D, o PWA e o APK continuam como estavam.
+
+**Como usar:** abra uma partida → menu *Visual* → **3D (PlayCanvas)**. Sem WebGL2 o jogo volta sozinho para o 2D com um aviso. A engine (2,9 MB, MIT) e os modelos (1–3 MB cada) só são baixados na primeira vez que o 3D é usado e depois ficam em cache (funciona offline depois disso).
+
+**Opções (menu 🔊):**
+| Opção | Valores | Efeito |
+|---|---|---|
+| **Qualidade 3D** | Auto (padrão) / Baixa / Média / Alta | Baixa: sem sombras, pixel ratio 1, atletas low-poly. Auto começa em Média e **desce sozinha** se o tempo médio de quadro passar de 28 ms (sobe só com folga). |
+| **FPS do 3D** | 30 / 45 / 60 (padrão) / 75 / 90 / 100 | Teto de quadros por segundo; a GPU fica ociosa nos quadros pulados (menos calor e bateria). O monitor limita o máximo real. |
+| **Mostrar FPS** | liga/desliga | Mede o desempenho real (use isto para me passar os números). |
+| Botão 🌗 **Luz** (NFL) | dia → tarde → noite | Iluminação, névoa e refletores. |
+| Clima | Auto / Limpo / Chuva / Neve / Neblina | Mesmo clima do 2D, sobre o 3D. |
+
+**O que foi medido aqui (software, sem GPU — fps NÃO representativo):** triângulos por quadro: NFL 320 mil em Alta / 70 mil em Baixa; NHL 123 mil / 9 mil; MLB 7 mil. Nenhum número de fps de GPU real foi medido.
+
+**Android/APK:** o 3D **não foi testado em celular** e **não foi incluído como alvo do APK** (decisão registrada no plano: o jogo normal no Android permanece como está). No navegador do celular (PWA) o modo existe e cai para o 2D sem WebGL2; recomendo testar com Qualidade Auto e FPS 30 antes de confiar.
+
+**👤 Só você consegue:** (1) medir fps no PC (RX 6600) por nível de qualidade e me passar; (2) testar o 3D no celular, se quiser; (3) decidir se o 3D entra num futuro APK; (4) licenças: PlayCanvas Engine é MIT (arquivo em `vendor/playcanvas/LICENSE`); os modelos 3D HD vêm do Meshy (ver seção 4).
+
+**Limites conhecidos do 3D:** sem banco de reservas/dugouts/bullpen; sem torcida no NHL e MLB; atletas HD sem textura/rosto, com franjas no colarinho/mangas; replay do NHL/MLB sem os ganchos do NFL; sem bloom; LOD só por qualidade (não por distância); telão e luz automática por quarto não feitos.
