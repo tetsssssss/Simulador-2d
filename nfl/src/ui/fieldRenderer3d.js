@@ -16,7 +16,7 @@ const wall = () => performance.now() / 1000;
 
 export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc, app } = stage, wrap = canvas3d.parentElement;
-  let factory = null, field = null, stadium = null, lookName = (() => { try { const v = localStorage.getItem('asu_3d_look'); return LOOK_MODES.includes(v) ? v : 'auto'; } catch { return 'auto'; } })(), shownLook = '', pool = [], ref = null, ready = false, initP = null;
+  let factory = null, field = null, stadium = null, bench = [], benchCheer = null, benchKey = '', lookName = (() => { try { const v = localStorage.getItem('asu_3d_look'); return LOOK_MODES.includes(v) ? v : 'auto'; } catch { return 'auto'; } })(), shownLook = '', pool = [], ref = null, ready = false, initP = null;
   let lastHk = null, simRef = null, evIdx = 0, replaying = false, teamKey = '', cam = null, last = 0, tintKey = '';
   const acts = new Map(), contacts = new Map(), byId = new Map(); let refAct = null, refUntil = 0;
   const labels = document.createElement('div'); labels.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3;font:700 11px system-ui,sans-serif'; wrap.appendChild(labels);
@@ -42,6 +42,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     stadium = createStadium(stage, { density: { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8 }); applyLook(stage, shownLook = lookFor3d(opts), stadium.floods, fogMul);
     const sc = sideColors(t.off, t.def);
     for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
+    for (let i = 0; i < 14; i++) { const a = await factory.spawn('football', { hd: false, name: `b${i}` }); a.play('mv_idle'); a.entity.enabled = false; bench.push(a); }   // sideline reserves: low-poly (cheap)
     ready = true;
   }
   const label = a => { if (!a.label) { const s = document.createElement('span'); s.style.cssText = 'position:absolute;transform:translate(-50%,-100%);padding:0 4px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;white-space:nowrap'; labels.appendChild(s); a.label = s; } return a.label; };
@@ -59,7 +60,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
     for (; evIdx < ev.length; evIdx++) {
       const e = ev[evIdx]; if (replaying && e.t > (sim.t ?? 0)) break;
-      if (e.type === 'WHISTLE') { for (const [id, A] of acts) if (A.loop) acts.delete(id); if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: sim.t ?? 0, dur: 1.6, loop: true }); stadium?.cheer(1); }
+      if (e.type === 'WHISTLE') { for (const [id, A] of acts) if (A.loop) acts.delete(id); if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: sim.t ?? 0, dur: 1.6, loop: true }); stadium?.cheer(1); benchCheer = { team: lastOpts?.teams?.off, t0: wall() }; }
       for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop });
       if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
       const sg = e.type === 'PENALTY' ? buildPenalty(e.foul, sim, { by: e.by, on: e.on, now: wall() }) : SIGNALS[e.type] ? buildSignal(e.type, sim, { now: wall() }) : null;
@@ -79,6 +80,23 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
   }
 
   let lastOpts = null;
+  // Sideline reserves (same rule as the 2D renderer): up to 7 per team, HOME on the near sideline, AWAY on the far one, following the ball, cheering 3 s after their team scores.
+  function drawBench(sim, opts) {
+    const rows = opts.bench, T = opts.teams; if (!rows || !T?.home) { bench.forEach(a => { a.entity.enabled = false; }); return; }
+    const bx = sim.ball?.pos?.x ?? sim.losX ?? 60, sc = sideColors(T.off, T.def), key = `${T.off}|${T.def}|${T.home}`, now = wall(); let n = 0;
+    for (const [abbr, y, facing] of [[T.home, -2.6, Math.PI / 2], [T.away, 53.33 + 2.6, -Math.PI / 2]]) {
+      const side = abbr === T.off ? 'off' : 'def';
+      for (const [i, p] of (rows[abbr] || []).slice(0, 7).entries()) {
+        const a = bench[n++]; if (!a) break; a.entity.enabled = true;
+        if (a.bkey !== key + side) { a.setTeam(...sc[side]); a.bkey = key + side; }
+        a.setPosition('nfl', Math.max(14, Math.min(106, bx - 6 + i * 2.1)), y); a.setFacing(facing);
+        const cheering = benchCheer && benchCheer.team === abbr && now - benchCheer.t0 < 3, want = cheering ? 'gs_arms_up' : 'mv_idle';
+        if (a.clip !== want && a.has(want)) a.play(want, { loop: !cheering, blend: 0.15 });
+      }
+    }
+    for (; n < bench.length; n++) bench[n].entity.enabled = false;
+    benchKey = key;
+  }
   function render(sim, alpha, opts = {}) {
     lastOpts = opts;
     if (!ready) { initP ||= init(opts).catch(e => { console.error('3D renderer init failed', e); }); return; }
@@ -100,6 +118,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
       }
     }
     { const want = lookFor3d(opts); if (stadium && want !== shownLook) { shownLook = want; applyLook(stage, want, stadium.floods, fogMul); } stadium?.setBoard(opts.game); }
+    drawBench(sim, opts);
     showRef(sim); stadium?.update(dt, wall()); drawWeather(opts, dt);
     const bp = ballPlacement(sim); if (bp) field.setBall(bp.x, bp.y, bp.z, (bp.yaw * 180) / Math.PI); else field.hideBall();
     // camera: preset target, smoothed
@@ -137,13 +156,13 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
       for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
       old.forEach(a => { a.label?.remove(); a.dispose(); }); byId.clear(); simRef = null; tintKey = ''; ready = true;
     },
-    get hd() { return hdOn; },
+    get hd() { return hdOn; }, benchInfo: () => ({ n: bench.filter(a => a.entity.enabled).length, pos: bench.filter(a => a.entity.enabled).map(a => { const p = a.entity.getPosition(); return [p.x, p.z]; }), cheering: bench.filter(a => a.clip === 'gs_arms_up').length }),
     get ready() { return ready; },
     setLook(n) { if (!LOOK_MODES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) { shownLook = n === 'auto' ? lookByQuarter(lastOpts?.game?.quarter || 1) : n; applyLook(stage, shownLook, stadium.floods, fogMul); } return true; },
     get shownLook() { return shownLook; },
     get look() { return lookName; }, weather: () => wxKind, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length, board: stadium.boardKey() },
     cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     athletes: () => pool,
-    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); wxCv.remove(); factory?.dispose(); },
+    dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); bench.forEach(a => a.dispose()); bench = []; pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); wxCv.remove(); factory?.dispose(); },
   };
 }
