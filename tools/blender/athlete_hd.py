@@ -126,6 +126,7 @@ def skin_mesh(obj, rig, vinfo, power=5.0):
 def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=True, skin=None):
     skin_i = skin if skin is not None else skin_i
     c = {'jersey': (0.04, 0.16, 0.44), 'pants': (0.92, 0.92, 0.95), 'helmet': (0.92, 0.92, 0.95), 'trim': (0.95, 0.95, 0.95), 'boots': (0.07, 0.07, 0.08)}; c.update(colors or {})
+    if kit == 'ref': c.update(jersey=(0.96, 0.96, 0.96), pants=(0.06, 0.06, 0.07), helmet=(0.05, 0.05, 0.06), trim=(0.96, 0.96, 0.96), boots=(0.04, 0.04, 0.05), accent=(0.05, 0.05, 0.06))   # fixed uniform: black cap / pants, white shirt
     k = {0: 0.92, 1: 1.0, 2: 1.14}[build]; sk = SKINS[skin_i % len(SKINS)]
     M = lambda n, rgb, rough=0.7: _material(f'asu_{n}', rgb, rough)
     for n, rgb in (('jersey', c['jersey']), ('pants', c['pants']), ('skin', sk), ('boots', c['boots']), ('helmet', c['helmet']), ('trim', c['trim'])): M(n, rgb)
@@ -133,7 +134,10 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     P = Parts(); hock = kit in ('hockey', 'goalie'); fb = kit == 'football'; bb = kit == 'baseball'
     # ---- torso (jersey): hips -> shoulders, V taper; hockey sweater is looser and longer ----
     loose = 1.12 if hock else 1.0; low = HIP_Z - (0.12 if hock else 0.06)
-    P.add(loft_z([(low, 0, 0, 0.14 * k * loose, 0.2 * k * loose), (HIP_Z + 0.14, 0, 0, 0.128 * k * loose, 0.19 * k * loose), (HIP_Z + 0.30, 0, 0, 0.13 * k, 0.19 * k), (SH_Z - 0.14, 0, 0, 0.145 * k, 0.215 * k), (SH_Z - 0.04, 0, 0, 0.14 * k, 0.225 * k), (SH_Z + 0.02, 0, 0, 0.1 * k, 0.17 * k)], 20, (True, True)), 'spine', 'jersey', ('spine', 'hips'))
+    torso = loft_z([(low, 0, 0, 0.14 * k * loose, 0.2 * k * loose), (HIP_Z + 0.14, 0, 0, 0.128 * k * loose, 0.19 * k * loose), (HIP_Z + 0.30, 0, 0, 0.13 * k, 0.19 * k), (SH_Z - 0.14, 0, 0, 0.145 * k, 0.215 * k), (SH_Z - 0.04, 0, 0, 0.14 * k, 0.225 * k), (SH_Z + 0.02, 0, 0, 0.1 * k, 0.17 * k)], 20, (True, True))
+    P.add(torso, 'spine', 'jersey', ('spine', 'hips'))
+    if kit == 'ref':   # vertical black stripes (the classic referee shirt): copies of the torso faces in alternating bands across the body, lifted off the surface
+        P.add(split_faces(torso, lambda q: q.z > HIP_Z - 0.02 and int((q.y + 1.0) / 0.052) % 2 == 0, 1.012), 'spine', 'dark', ('spine', 'hips'))
     # ---- pelvis + legs (pants), knees, socks / shins, boots ----
     P.add(loft_z([(HIP_Z + 0.04, 0, 0, 0.12 * k, 0.19 * k), (HIP_Z - 0.10, 0, 0, 0.125 * k, 0.2 * k)], 20, (False, False)), 'hips', 'pants', ('hips', 'thigh_F', 'thigh_B', 'spine'))
     for s, y in (('F', -HIP_HALF), ('B', HIP_HALF)):
@@ -175,10 +179,11 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
         P.add(loft_x([(x, hy, zb + 0.016 * (x / 0.325) ** 2.2, 0.0105, 0.0445 - 0.012 * (x / 0.325) ** 2) for x in xs[1:6]], 8), 'fore_F', 'trim')      # tape wrap on the blade
         P.add(loft_z([(zb + 0.07, 0, hy, 0.0155, 0.012), (zb - 0.02, 0, hy, 0.022, 0.016)], 8, (True, True)), 'fore_F', 'dark')                         # hosel
     # ---- baseball: cap with a brim, leather glove, belt; the BAT is its own material (asu_bat) so the game can show it on the batter only ----
-    if bb:
+    if bb or kit == 'ref':
         cap = uvball((-0.008, 0, hz + 0.02), 0.123, 1.02, 0.98, 1.0, 40, 26); bmesh.ops.delete(cap, geom=[f for f in cap.faces if f.calc_center_median().z < (hz + 0.068 if f.calc_center_median().x > 0.02 else hz - 0.005)], context='FACES'); P.add(cap, 'head', 'helmet')
         P.add(ball((0.118, 0, hz + 0.07), 0.1, 0.9, 1.0, 0.1, 3), 'head', 'helmet')                                   # brim
         P.add(ball((-0.008, 0, hz + 0.158), 0.016, 1, 1, 0.8, 1), 'head', 'accent')                                    # cap button
+    if bb:
         P.add(ball((0.01, SH_HALF, SH_Z - 0.04 - UPPER - FORE - 0.06), 0.085, 0.65, 1.0, 1.05, 3), 'fore_B', 'leather')   # glove
         P.add(loft_z([(HIP_Z + 0.05, 0, 0, 0.1305 * k, 0.1945 * k), (HIP_Z + 0.02, 0, 0, 0.1305 * k, 0.1945 * k)], 20, (False, False)), 'spine', 'dark', ('spine', 'hips'))   # belt
         bz = SH_Z - 0.04 - UPPER - FORE - 0.04

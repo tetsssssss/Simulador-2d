@@ -9,7 +9,7 @@ export const MODELS = Object.freeze({
   football: { hd: 'assets/models3d/football_hd.glb', lo: 'assets/models3d/football.glb' },
   hockey: { hd: 'assets/models3d/hockey_hd.glb', lo: 'assets/models3d/hockey.glb' },
   goalie: { hd: 'assets/models3d/goalie_hd.glb', lo: 'assets/models3d/goalie.glb' },
-  ref: { lo: 'assets/models3d/ref.glb' },
+  ref: { hd: 'assets/models3d/ref_hd.glb', lo: 'assets/models3d/ref.glb' },
   baseball: { hd: 'assets/models3d/baseball_hd.glb', lo: 'assets/models3d/baseball.glb' },
 });
 export const ZONES = ['asu_jersey', 'asu_pants', 'asu_skin', 'asu_boots', 'asu_helmet', 'asu_trim', 'asu_accent', 'asu_dark'];   // zones are matched by material NAME (guarded by tests/models3d.test.mjs)

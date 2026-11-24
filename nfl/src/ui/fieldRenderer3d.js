@@ -71,7 +71,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
 
   async function showRef(sim) {
     if (!refAct || wall() > refUntil) { if (ref) ref.entity.enabled = false; return; }
-    if (!ref) { ref = await factory.spawn('ref', { hd: false, name: 'ref' }); }
+    if (!ref) { ref = await factory.spawn('ref', { hd: hdOn, name: 'ref' }); }
     if (!refAct || wall() > refUntil) { ref.entity.enabled = false; return; }   // the signal ended while the model was loading
     ref.entity.enabled = true; const r = refAct.ref; ref.setPosition('nfl', r.pos.x, r.pos.y); ref.setFacing(r.facing || 0);
     const A = refAct.actions.find(a => a.who === REF_ID), now = wall(); let cur = A;
@@ -151,7 +151,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; },
     // Quality changed (user or auto): Low swaps the 22 athletes to the low-poly models (and back), keeping the simulation binding.
     async setQuality(level) {
-      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false;
+      const want = level !== 'low'; if (!ready || want === hdOn) return; hdOn = want; ready = false; if (ref) { ref.dispose(); ref = null; }
       const old = pool, sc = sideColors(simRef ? lastOpts?.teams?.off : null, simRef ? lastOpts?.teams?.def : null); pool = [];
       for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
       old.forEach(a => { a.label?.remove(); a.dispose(); }); byId.clear(); simRef = null; tintKey = ''; ready = true;
