@@ -31,16 +31,25 @@ export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], awa
   const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseVertexColor = true; mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
   const crowd = new pc.Entity('crowd'); crowd.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false, receiveShadows: false }); root.addChild(crowd);
 
-  // concrete bowl under the crowd: one box per stand
+  // concrete bowl under the crowd: ALL stepped slabs merged into one mesh (1 draw call instead of 56)
   const conc = new pc.StandardMaterial(); conc.diffuse = new pc.Color(0.42, 0.43, 0.46); conc.gloss = 0.05; conc.update();
-  const parts = [];
-  const box = (cx, cy, cz, sx, sy, sz) => { const e = new pc.Entity('stand'); e.addComponent('render', { type: 'box', material: conc, castShadows: false, receiveShadows: true }); e.setLocalScale(sx, sy, sz); e.setPosition(cx, cy, cz); root.addChild(e); parts.push(e); };
+  const CP = [], CN = [], CI = [];
+  const pushBox = (cx, cy, cz, sx, sy, sz) => {
+    const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+    for (const [n, u, v] of [[[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]], [[1, 0, 0], [0, 0, -1], [0, 1, 0]], [[-1, 0, 0], [0, 0, 1], [0, 1, 0]], [[0, 1, 0], [1, 0, 0], [0, 0, -1]], [[0, -1, 0], [1, 0, 0], [0, 0, 1]]]) {
+      const b0 = CP.length / 3;
+      for (const [a1, d1] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) CP.push(cx + n[0] * hx + (u[0] ? u[0] * a1 * hx : 0) + (v[0] ? v[0] * d1 * hx : 0), cy + n[1] * hy + (u[1] ? u[1] * a1 * hy : 0) + (v[1] ? v[1] * d1 * hy : 0), cz + n[2] * hz + (u[2] ? u[2] * a1 * hz : 0) + (v[2] ? v[2] * d1 * hz : 0)), CN.push(...n);
+      CI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);
+    }
+  };
   const R = STAND.rows, RH = STAND.rowH, RD = STAND.rowD;
-  for (let r = 0; r < R; r++) {   // one stepped slab per row, so the heads sit ON the steps
+  for (let r = 0; r < R; r++) {
     const h = (r + 1) * RH, off = STAND.gapSide + r * RD + RD / 2, offE = STAND.gapEnd + r * RD + RD / 2;
-    box(54.85, h / 2, off, 120, h, RD); box(54.85, h / 2, -48.8 - off, 120, h, RD);
-    box(-offE, h / 2, -24.4, RD, h, 50); box(109.7 + offE, h / 2, -24.4, RD, h, 50);
+    pushBox(54.85, h / 2, off, 120, h, RD); pushBox(54.85, h / 2, -48.8 - off, 120, h, RD);
+    pushBox(-offE, h / 2, -24.4, RD, h, 50); pushBox(109.7 + offE, h / 2, -24.4, RD, h, 50);
   }
+  const cmesh = new pc.Mesh(app.graphicsDevice); cmesh.setPositions(CP); cmesh.setNormals(CN); cmesh.setIndices(CI); cmesh.update();
+  const bowl = new pc.Entity('bowl'); bowl.addComponent('render', { meshInstances: [new pc.MeshInstance(cmesh, conc)], castShadows: false, receiveShadows: true }); root.addChild(bowl); const parts = [bowl];
 
   // floodlights: 4 spots at the corners (enabled by the look)
   const floods = [];
@@ -51,6 +60,6 @@ export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], awa
     floods, seats: seats.length, crowd,
     cheer(v = 1) { cheer = Math.max(cheer, v); },
     update(dt, t) { cheer = Math.max(0, cheer - dt * 0.7); crowd.setLocalPosition(0, Math.abs(Math.sin(t * 9)) * 0.22 * cheer, 0); },
-    dispose() { crowd.destroy(); parts.forEach(p => p.destroy()); floods.forEach(f => f.destroy()); mesh.destroy(); mat.destroy(); conc.destroy(); },
+    dispose() { crowd.destroy(); parts.forEach(p => p.destroy()); floods.forEach(f => f.destroy()); mesh.destroy(); cmesh.destroy(); mat.destroy(); conc.destroy(); },
   };
 }

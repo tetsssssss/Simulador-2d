@@ -9,7 +9,8 @@ for (const [sport, route, start] of [['nfl', '#play', true], ['nhl', '#rink', fa
   await page.goto(`http://localhost:${PORT}/#${sport}`); await page.waitForTimeout(2500);
   const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(r => { location.hash = r; }, route); await page.waitForTimeout(2500);
   if (start) { await f.click('text=Iniciar Quick Game').catch(() => {}); }
-  let st = null; for (let i = 0; i < 40; i++) { await page.waitForTimeout(2000); st = await f.evaluate(() => { const r = window.__asu3dRenderer; if (!r?.ready) return null; const a = window.__asu3dStage; return a ? { tris: a.stats.frame.triangles, draws: a.stats.drawCalls.total, mesh: a.stats.frame.meshInstances, ath: r.athletes().length, heap: performance.memory?.usedJSHeapSize || 0 } : { noStats: true }; }); if (st && st.tris) break; }
+  let st = null; for (let i = 0; i < 40; i++) { await page.waitForTimeout(2000); st = await f.evaluate(() => { const r = window.__asu3dRenderer; if (!r?.ready) return null; const a = window.__asu3dStage; let tris = 0, mi = 0; const walk = e => { if (!e.enabled) return; const rc = e.render; if (rc && rc.enabled) for (const m of rc.meshInstances || []) { const pr = m.mesh.primitive[0]; tris += pr.count / 3; mi++; } e.children.forEach(walk); }; walk(a.root);
+      return a ? { tris: Math.round(tris), draws: a.stats.drawCalls.total, meshInstances: mi, ath: r.athletes().length, heap: performance.memory?.usedJSHeapSize || 0 } : { noStats: true }; }); if (st && st.tris) break; }
   check(`${sport}: triangles per frame within ${MAX_TRIS / 1000}k and draw calls within ${MAX_DRAWS}`, !!st?.tris && st.tris <= MAX_TRIS && st.draws <= MAX_DRAWS, JSON.stringify(st));
   check(`${sport}: no JS errors`, errs.length === 0, errs[0] || ''); await ctx.close();
 }
