@@ -61,7 +61,7 @@ export function createAthleteFactory(stage, { base = '/' } = {}) {
     const states = new Set(); let current = null;
     // Identity decals (back number + name, chest number, face plate), created on the first setIdentity() call; the rig has no UVs so they are quads on the bones.
     let dec = null, decKey = '', jerseyCss = color;
-    const spec = DECAL_SPECS[kit] || {};
+    const spec = DECAL_SPECS[cloth && DECAL_SPECS[kit + '_hd'] ? kit + '_hd' : kit] || {};   // own-HD goalie has a slimmer chest protector than the low-poly one
     function makeDecal(def, cv, order) {
       const bone = entity.findByName(def.bone); if (!bone) return null;
       const tex = new pc.Texture(stage.app.graphicsDevice, { width: 8, height: 8, format: pc.PIXELFORMAT_RGBA8, mipmaps: true, minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR });

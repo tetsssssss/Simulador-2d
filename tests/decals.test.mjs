@@ -9,6 +9,6 @@ test('cleanNumber / shortName', () => {
   assert.equal(shortName('Patrick Mahomes II'), 'MAHOMES'); assert.equal(shortName('Odell Beckham Jr.'), 'BECKHAM'); assert.equal(shortName(''), ''); assert.equal(shortName('Christian McCaffrey', 8), 'MCCAFFRE');
 });
 test('decal specs: back and front numbers face outward on the right bones; the referee has none', () => {
-  for (const k of ['football', 'hockey', 'baseball', 'goalie']) { const d = DECAL_SPECS[k]; assert.equal(d.back.bone, 'spine'); assert.ok(d.back.pos[0] < 0 && d.front.pos[0] > 0 && d.back.yaw === -90 && d.front.yaw === 90, k); }
+  for (const k of ['football', 'hockey', 'baseball', 'goalie', 'goalie_hd']) { const d = DECAL_SPECS[k]; assert.equal(d.back.bone, 'spine'); assert.ok(d.back.pos[0] < 0 && d.front.pos[0] > 0 && d.back.yaw === -90 && d.front.yaw === 90, k); }
   assert.equal(DECAL_SPECS.ref.back, null);
 });

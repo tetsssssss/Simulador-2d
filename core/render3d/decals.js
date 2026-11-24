@@ -5,6 +5,7 @@ export const DECAL_SPECS = {
   football: { back: { bone: 'spine', pos: [-0.153, 0.29, 0], yaw: -90, size: [0.27, 0.23] }, front: { bone: 'spine', pos: [0.153, 0.34, 0], yaw: 90, size: [0.13, 0.115] }, face: null },
   hockey:   { back: { bone: 'spine', pos: [-0.153, 0.27, 0], yaw: -90, size: [0.28, 0.24] }, front: { bone: 'spine', pos: [0.153, 0.34, 0], yaw: 90, size: [0.13, 0.115] }, face: null },
   baseball: { back: { bone: 'spine', pos: [-0.22, 0.32, 0], yaw: -90, size: [0.38, 0.32] }, front: { bone: 'spine', pos: [0.22, 0.36, 0], yaw: 90, size: [0.16, 0.14] }, face: null },
+  goalie_hd: { back: { bone: 'spine', pos: [-0.197, 0.30, 0], yaw: -90, size: [0.30, 0.26] }, front: { bone: 'spine', pos: [0.197, 0.36, 0], yaw: 90, size: [0.12, 0.10] }, face: null },
   goalie:   { back: { bone: 'spine', pos: [-0.27, 0.30, 0], yaw: -90, size: [0.44, 0.38] }, front: { bone: 'spine', pos: [0.27, 0.36, 0], yaw: 90, size: [0.17, 0.15] }, face: null },
   ref:      { back: null, front: null, face: null },
 };
