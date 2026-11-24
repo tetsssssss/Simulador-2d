@@ -25,7 +25,7 @@ export function diamondCamera(preset, ball = null) {
 
 export function drawFieldTexture(cv) {
   const { x0, x1, y0, y1, ppf } = TEX; cv.width = Math.round((x1 - x0) * ppf); cv.height = Math.round((y1 - y0) * ppf);
-  const c = cv.getContext('2d'), X = x => (x - x0) * ppf, Y = y => (y - y0) * ppf, R = r => r * ppf;
+  const c = cv.getContext('2d'), X = x => (x - x0) * ppf, Y = y => (y1 - y) * ppf, R = r => r * ppf;
   c.fillStyle = '#2f7d32'; c.fillRect(0, 0, cv.width, cv.height);
   for (let y = y0; y < y1; y += 20) if (((y - y0) / 20) % 2 === 0) { c.fillStyle = 'rgba(255,255,255,.045)'; c.fillRect(0, Y(y), cv.width, R(20)); }   // mowing stripes
   const dirt = '#b98a58', dirtD = '#a67845';
