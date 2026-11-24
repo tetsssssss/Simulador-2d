@@ -9,9 +9,9 @@ test('fast frames raise it only after the cooldown and never above max', () => {
   const q = createAutoQuality({ start: 'low', cooldown: 200 }); assert.equal(feed(q, 8, 150), null); assert.equal(feed(q, 8, 100), 'medium'); assert.equal(feed(q, 8, 300), 'high'); assert.equal(feed(q, 8, 400), null);
   const c = createAutoQuality({ start: 'medium', cooldown: 100, max: 'medium' }); assert.equal(feed(c, 5, 400), null);
 });
-test('hitches / hidden tab frames and mixed frame times do not change the level', () => {
-  const q = createAutoQuality({ start: 'medium' }); assert.equal(feed(q, 1000, 500), null);
+test('isolated hitches do not change the level; a device that really runs at ~3 fps still steps down', () => {
+  const q = createAutoQuality({ start: 'medium' }); for (let i = 0; i < 600; i++) assert.equal(q.push(i % 50 === 0 ? 1000 : 16), null);
   for (let i = 0; i < 300; i++) assert.equal(q.push(i % 3 === 0 ? 40 : 16), null);   // 33 % slow < 60 %
-  assert.equal(q.level, 'medium');
+  assert.equal(q.level, 'medium'); assert.equal(feed(createAutoQuality({ start: 'medium' }), 340, 90), 'low');
 });
 test('readQualityMode defaults to auto without storage', () => { assert.equal(readQualityMode(), 'auto'); });

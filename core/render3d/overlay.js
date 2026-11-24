@@ -40,7 +40,7 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
   // The game loop calls these every frame / on clicks; they do nothing while the 3D mode is off.
   api.render = (sim, alpha, opts) => {
     if (!renderer) return; renderer.render(sim, alpha, opts);
-    const now = performance.now(); if (auto && lastT && stage) { const lvl = auto.push(now - lastT); if (lvl) { stage.setQuality(lvl); if (window.__asu3d) window.__asu3d = { ...window.__asu3d, quality: lvl, autoChanges: (window.__asu3d.autoChanges || 0) + 1 }; } } lastT = now;
+    const now = performance.now(); if (auto && lastT && stage && !document.hidden && now - lastT < 2000) { const lvl = auto.push(now - lastT); if (lvl) { stage.setQuality(lvl); if (window.__asu3d) window.__asu3d = { ...window.__asu3d, quality: lvl, autoChanges: (window.__asu3d.autoChanges || 0) + 1 }; } } lastT = now;
   };
   api.pick = (px, py) => (renderer?.pick ? renderer.pick(px, py) : null);
   api.beginReplay = sim => renderer?.beginReplay?.(sim); api.endReplay = sim => renderer?.endReplay?.(sim);
