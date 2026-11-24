@@ -4,7 +4,7 @@
 import { createAthleteFactory, worldFromSim } from '../../../core/render3d/athletes.js';
 import { createWeather, weatherPref } from '../../../core/render/weather.js';
 import { createStadium } from '../../../core/render3d/stadium.js';
-import { applyLook, LOOK_NAMES } from '../../../core/render3d/look.js';
+import { applyLook, LOOK_NAMES, LOOK_MODES, lookByQuarter } from '../../../core/render3d/look.js';
 import { createNflField, followStep } from '../../../core/render3d/nflField.js';
 import { actionsFor, huddlePose, contactPull, CONTACT_CLIPS, smooth01 } from './animationMap.js';
 import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
@@ -16,7 +16,7 @@ const wall = () => performance.now() / 1000;
 
 export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc, app } = stage, wrap = canvas3d.parentElement;
-  let factory = null, field = null, stadium = null, lookName = (() => { try { const v = localStorage.getItem('asu_3d_look'); return LOOK_NAMES.includes(v) ? v : 'day'; } catch { return 'day'; } })(), pool = [], ref = null, ready = false, initP = null;
+  let factory = null, field = null, stadium = null, lookName = (() => { try { const v = localStorage.getItem('asu_3d_look'); return LOOK_MODES.includes(v) ? v : 'auto'; } catch { return 'auto'; } })(), shownLook = '', pool = [], ref = null, ready = false, initP = null;
   let lastHk = null, simRef = null, evIdx = 0, replaying = false, teamKey = '', cam = null, last = 0, tintKey = '';
   const acts = new Map(), contacts = new Map(), byId = new Map(); let refAct = null, refUntil = 0;
   const labels = document.createElement('div'); labels.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:3;font:700 11px system-ui,sans-serif'; wrap.appendChild(labels);
@@ -34,11 +34,12 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
   const selRing = ring(1, 1, 1), carRing = ring(1, 0.78, 0.2);
 
   let hdOn = stage.quality?.level !== 'low';   // LOD by quality: HD athletes are 12 000 triangles each, the low-poly ones ~630
+  const lookFor3d = opts => (lookName === 'auto' ? lookByQuarter(opts?.game?.quarter || 1) : lookName);
   async function init(opts) {
     factory = createAthleteFactory(stage, { base });
     const t = opts.teams || {}, home = t.home || 'HOME', away = t.away || 'AWAY';
     field = await createNflField(stage, { homeColor: TEAM_COLORS[home] || '#0a2870', awayColor: TEAM_COLORS[away] || '#b3141d', homeAbbr: home, awayAbbr: away });
-    stadium = createStadium(stage, { density: { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8 }); applyLook(stage, lookName, stadium.floods);
+    stadium = createStadium(stage, { density: { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8 }); applyLook(stage, shownLook = lookFor3d(opts), stadium.floods, fogMul);
     const sc = sideColors(t.off, t.def);
     for (let i = 0; i < 22; i++) { const side = i < 11 ? 'off' : 'def', [c1, c2] = sc[side]; const a = await factory.spawn('football', { hd: hdOn, color: c1, color2: c2, name: `p${i}` }); a.play('mv_idle'); a.number = ''; pool.push(a); }
     ready = true;
@@ -98,6 +99,7 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
         if (Math.abs((a.speed || 1) - want.speed) > 0.04) { a.entity.anim.speed = want.speed; a.speed = want.speed; }
       }
     }
+    { const want = lookFor3d(opts); if (stadium && want !== shownLook) { shownLook = want; applyLook(stage, want, stadium.floods, fogMul); } stadium?.setBoard(opts.game); }
     showRef(sim); stadium?.update(dt, wall()); drawWeather(opts, dt);
     const bp = ballPlacement(sim); if (bp) field.setBall(bp.x, bp.y, bp.z, (bp.yaw * 180) / Math.PI); else field.hideBall();
     // camera: preset target, smoothed
@@ -137,8 +139,9 @@ export async function createNflRenderer3d(stage, { canvas3d, base = '/' } = {}) 
     },
     get hd() { return hdOn; },
     get ready() { return ready; },
-    setLook(n) { if (!LOOK_NAMES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) applyLook(stage, n, stadium.floods, fogMul); return true; },
-    get look() { return lookName; }, weather: () => wxKind, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length },
+    setLook(n) { if (!LOOK_MODES.includes(n)) return false; lookName = n; try { localStorage.setItem('asu_3d_look', n); } catch { /* private */ } if (stadium) { shownLook = n === 'auto' ? lookByQuarter(lastOpts?.game?.quarter || 1) : n; applyLook(stage, shownLook, stadium.floods, fogMul); } return true; },
+    get shownLook() { return shownLook; },
+    get look() { return lookName; }, weather: () => wxKind, stadiumInfo: () => stadium && { seats: stadium.seats, floods: stadium.floods.filter(f => f.enabled).length, board: stadium.boardKey() },
     cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
     athletes: () => pool,
     dispose() { labels.remove(); selRing.e.destroy(); carRing.e.destroy(); selRing.m.destroy(); carRing.m.destroy(); ref?.dispose(); pool.forEach(a => a.dispose()); pool = []; field?.dispose(); stadium?.dispose(); wxCv.remove(); factory?.dispose(); },

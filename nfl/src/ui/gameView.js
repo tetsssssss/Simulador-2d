@@ -104,7 +104,7 @@ export function mountGame(root, deps) {
   const crowd = nflStands({ home: g.home, away: g.away, homeColor: TEAM_COLORS[g.home] || '#1d4f91', awayColor: TEAM_COLORS[g.away] || '#a71930' });
   const renderer = createRenderer(canvas, { crowd });
   // Canvas resizes are tracked by the renderer (ResizeObserver + DPR watch); no window listener needed.
-  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, bench: benchRows(), huddle: huddleK(), camera: view.director ? view.dirShot : view.camera, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
+  const renderOpts = () => ({ debug: view.debug, zoom: view.zoom, highlights: view.highlights, follow: view.follow, photos: S().display.photos, visual: view.visual, selected: view.selected?.id, bench: benchRows(), huddle: huddleK(), game: { quarter: g.quarter, clock: clockStr(g.clock), home: g.home, away: g.away, homeScore: g.homeScore, awayScore: g.awayScore, over: !!g.over }, camera: view.director ? view.dirShot : view.camera, teams: { off: offAbbr(g), def: defAbbr(g), home: g.home, away: g.away } });
   // Pre-snap huddle: the offense gathers behind the ball for ~1.4 s (shorter at higher speeds), then breaks to its formation. The sim does not step meanwhile.
   const huddleOn = () => view.huddle && performance.now() - view.huddle.t0 < view.huddle.dur;
   const huddleK = () => (huddleOn() ? (performance.now() - view.huddle.t0) / view.huddle.dur : null);
@@ -434,7 +434,7 @@ export function mountGame(root, deps) {
   $('#camSeg').onclick = e => { const v = e.target.dataset.camera; if (v) { view.director = false; try { localStorage.setItem('asu_nfl_director', '0'); } catch { /* private */ } view.camera = view.camera === v ? null : v; syncControls(); } };
   const un3d = mount3dOverlay({ canvas, sport: 'nfl', createRenderer: (stage, c3d) => import('./fieldRenderer3d.js').then(m => m.createNflRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { view.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
   const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['close', 'medium', 'full'], view.zoom, s); root.querySelector(`#zoomSeg [data-zoom="${next}"]`)?.click(); });   // two-finger pinch = next zoom preset
-  $('#lightBtn').onclick = () => { const r = window.__asu3dRenderer; if (!r?.setLook) return; const L = ['day', 'dusk', 'night']; r.setLook(L[(L.indexOf(r.look) + 1) % 3]); };
+  $('#lightBtn').onclick = () => { const r = window.__asu3dRenderer; if (!r?.setLook) return; const L = ['auto', 'day', 'dusk', 'night']; r.setLook(L[(L.indexOf(r.look) + 1) % 4]); $('#lightBtn').textContent = '🌗 Luz: ' + { auto: 'auto', day: 'dia', dusk: 'tarde', night: 'noite' }[r.look]; };
   $('#dirBtn').onclick = () => { view.director = !view.director; try { localStorage.setItem('asu_nfl_director', view.director ? '1' : '0'); } catch { /* private */ } syncControls(); };
   $('#hlBtn').onclick = () => { view.highlights = !view.highlights; syncControls(); };
   $('#viewSeg').onclick = e => { const v = e.target.dataset.view; if (v) { view.debug = v === 'debug'; syncControls(); drawDebug(); drawPlayerCard(); } };

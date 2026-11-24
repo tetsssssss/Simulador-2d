@@ -5,6 +5,7 @@ export const LOOKS = {
   night: { sky: [0.03, 0.05, 0.1], ambient: [0.3, 0.34, 0.48], sun: { color: [0.92, 0.94, 1], intensity: 0.85, euler: [72, 24, 0] }, flood: 1,   fog: { color: [0.04, 0.06, 0.12], density: 0.0018 }, exposure: 1.15 },
 };
 export const LOOK_NAMES = Object.keys(LOOKS);
+export const LOOK_MODES = ['auto', ...LOOK_NAMES];   // 'auto' follows the quarter (default)
 export const lookFor = name => LOOKS[name] || LOOKS.day;
 // "auto" picks by game clock: Q1-Q2 day, Q3 dusk, Q4/OT night (pure, testable).
 export function lookByQuarter(q) { return q >= 4 ? 'night' : q === 3 ? 'dusk' : 'day'; }

@@ -12,6 +12,10 @@ const info = () => f.evaluate(() => ({ s: window.__asu3dRenderer?.stadiumInfo(),
 let i0 = await info(); check('stadium built with thousands of crowd seats, day look, floodlights off', i0.s?.seats > 3000 && i0.look === 'day' && i0.s.floods === 0, JSON.stringify(i0));
 await f.click('#camSeg button[data-camera="ENDZONE"]'); await page.waitForTimeout(6000);
 for (const n of ['day', 'dusk', 'night']) { await f.evaluate(n => window.__asu3dRenderer.setLook(n), n); await page.waitForTimeout(2500); if (OUT) await page.screenshot({ path: `${OUT}/look_${n}.png` }); }
+check('video board shows the score / quarter / clock of the game', /\|Q?1\|/.test(i0.s?.board || '') || /^[A-Z]+\|[A-Z]+\|0\|0\|1\|/.test((await info()).s?.board || ''), (await info()).s?.board);
+await f.evaluate(() => window.__asu3dRenderer.setLook('auto')); await page.waitForTimeout(1500);
+check('auto look in quarter 1 resolves to the day look', (await f.evaluate(() => window.__asu3dRenderer.shownLook)) === 'day');
+await f.evaluate(() => window.__asu3dRenderer.setLook('night')); await f.click('#camSeg button[data-camera="BROADCAST"]'); await page.waitForTimeout(6000); if (OUT) await page.screenshot({ path: `${OUT}/board_night.png` });
 const i1 = await info(); check('night look switches the four floodlights on', i1.look === 'night' && i1.s.floods === 4, JSON.stringify(i1));
 check('invalid look refused', (await f.evaluate(() => window.__asu3dRenderer.setLook('nope'))) === false);
 check('no JS errors', errs.length === 0, errs.slice(0, 2).join(' | '));
