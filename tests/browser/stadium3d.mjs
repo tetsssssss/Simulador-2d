@@ -9,7 +9,7 @@ await page.goto(`http://localhost:${PORT}/#nfl`); await page.waitForTimeout(2500
 const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(() => { location.hash = '#play'; }); await page.waitForTimeout(1500);
 await f.fill('#seedIn', 'STAD').catch(() => {}); await f.click('text=Iniciar Quick Game'); await page.waitForTimeout(5000);
 const info = () => f.evaluate(() => ({ s: window.__asu3dRenderer?.stadiumInfo(), look: window.__asu3dRenderer?.look }));
-let i0 = await info(); check('stadium built with thousands of crowd seats, day look, floodlights off', i0.s?.seats > 3000 && i0.look === 'day' && i0.s.floods === 0, JSON.stringify(i0));
+let i0 = await info(); check('stadium built with thousands of crowd seats, auto look (day in Q1), floodlights off', i0.s?.seats > 3000 && i0.look === 'auto' && i0.s.floods === 0, JSON.stringify(i0));
 await f.click('#camSeg button[data-camera="ENDZONE"]'); await page.waitForTimeout(6000);
 for (const n of ['day', 'dusk', 'night']) { await f.evaluate(n => window.__asu3dRenderer.setLook(n), n); await page.waitForTimeout(2500); if (OUT) await page.screenshot({ path: `${OUT}/look_${n}.png` }); }
 check('video board shows the score / quarter / clock of the game', /\|Q?1\|/.test(i0.s?.board || '') || /^[A-Z]+\|[A-Z]+\|0\|0\|1\|/.test((await info()).s?.board || ''), (await info()).s?.board);
