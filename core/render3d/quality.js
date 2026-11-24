@@ -12,5 +12,8 @@ export function qualitySettings(level = DEFAULT_QUALITY, devicePixelRatio = 1) {
   const q = table[level] || table[DEFAULT_QUALITY];
   return { level: table[level] ? level : DEFAULT_QUALITY, ...q, pixelRatio: Math.min(dpr, q.pixelRatioCap) };
 }
+export const QUALITY_MODES = ['auto', ...QUALITY_LEVELS];
+// 'auto' (default) starts at medium and lets autoQuality.js move between levels; any other value is a fixed level.
+export const readQualityMode = () => { try { const v = localStorage.getItem('asu_3d_quality'); return QUALITY_MODES.includes(v) ? v : 'auto'; } catch { return 'auto'; } };
 export const readQuality = () => { try { const v = localStorage.getItem('asu_3d_quality'); return QUALITY_LEVELS.includes(v) ? v : DEFAULT_QUALITY; } catch { return DEFAULT_QUALITY; } };
 export const supportsWebGL2 = (doc = typeof document !== 'undefined' ? document : null) => { try { return !!doc?.createElement('canvas').getContext('webgl2'); } catch { return false; } };
