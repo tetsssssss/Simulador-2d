@@ -111,6 +111,7 @@ def _seg_dist(p, a, b):
 def bake(parts, name='asu_athlete'):
     mesh = bpy.data.meshes.new(name); obj = bpy.data.objects.new(name, mesh); bpy.context.collection.objects.link(obj)
     bm = bmesh.new(); mats = {}; vinfo = []                       # per vertex: (bone, soft)
+    uvl = bm.loops.layers.uv.new('UVMap')
     for pbm, bone, mat, soft in parts.items:
         idx = mats.setdefault(mat, len(mats)); vmap = {}
         for v in pbm.verts: vmap[v] = bm.verts.new(v.co); vinfo.append((bone, soft))
@@ -119,6 +120,8 @@ def bake(parts, name='asu_athlete'):
             try: nf = bm.faces.new([vmap[v] for v in f.verts])
             except ValueError: continue
             nf.material_index = idx; nf.smooth = True
+            n = nf.normal; ax = max(range(3), key=lambda a: abs(n[a]))        # box projection in metres (1 UV = 0.5 m): same texel density everywhere -> a tiling fabric map fits every part
+            for lp in nf.loops: c = lp.vert.co; lp[uvl].uv = ((c.y, c.z), (c.x, c.z), (c.x, c.y))[ax][0] / 0.5, ((c.y, c.z), (c.x, c.z), (c.x, c.y))[ax][1] / 0.5
         pbm.free()
     bm.verts.index_update(); bm.to_mesh(mesh); bm.free()
     return obj, mats, vinfo
@@ -229,10 +232,6 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     obj, mats, vinfo = bake(P)
     for name, idx in sorted(mats.items(), key=lambda kv: kv[1]): obj.data.materials.append(bpy.data.materials[f'asu_{name}'])
     rig = _armature(); skin_mesh(obj, rig, vinfo)
-    # UVs (detail textures / future face paint): one smart-project pass
-    bpy.context.view_layer.objects.active = obj; obj.select_set(True)
-    try:
-        bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT'); bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.01); bpy.ops.object.mode_set(mode='OBJECT')
-    except Exception as e: print('[asu] uv unwrap skipped:', e); bpy.ops.object.mode_set(mode='OBJECT')
+    # UVs are made in bake() (box projection in metres)
     prop = None
     return obj, rig, prop
