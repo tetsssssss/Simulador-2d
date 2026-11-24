@@ -43,6 +43,7 @@ Plano: docs/PLANO_ACAO_VISUAL.md (9 etapas). Alvo PC + Android, sem teste em cel
 - 3D Etapa 7 MLB FEITA (mlb3d.mjs 4/4, diamond3d.test). Etapa 7 completa. PRÓXIMO: teste seed 3D×2D no NHL/MLB, Etapa 6 restante (telão, luz auto, banco), Etapa 8 (desempenho/LOD/qualidade auto; bloom), Etapa 9 (zip/entrega).
 - 3D Etapa 8 lote 1 FEITO: qualidade automática + seletor no menu (autoq3d.mjs 4/4). PRÓXIMO: orçamento de draw calls/triângulos (medir em página de teste), LOD, depois Etapa 9 (zip, cache offline, decisão APK) e Etapa 6 restante (telão, luz auto, banco).
 - 3D: limite de FPS 30-100 (menu 🔊 'FPS do 3D') FEITO. Smoke: regex de 'live commentary' agora com \b (falso positivo 'nullified').
+- 3D Etapa 8 FEITA (budget3d.mjs 10/10: tris NFL 320k Alta/70k Baixa, NHL 123k/9k, MLB 7k; LOD ao vivo por qualidade). PRÓXIMO: Etapa 9 (docs LANCAMENTO + zip + cache offline + decisão APK).
 
 ## Pendências antigas
 apagar atlas órfãos (git rm assets/sprites/{football,hockey,baseball}_{color,mask}.png — bloqueado pela verificação de segurança, só o usuário); PENALTY no motor; túnel MLB/NFL; career_ui.mjs; importar .glb numa engine.
