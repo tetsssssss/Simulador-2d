@@ -9,7 +9,7 @@ export const S_PARK = { rows: 11, rowH: 0.8, rowD: 0.95, seat: 0.9, gap: 4 };
 export function rinkStands(len = 60.96, wid = 25.908, S = S_RINK, density = 1) {
   const seats = [], slabs = [], step = S.seat / Math.max(0.2, density);
   for (let r = 0; r < S.rows; r++) {
-    const h = (r + 1) * S.rowH, y = r * S.rowH + 1.1, zf = -wid - S.gap - r * S.rowD, xl = -S.gap - r * S.rowD, xr = len + S.gap + r * S.rowD;
+    const h = (r + 1) * S.rowH, y = r * S.rowH + 1.5, zf = -wid - S.gap - r * S.rowD - 0.35, xl = -S.gap - r * S.rowD - 0.35, xr = len + S.gap + r * S.rowD + 0.35;   // seats sit toward the middle of each step and a bit higher: seen from the camera side they stay above the next riser
     for (let x = -S.gap; x < len + S.gap; x += step) seats.push({ x, y, z: zf });
     for (let z = -wid; z < 0; z += step) { seats.push({ x: xl, y, z }); seats.push({ x: xr, y, z }); }
     slabs.push([len / 2, h / 2, zf - S.rowD / 2, len + 2 * S.gap + 2 * S.rows * S.rowD * 0 + 4, h, S.rowD, 0]);
