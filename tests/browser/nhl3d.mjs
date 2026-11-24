@@ -6,9 +6,9 @@ let pass = 0, fail = 0; const check = (n, ok, x = '') => { ok ? pass++ : fail++;
 const ctx = await b.newContext({ viewport: { width: 1400, height: 800 } }); await ctx.addInitScript(() => { localStorage.setItem('asu_visual_mode', '3d'); });
 const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|blocked by CORS/.test(m.text())) errs.push(m.text()); });
 await page.goto(`http://localhost:${PORT}/#nhl`); await page.waitForTimeout(2500);
-const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(() => { location.hash = '#play'; }).catch(() => {}); await page.waitForTimeout(2500);
-await f.click('text=/Iniciar|Start|Jogar/i').catch(() => {}); await page.waitForTimeout(6000);
-const info = () => f.evaluate(() => { const r = window.__asu3dRenderer; return r && { ready: r.ready, n: r.athletes().length, clips: r.athletes().map(a => a.clip), cam: r.cameraState() }; });
+const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(() => { location.hash = '#rink'; }).catch(() => {}); await page.waitForTimeout(2500);
+await page.waitForTimeout(6000);
+const info = () => f.evaluate(() => { const r = window.__asu3dRenderer; return r?.athletes && { ready: r.ready, n: r.athletes().length, clips: r.athletes().map(a => a.clip), cam: r.cameraState() }; });
 let st = null; for (let i = 0; i < 20; i++) { st = await info(); if (st?.ready && st.n >= 10) break; await page.waitForTimeout(1500); }
 check('3D NHL renderer ready with the skaters and goalies on the ice', !!st && st.ready && st.n >= 10, JSON.stringify(st && { n: st.n }));
 const sim = await f.evaluate(() => { const r = window.__asu3dRenderer; return r.athletes().map(a => { const p = a.entity.getPosition(); return { wx: p.x, wz: p.z, sx: a.p.x * 0.3048, sy: -a.p.y * 0.3048 }; }); });
