@@ -8,6 +8,8 @@ import { followStep } from '../../../core/render3d/nflField.js';
 import { createCrowdStands, rinkStands } from '../../../core/render3d/crowdStands.js';
 import { parseColor } from '../../../core/render/spriteSheet.js';
 import { skateGait } from '../../../core/anim/locomotion.js';
+// benches: far side (outside the boards at z = -width), home then away, centred on the red line (world metres)
+const BENCH_LEN = 6.4, BENCH_Z = -85 * FT - 0.55, BENCH_X = [75 * FT - 3.2, 125 * FT - 3.2];   // same bench doors as the engine (x 75 / 125 ft)
 
 const lerp = (a, b, k) => a + (b - a) * k;
 const SHOT_CLIP = { wrist: 'hk_wrist', snap: 'hk_snap', slap: 'hk_slap', backhand: 'hk_backhand', 'one-timer': 'hk_onetimer', onetimer: 'hk_onetimer' };
@@ -26,13 +28,27 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const slot = new Map(), acts = new Map(), tint = new Map();
   const wall = () => performance.now() / 1000;
 
-  let hdOn = stage.quality?.level !== 'low';   // LOD by quality (HD skater = 12 000 triangles, low-poly ~650)
+  let hdOn = stage.quality?.level !== 'low'; const benchEnts = [], benchPool = []; let benchMat = null, benchKey = '';   // LOD by quality (HD skater = 12 000 triangles, low-poly ~650)
   async function init() {
     factory = createAthleteFactory(stage, { base }); rink = createRink(stage);
     for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: hdOn, name: 'sk' + i }); a.entity.enabled = false; skaters.push(a); }
     for (let i = 0; i < 2; i++) { const a = await factory.spawn('goalie', { hd: hdOn, name: 'gk' + i }); a.entity.enabled = false; goalies.push(a); }
     props = createProps(stage); puckE = props.puck(); stage.root.addChild(puckE);
+    // player benches on the far side (both teams, like the NHL): a dark bench per team + up to 6 reserves each (low-poly, cheap),
+    // filled from the players the engine has on the bench (p.onBench) — presentation only.
+    { const { pc } = stage, m = new pc.StandardMaterial(); m.diffuse = new pc.Color(0.08, 0.09, 0.11); m.update(); benchMat = m;
+      for (const [i, x0] of BENCH_X.entries()) { const e = new pc.Entity('bench' + i); e.addComponent('render', { type: 'box', material: m, castShadows: false }); e.setLocalScale(BENCH_LEN, 0.45, 0.5); e.setPosition(x0 + BENCH_LEN / 2, 0.22, BENCH_Z - 0.35); stage.root.addChild(e); benchEnts.push(e); }
+      for (let i = 0; i < 12; i++) { const a = await factory.spawn('hockey', { hd: false, name: 'bn' + i }); a.entity.enabled = false; a.play('mv_idle'); a.setPartVisible?.('asu_metal', true); benchPool.push(a); } }
     ready = true;
+  }
+  function drawBench(state) {   // reserves sit on their team's bench, facing the ice
+    const by = { home: [], away: [] }; const onIce = new Set((state.players || []).map(p => p.id)); for (const p of Object.values(state.roster || {}).sort((a, b) => (a.id < b.id ? -1 : 1))) if (!onIce.has(p.id) && !p.goalie && by[p.team]) by[p.team].push(p);   // same rule as the 2D bench
+    const key = ['home', 'away'].map(t => by[t].slice(0, 6).map(p => p.id).join(',') + '|' + (state[t]?.color || '')).join('#'); if (key === benchKey) return; benchKey = key;
+    let i = 0;
+    for (const [ti, t] of ['home', 'away'].entries()) for (const [j, p] of by[t].slice(0, 6).entries()) { const a = benchPool[i++]; if (!a) break;
+      const team = state[t] || {}, tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; }
+      a.entity.enabled = true; a.entity.setPosition(BENCH_X[ti] + 0.55 + j * (BENCH_LEN - 1.1) / 5, 0, BENCH_Z - 0.05); a.entity.setEulerAngles(0, -90, 0); void p; }
+    for (; i < benchPool.length; i++) benchPool[i].entity.enabled = false;
   }
   function pump(state) {
     const ev = state.events || []; if (evIdx > ev.length) evIdx = 0;
@@ -57,8 +73,8 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     else if (state !== simRef) { simRef = state; evIdx = 0; acts.clear(); }
     pump(state);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
-    if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...rinkStands(undefined, undefined, undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), home: c(state.home?.color), away: c(state.away?.color) }); }
-    crowd.update(dt, now);
+    if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...rinkStands(undefined, undefined, undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), concrete: [0.16, 0.17, 0.2], home: c(state.home?.color), away: c(state.away?.color) }); }
+    crowd.update(dt, now); drawBench(state);
     const present = new Set(); let sk = 0, gk = 0;
     for (const p of state.players || []) {
       if (p.onBench) continue; present.add(p.id);
@@ -93,7 +109,8 @@ export function createNhlRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     },
     get hd() { return hdOn; }, crowdSeats: () => crowd?.seats || 0,
     replayInfo: () => ({ replaying, evIdx, t: replayT }),
+    benchInfo: () => ({ n: benchPool.filter(a => a.entity.enabled).length, benches: benchEnts.length }),
     get ready() { return ready; }, athletes: () => [...skaters, ...goalies].filter(a => a.p), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
-    dispose() { crowd?.dispose(); rink?.dispose(); props?.dispose(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
+    dispose() { crowd?.dispose(); rink?.dispose(); props?.dispose(); benchEnts.forEach(e => e.destroy()); benchPool.forEach(a => a.dispose()); benchMat?.destroy(); [...skaters, ...goalies].forEach(a => a.dispose()); skaters = []; goalies = []; factory?.dispose(); },
   };
 }

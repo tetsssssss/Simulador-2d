@@ -58,6 +58,10 @@ export function quickResult(spec, ratingH, ratingA, rng) {
   let hs, as, ot = false;
   if (m.kind === 'normal') { hs = Math.max(0, Math.round(rng.normal(m.mean + diff * m.k, m.sd))); as = Math.max(0, Math.round(rng.normal(m.mean - diff * m.k, m.sd))); if (m.snap) { hs = snapScore(hs, m.snap); as = snapScore(as, m.snap); } }
   else { hs = pois(Math.max(0.3, m.mean * (1 + diff * m.k))); as = pois(Math.max(0.3, m.mean * (1 - diff * m.k))); }
+  // tieBoost (optional, per sport): late-game score effects (empty net / trailing team pressing) make one-goal games end level more often than
+  // independent Poisson scores predict. With probability tieBoost a one-goal game becomes a tie: half the time the trailing team scores,
+  // half the time the leader's last goal is removed, so the goals per game stay put. NHL calibration: ~23 % of games reach OT/SO.
+  if (m.tieBoost && Math.abs(hs - as) === 1 && rng.next() < m.tieBoost) { if (rng.next() < 0.5) { if (hs < as) hs++; else as++; } else { if (hs > as) hs--; else as--; } }
   if (hs === as && !m.ties) { ot = true; if (rng.next() < 0.5 + diff * m.k * 0.5) hs += m.otAdds ?? 1; else as += m.otAdds ?? 1; }
   return { hs, as, ot: ot && m.otLoss };
 }

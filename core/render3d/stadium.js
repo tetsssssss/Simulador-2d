@@ -10,13 +10,18 @@ export function seatLayout(len = 109.7, wid = 48.8, S = STAND, density = 1) {
   end(-S.gapEnd, -1); end(len + S.gapEnd, 1);
   return out;
 }
+// Pure (tested): the near-side stand is drawn only while the camera is in front of it (z below its first row); the broadcast camera
+// sits in / above it, where its heads would fill the foreground.
+export const nearStandVisible = (camZ, S = STAND) => !(camZ > S.gapSide - 1);
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 
 export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], away = [0.85, 0.85, 0.9], seed = 7 } = {}) {
   const { pc, app, root } = stage, rnd = rng(seed), seats = seatLayout(109.7, 48.8, STAND, density);
-  const hs = 0.26, P = [], N = [], Cc = [], I = [];
+  const hs = 0.26;
+  const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseVertexColor = true; mat.cull = pc.CULLFACE_NONE;   /* the head boxes' front (+z) / -x faces had the wrong winding and were culled: only the side faces showed (thin "ticks") */ mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
+  const buildCrowd = (list, name) => { const P = [], N = [], Cc = [], I = [];
   const faces = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0]];   // bottom face skipped
-  for (const s of seats) {
+  for (const s of list) {
     const t = rnd(), col = t < 0.55 ? home : t < 0.75 ? away : [0.2 + rnd() * 0.7, 0.2 + rnd() * 0.6, 0.2 + rnd() * 0.6], k = 0.7 + rnd() * 0.3;
     const base = P.length / 3, h = hs * (0.8 + rnd() * 0.5);
     const c = [s.x, s.y + h, s.z];
@@ -28,8 +33,10 @@ export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], awa
     void base;
   }
   const mesh = new pc.Mesh(app.graphicsDevice); mesh.setPositions(P); mesh.setNormals(N); mesh.setColors32(Cc); mesh.setIndices(I); mesh.update();
-  const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseVertexColor = true; mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
-  const crowd = new pc.Entity('crowd'); crowd.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false, receiveShadows: false }); root.addChild(crowd);
+  const e = new pc.Entity(name); e.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false, receiveShadows: false }); root.addChild(e); e.mesh = mesh; return e; };
+  // the near-side stand (z > 0) is its own mesh: hidden while the camera sits in / above it (broadcast cam), so its heads do not
+  // fill the foreground as big blurred blocks; shown again for low / end-zone cameras.
+  const crowd = buildCrowd(seats.filter(q => q.z <= 0), 'crowd'), crowdNear = buildCrowd(seats.filter(q => q.z > 0), 'crowdNear');
 
   // concrete bowl under the crowd: ALL stepped slabs merged into one mesh (1 draw call instead of 56)
   const conc = new pc.StandardMaterial(); conc.diffuse = new pc.Color(0.42, 0.43, 0.46); conc.gloss = 0.05; conc.update();
@@ -42,14 +49,17 @@ export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], awa
       CI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3);
     }
   };
-  const R = STAND.rows, RH = STAND.rowH, RD = STAND.rowD;
+  const R = STAND.rows, RH = STAND.rowH, RD = STAND.rowD, nearBoxes = [];
   for (let r = 0; r < R; r++) {
     const h = (r + 1) * RH, off = STAND.gapSide + r * RD + RD / 2, offE = STAND.gapEnd + r * RD + RD / 2;
-    pushBox(54.85, h / 2, off, 120, h, RD); pushBox(54.85, h / 2, -48.8 - off, 120, h, RD);
+    nearBoxes.push([54.85, h / 2, off, 120, h, RD]); pushBox(54.85, h / 2, -48.8 - off, 120, h, RD);
     pushBox(-offE, h / 2, -24.4, RD, h, 50); pushBox(109.7 + offE, h / 2, -24.4, RD, h, 50);
   }
   const cmesh = new pc.Mesh(app.graphicsDevice); cmesh.setPositions(CP); cmesh.setNormals(CN); cmesh.setIndices(CI); cmesh.update();
   const bowl = new pc.Entity('bowl'); bowl.addComponent('render', { meshInstances: [new pc.MeshInstance(cmesh, conc)], castShadows: false, receiveShadows: true }); root.addChild(bowl); const parts = [bowl];
+  CP.length = 0; CN.length = 0; CI.length = 0; for (const bx of nearBoxes) pushBox(...bx);
+  const nmesh = new pc.Mesh(app.graphicsDevice); nmesh.setPositions(CP); nmesh.setNormals(CN); nmesh.setIndices(CI); nmesh.update();
+  const bowlNear = new pc.Entity('bowlNear'); bowlNear.addComponent('render', { meshInstances: [new pc.MeshInstance(nmesh, conc)], castShadows: false, receiveShadows: true }); root.addChild(bowlNear); parts.push(bowlNear);
 
   // floodlights: 4 spots at the corners (enabled by the look)
   const floods = [];
@@ -76,7 +86,9 @@ export function createStadium(stage, { density = 1, home = [0.1, 0.25, 0.6], awa
   return {
     floods, seats: seats.length, crowd, setBoard, boardKey: () => boardKey,
     cheer(v = 1) { cheer = Math.max(cheer, v); },
-    update(dt, t) { cheer = Math.max(0, cheer - dt * 0.7); crowd.setLocalPosition(0, Math.abs(Math.sin(t * 9)) * 0.22 * cheer, 0); },
-    dispose() { crowd.destroy(); parts.forEach(p => p.destroy()); floods.forEach(f => f.destroy()); mesh.destroy(); cmesh.destroy(); btex.destroy(); bmat.destroy(); mat.destroy(); conc.destroy(); },
+    update(dt, t) { cheer = Math.max(0, cheer - dt * 0.7); const y = Math.abs(Math.sin(t * 9)) * 0.22 * cheer; crowd.setLocalPosition(0, y, 0); crowdNear.setLocalPosition(0, y, 0);
+      const cam = stage.camera; if (cam) { const v = nearStandVisible(cam.getPosition().z); crowdNear.enabled = v; bowlNear.enabled = v; } },
+    nearShown: () => crowdNear.enabled,
+    dispose() { crowd.destroy(); crowdNear.destroy(); parts.forEach(p => p.destroy()); floods.forEach(f => f.destroy()); crowd.mesh.destroy(); crowdNear.mesh.destroy(); nmesh.destroy(); cmesh.destroy(); btex.destroy(); bmat.destroy(); mat.destroy(); conc.destroy(); },
   };
 }

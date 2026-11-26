@@ -34,11 +34,11 @@ export function arcStands(S = S_PARK, density = 1, segs = 40) {
 function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 const rotY = (x, z, c, s) => [x * c + z * s, -x * s + z * c];   // rotation about Y by yaw (PlayCanvas: positive yaw turns +X toward -Z)
 
-export function createCrowdStands(stage, { seats, slabs, home = [0.1, 0.25, 0.6], away = [0.85, 0.85, 0.9], seed = 11 }) {
+export function createCrowdStands(stage, { seats, slabs, home = [0.1, 0.25, 0.6], away = [0.85, 0.85, 0.9], seed = 11, concrete = [0.42, 0.43, 0.46] }) {
   const { pc, app, root } = stage, rnd = rng(seed), hs = 0.3;
   const P = [], N = [], C = [], I = [], faces = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0]];
   for (const s of seats) {
-    const t = rnd(), col = t < 0.55 ? home : t < 0.75 ? away : [0.2 + rnd() * 0.7, 0.2 + rnd() * 0.6, 0.2 + rnd() * 0.6], k = 0.85 + rnd() * 0.15, h = hs * (0.8 + rnd() * 0.5), lift = c => c + (1 - c) * 0.3;   // lifted toward white so dark team colours still read against a dark arena
+    const t = rnd(), col = t < 0.55 ? home : t < 0.75 ? away : [0.2 + rnd() * 0.7, 0.2 + rnd() * 0.6, 0.2 + rnd() * 0.6], k = 0.85 + rnd() * 0.15, h = hs * (0.8 + rnd() * 0.5), lift = c => c + (1 - c) * 0.12;   // lifted toward white so dark team colours still read against a dark arena
     for (const n of faces) {
       const u = n[0] ? [0, 1, 0] : n[1] ? [1, 0, 0] : [0, 1, 0], v = n[0] ? [0, 0, 1] : n[1] ? [0, 0, 1] : [1, 0, 0], b = P.length / 3;
       for (const [a, d] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { P.push(s.x + n[0] * hs + u[0] * a * hs + v[0] * d * hs, s.y + h + n[1] * h + u[1] * a * h + v[1] * d * hs, s.z + n[2] * hs + u[2] * a * hs + v[2] * d * hs); N.push(...n); C.push(lift(col[0]) * k * 255, lift(col[1]) * k * 255, lift(col[2]) * k * 255, 255); }
@@ -46,7 +46,8 @@ export function createCrowdStands(stage, { seats, slabs, home = [0.1, 0.25, 0.6]
     }
   }
   const mesh = new pc.Mesh(app.graphicsDevice); mesh.setPositions(P); mesh.setNormals(N); mesh.setColors32(C); mesh.setIndices(I); mesh.update();
-  const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseVertexColor = true; mat.emissive = new pc.Color(0.16, 0.16, 0.18); mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
+  const mat = new pc.StandardMaterial(); mat.diffuse = new pc.Color(1, 1, 1); mat.diffuseVertexColor = true; mat.cull = pc.CULLFACE_NONE;   /* the head boxes' front (+z) / -x faces had the wrong winding and were culled: only the side faces showed (thin "ticks") */ mat.emissive = new pc.Color(1, 1, 1); mat.emissiveVertexColor = true; mat.emissiveIntensity = 0.45;   // self-lit shirts: the colour reads on the shaded front faces too (before: only the lit sides showed, as thin ticks)
+  mat.gloss = 0.1; mat.useMetalness = true; mat.metalness = 0; mat.update();
   const crowd = new pc.Entity('crowd'); crowd.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false, receiveShadows: false }); root.addChild(crowd);
   const CP = [], CN = [], CI = [];
   for (const [cx, cy, cz, sx, sy, sz, yaw] of slabs) {
@@ -61,7 +62,7 @@ export function createCrowdStands(stage, { seats, slabs, home = [0.1, 0.25, 0.6]
     }
   }
   const cmesh = new pc.Mesh(app.graphicsDevice); cmesh.setPositions(CP); cmesh.setNormals(CN); cmesh.setIndices(CI); cmesh.update();
-  const conc = new pc.StandardMaterial(); conc.diffuse = new pc.Color(0.42, 0.43, 0.46); conc.gloss = 0.05; conc.update();
+  const conc = new pc.StandardMaterial(); conc.diffuse = new pc.Color(...concrete); conc.gloss = 0.05; conc.update();
   const bowl = new pc.Entity('bowl'); bowl.addComponent('render', { meshInstances: [new pc.MeshInstance(cmesh, conc)], castShadows: false, receiveShadows: true }); root.addChild(bowl);
   let cheer = 0;
   return {
