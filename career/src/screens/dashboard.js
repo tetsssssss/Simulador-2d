@@ -18,6 +18,20 @@ const gameCard = (d, c) => {
     <div class="stack">${g.today ? `${S.spec.rostersFor2D && SPORT_ROUTE[c.sport] ? '<button data-act="play2d">🎮 Jogar no 2D</button>' : ''}<button class="primary" data-act="play-game">⚡ Simular jogo</button>` : '<button class="primary" data-act="adv" data-adv="NEXT_GAME">Ir até o jogo ▶</button>'}</div></div>`;
 };
 const alertsHtml = d => d.alerts.map(a => `<div class="alert ${esc(a.level)}"><span class="grow">${a.level === 'event' ? '📨' : a.level === 'bad' ? '⛔' : a.level === 'warn' ? '⚠️' : 'ℹ️'} ${esc(a.text)}</span>${a.kind === 'EVENT' ? '<button data-act="open-events">Decidir</button>' : ['CAP', 'ROSTER_MAX', 'ROSTER_MIN', 'ACTIVE_26', 'FORTY', 'ACTIVE_NOT_40', 'PITCHERS', 'CATCHERS', 'GOALIES', 'PS_MAX', 'OPTIONS'].includes(a.kind) ? '<button data-act="goto" data-s="roster">Elenco</button>' : a.kind === 'FIRING_WATCH' || a.kind === 'FIRED' ? '<button data-act="goto" data-s="profile">Perfil</button>' : a.kind === 'DEADLINE' ? '<button data-act="goto" data-s="transactions">Trocas</button>' : ''}</div>`).join('') || '<p class="muted">Nenhum alerta. Tudo em ordem.</p>';
+// Post-game recap (c.x.recap, written by the career logic after the user's games): result, record / rank change and the real consequences.
+const sign = (v, f = x => fix(x, Math.abs(x) % 1 ? 1 : 0)) => (v > 0 ? '+' : '') + f(v);
+export function recapPanel(c) {
+  const r = A.getRecap(c); if (!r || r.season !== c.season) return '';
+  const g = r.games.map(x => `<li class="rc-g ${x.won ? 'w' : 'l'}"><b>${x.won ? 'V' : 'D'}</b> ${esc(nn(x.us))}–${esc(nn(x.them))}${x.ot ? ' <small>(OT)</small>' : ''} ${x.home ? 'vs' : '@'} ${esc(x.oppName)}${x.kind === 'PLAYOFF' ? ' <small>· playoff</small>' : ''}</li>`).join('');
+  const D = r.delta, ch = [];
+  const add = (label, v, f) => { if (v == null || Math.abs(v) < 0.05) return; ch.push(chip(`${label} ${sign(v, f)}`, v > 0 ? 'ok' : 'bad')); };
+  add('Diretoria', D.board); add('Moral', D.morale); add('Torcida', D.fans); add('Reputação', D.rep); add('Caixa', D.cash, v => money(v)); add('OVR', D.ovr); add('Forma', D.form);
+  const rk = r.rank.before && r.rank.after && r.rank.before !== r.rank.after ? ` · conferência ${r.rank.before}º → <b>${r.rank.after}º</b>` : r.rank.after ? ` · ${r.rank.after}º na conferência` : '';
+  const inj = r.injuries.length ? `<p class="small"><b>Novas lesões:</b> ${r.injuries.map(i => `${esc(i.n)} (${esc(i.pos)}, ${esc(i.type)}, ${esc(i.games)} j.)`).join(' · ')}</p>` : '';
+  return panel(r.games.length > 1 ? `Últimos jogos (${r.wins}V ${r.losses}D)` : 'Último jogo', `<ul class="recap-games">${g}</ul>
+    <p class="small">Campanha ${esc(r.record.before || '0-0')} → <b>${esc(r.record.after)}</b>${rk} · <span class="muted">${esc(r.date)}${r.source === '2d' ? ' · jogado no 2D' : ''}</span></p>
+    ${ch.length ? `<div class="chips" aria-label="Consequências">${ch.join('')}</div>` : '<p class="muted small">Sem mudanças relevantes em diretoria, elenco, torcida ou finanças.</p>'}${inj}`);
+}
 on('goto', el => go(el.dataset.s));
 
 registerScreen('dashboard', {
@@ -29,6 +43,7 @@ registerScreen('dashboard', {
     const f = d.finance, tr = d.training, tc = d.tactics, sec = d.security;
     el.innerHTML = `${pageTitle('Painel')}<div class="dash-grid"><div class="stack">
       ${panel('Próximo jogo', gameCard(d, c))}
+      ${recapPanel(c)}
       ${panel('Alertas', alertsHtml(d))}
       ${panel('Divisão', `<table class="tbl"><caption class="sr-only">Classificação da divisão</caption><tr><th>Time</th><th class="num">${spec.usePoints ? 'V-D-OTL' : 'V-D'}</th><th class="num">Saldo</th><th>Seq.</th></tr>${standingsRows}</table>`, `<button class="ghost" data-act="goto" data-s="calendar">Calendário</button>`)}
       ${panel('Notícias importantes', newsItems(d.news, 6), `<button class="ghost" data-act="goto" data-s="news">Ver todas</button>`)}
@@ -49,6 +64,7 @@ function renderPlayerDash(el, d) {
   const team = myAbbr();
   el.innerHTML = `${pageTitle('Painel do jogador')}<div class="dash-grid"><div class="stack">
     ${panel('Próximo jogo', gameCard(d, c))}
+    ${recapPanel(c)}
     ${panel('Road to Pro', `<div class="timeline" aria-label="Caminho">${st.steps.map(s => `<span class="${s.state === 'current' ? 'on' : ''}" ${s.state === 'current' ? 'aria-current="step"' : ''}>${s.state === 'done' ? '✓ ' : ''}${esc(s.label)}</span>`).join('')}</div><p class="muted small" style="margin-top:8px">Fase atual: <b>${esc(P.stage)}</b> · ${team ? esc(tname(team)) : esc(me.t === 'AMATEUR' ? 'amador' : me.t === 'DRAFT' ? 'aguardando o draft' : me.t === 'FA' ? 'agente livre' : '')}${P.stock ? ` · projeção de draft: <b>${esc(P.stock.label)}</b>` : ''}</p>`)}
     ${panel('Alertas', alertsHtml(d))}
     ${panel('Notícias', newsItems(d.news, 6), `<button class="ghost" data-act="goto" data-s="news">Ver todas</button>`)}

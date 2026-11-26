@@ -10,7 +10,7 @@ const OUT = args.find(a => !/^\d+$/.test(a) && !a.startsWith('--')) || null;
 const ONLY = (args.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
 const ENGINE = args.includes('--engine'); // keep "motor real" on for the user's games (slow)
 const { chromium } = await import('/opt/node-tools/node_modules/playwright/index.mjs');
-const fs = await import('node:fs');
+const fs = await import('node:fs'); const os = await import('node:os'); const path = await import('node:path');
 if (OUT) fs.mkdirSync(OUT, { recursive: true });
 const BASE = `http://localhost:${PORT}/career/index.html`;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -399,7 +399,7 @@ async function savesScenario() {
   check('saves: export downloads a versioned JSON', env.saveVersion === 3 && env.sport === 'nhl' && !!env.career, `v${env.saveVersion} ${text.length}B`);
   const id = env.id;
   await page.goto(BASE + '#'); await page.waitForSelector('[data-act=list-open]');
-  const impPath = '/tmp/claude-0/-home-user/cb47fa6f-635e-5121-86e0-b05d00bbe7bd/scratchpad/export.json';
+  const impPath = path.join(os.tmpdir(), `asu_export_${process.pid}.json`);   // was a hard-coded path of an old session (broke the test elsewhere)
   fs.writeFileSync(impPath, text);
   await page.setInputFiles('#impFile', impPath); await wait(page, 600);
   check('saves: import adds a second career (renamed id)', (await page.$$('.cc')).length === 2);

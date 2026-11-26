@@ -218,7 +218,9 @@ export async function applyResultFrom2D() {
   if (!A.pendingGameDay(spec, c) || A.nextGameInfo(spec, c)?.key !== r.key) { toast('O resultado do 2D não corresponde ao jogo atual da carreira e foi descartado.', true); return; }
   const map = spec.rawIdMap(c, [r.h, r.a]);
   c.extResult = { ...r, lines: (r.lines || []).map(([pid, l]) => [map.get(String(pid)), l]).filter(x => x[0]) };
-  await withBusy('Aplicando o resultado do jogo 2D…', async () => { await A.playUserGame(spec, c); });
+  const snap = A.recapSnapshot(spec, c); let played = [];
+  await withBusy('Aplicando o resultado do jogo 2D…', async () => { played = (await A.playUserGame(spec, c))?.played || []; });
+  A.recordRecap(spec, c, snap, played, '2d');
   S.lastAdv = { mode: 'GAME', res: { stopped: 'PLAYED', days: 0, played: [], events: [] }, note: `Jogo do 2D aplicado: ${r.a} ${r.as} @ ${r.h} ${r.hs}.` };
   saveNow(false);
   toast(`Resultado do 2D aplicado: ${r.a} ${r.as} @ ${r.h} ${r.hs}.`);
@@ -250,10 +252,10 @@ export async function runAdvance(mode, extra = {}) {
   const label = { NEXT_DAY: 'Avançando 1 dia…', NEXT_WEEK: 'Avançando 1 semana…', NEXT_GAME: 'Avançando até o próximo jogo…' }[mode] || 'Simulando…';
   showBusy(label, 'treino, finanças, scouting, lesões, trocas e notícias');
   await sleep(40);
-  let res = null;
+  let res = null; const snap = A.recapSnapshot(spec, c);
   try { res = await A.advance(spec, c, mode, opts); } catch (e) { console.error(e); toast(`Erro na simulação: ${e.message}`, true); }
   hideBusy();
-  if (res) S.lastAdv = { mode, res, at: Date.now() };
+  if (res) { S.lastAdv = { mode, res, at: Date.now() }; A.recordRecap(spec, c, snap, res.played, 'sim'); }
   S.dirty = true; if (c.settings?.autosave !== false) saveNow(false); else paintAutosave();
   refresh();
   if (res) {
@@ -277,9 +279,10 @@ export async function afterAdvance(res) {
 export async function playGameNow() {
   const c = S.c, spec = S.spec; if (!c || S.busy) return;
   if (!A.pendingGameDay(spec, c) || !A.nextGameInfo(spec, c)) return toast('Não há jogo do seu time hoje.', true);
-  let r = null;
+  let r = null; const snap = A.recapSnapshot(spec, c);
   await withBusy('Simulando o jogo do seu time…', async () => { r = await A.playUserGame(spec, c); }, c.settings.engineGames ? 'motor real do esporte' : 'modelo rápido');
   if (!r?.ok) return toast(r?.text || 'Não foi possível jogar agora.', true);
+  A.recordRecap(spec, c, snap, r.played, 'sim');
   const lines = userResultsText({ played: r.played });
   S.lastAdv = { mode: 'GAME', res: { stopped: 'PLAYED', days: 0, played: r.played, events: [] }, note: lines.join(' · ') };
   S.dirty = true; saveNow(false); toast(lines.join(' · ') || 'Jogo disputado.'); refresh();

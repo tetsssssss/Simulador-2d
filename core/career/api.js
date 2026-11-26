@@ -17,6 +17,7 @@ export { resolveEvent, autoResolveEvents, getEvents } from './events.js';
 export { CareerNewsEngine, getFeed, latestNews, newsByTeam, newsByPlayer, pushNews } from './news.js';
 export { getCreatePlayerOptions, validatePlayerInput, setPlayerTraining, spendXP, projectCurve, attributeBudget, attrCost } from './playerCareer.js';
 export { CURVES } from './curves.js';
+export { recapSnapshot, recordRecap, getRecap } from './recap.js';
 export { legalityOf, ensureV3 } from './x.js';
 export { createCareerStore, createSaveManager, memoryStorage, CAREER_SAVE_VERSION, SaveVersion, MigrationManager, migrations, integrityCheck } from './saveStore.js';
 import { sportAction } from './gm.js';
