@@ -4,7 +4,7 @@ const PORT = process.argv[2] || 8300, MAX_TRIS = 350000, MAX_DRAWS = 800, MAX_MI
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let pass = 0, fail = 0; const check = (n, ok, x = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`); };
 for (const [sport, route, start] of [['nfl', '#play', true], ['nhl', '#rink', false], ['mlb', '#diamond', false]]) {
-  const ctx = await b.newContext({ viewport: { width: 1200, height: 700 } }); await ctx.addInitScript(() => { localStorage.setItem('asu_visual_mode', '3d'); localStorage.setItem('asu_3d_quality', 'high'); });
+  const ctx = await b.newContext({ viewport: { width: 1200, height: 700 } }); await ctx.addInitScript(() => { localStorage.setItem('asu_3d_fullhd', '0'); localStorage.setItem('asu_visual_mode', '3d'); localStorage.setItem('asu_3d_quality', 'high'); });
   const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto(`http://localhost:${PORT}/#${sport}`); await page.waitForTimeout(2500);
   const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(r => { location.hash = r; }, route); await page.waitForTimeout(2500);

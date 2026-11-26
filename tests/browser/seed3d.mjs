@@ -4,7 +4,7 @@ const PORT = process.argv[2] || 8300, N = 14;
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let pass = 0, fail = 0; const check = (n, ok, x = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${n}${x ? ' — ' + x : ''}`); };
 async function events(sport, route, hook, mode) {
-  const ctx = await b.newContext({ viewport: { width: 1200, height: 700 } }); await ctx.addInitScript(m => localStorage.setItem('asu_visual_mode', m), mode);
+  const ctx = await b.newContext({ viewport: { width: 1200, height: 700 } }); await ctx.addInitScript(m => { localStorage.setItem('asu_3d_fullhd', '0'); localStorage.setItem('asu_3d_quality', 'medium'); localStorage.setItem('asu_visual_mode', m); }, mode);
   const page = await ctx.newPage(), errs = []; page.on('pageerror', e => errs.push(e.message));
   await page.goto(`http://localhost:${PORT}/#${sport}`); await page.waitForTimeout(2500);
   const f = page.frames().find(x => x !== page.mainFrame()); await f.evaluate(r => { location.hash = r; }, route); await page.waitForTimeout(2500);

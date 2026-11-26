@@ -15,7 +15,7 @@ test('isolated hitches do not change the level; a device that really runs at ~3 
   assert.equal(q.level, 'medium'); assert.equal(feed(createAutoQuality({ start: 'medium' }), 340, 60), 'low');
   const bi = createAutoQuality({ start: 'medium' }); let r = null; for (let i = 0; i < 120; i++) r = bi.push(i % 4 === 0 ? 900 : 4) || r; assert.equal(r, 'low', 'bimodal GPU stalls (average ~60 ms) step down');
 });
-test('readQualityMode defaults to auto without storage', () => { assert.equal(readQualityMode(), 'auto'); });
+test('readQualityMode defaults to high (Full HD, everything at full quality) without storage', () => { assert.equal(readQualityMode(), 'high'); });
 import { FPS_CAPS, DEFAULT_FPS_CAP, readFpsCap, shouldDraw, autoThresholds } from '../core/render3d/quality.js';
 test('fps cap: options 30..100, default 60, gate lets through ~cap frames per second and tolerates timer jitter', () => {
   assert.deepEqual(FPS_CAPS, [30, 45, 60, 75, 90, 100]); assert.equal(DEFAULT_FPS_CAP, 60); assert.equal(readFpsCap(), 60);

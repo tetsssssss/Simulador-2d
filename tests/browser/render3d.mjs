@@ -3,7 +3,7 @@
 import { chromium } from '/opt/node-tools/node_modules/playwright/index.mjs';
 const PORT = process.argv[2] || 8300, OUT = process.argv[3];
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome', args: ['--enable-precise-memory-info', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-const page = await b.newPage({ viewport: { width: 1500, height: 850 } }); const errs = [], warns = [];
+const page = await b.newPage({ viewport: { width: 1500, height: 850 } }); const errs = [], warns = []; await page.addInitScript(() => { localStorage.setItem('asu_3d_fullhd', '0'); localStorage.setItem('asu_3d_quality', 'medium'); });   // software GL: keep the 1x buffer here (fullhd3d.mjs covers Full HD)
 page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { const t = m.text(); if (m.type() === 'error' && !/ERR_TUNNEL|Failed to load resource|blocked by CORS policy|github\.com\/nflverse/.test(t)) errs.push(t); if (/too many active webgl|context lost/i.test(t)) warns.push(t); });
 let pass = 0, fail = 0; const check = (name, ok, extra = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${extra ? ' — ' + extra : ''}`); };
 const frame = () => page.frames().find(x => x !== page.mainFrame());

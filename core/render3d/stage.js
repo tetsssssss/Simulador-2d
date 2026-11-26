@@ -1,6 +1,6 @@
 // 3D stage on the PlayCanvas Engine (MIT, vendored in vendor/playcanvas): application, sky, ground, sun with shadows, camera.
 // Loaded lazily (the 2.9 MB engine is only fetched when the "3D (PlayCanvas)" visual mode is chosen). Everything created here is released by dispose().
-import { qualitySettings, DEFAULT_QUALITY } from './quality.js';
+import { qualitySettings, DEFAULT_QUALITY, pixelRatioFor } from './quality.js';
 
 let enginePromise = null;
 export const loadEngine = () => (enginePromise ||= import('../../vendor/playcanvas/playcanvas.min.mjs'));
@@ -29,15 +29,17 @@ export async function createStage(canvas, { quality = DEFAULT_QUALITY } = {}) {
   for (const x of [-30, 0, 30]) { const m = new pc.Entity('marker'); m.addComponent('render', { type: 'box', material: white, castShadows: true, receiveShadows: true }); m.setLocalScale(1.2, 6, 1.2); m.setPosition(x, 3, 0); root.addChild(m); }
   camera.setPosition(0, 30, 52); camera.lookAt(0, 1, 0);
   let size = null;
+  // The engine's resizeCanvas multiplies by min(maxPixelRatio, devicePixelRatio) so it can never SUPERsample on a 1x screen; for Full HD we set the buffer resolution ourselves (css size stays the same).
+  const applySize = () => { const dev = app.graphicsDevice, ratio = pixelRatioFor(q, size[0]); dev.maxPixelRatio = ratio; dev.resizeCanvas(size[0], size[1]); const W = Math.round(size[0] * ratio), H = Math.round(size[1] * ratio); if (dev.canvas.width !== W || dev.canvas.height !== H) dev.setResolution(W, H); };
   app.start();
   const api = {
     pc, app, root, camera, sun, ground,
     get quality() { return q; },
     // The graphics device sizes the drawing buffer as css size x maxPixelRatio (the application-level resizeCanvas depends on the fill mode and was a no-op here).
-    resize(w, h) { if (w > 0 && h > 0) { size = [w, h]; app.graphicsDevice.resizeCanvas(w, h); } },
+    resize(w, h) { if (w > 0 && h > 0) { size = [w, h]; applySize(); } },
     setQuality(level) {
-      q = qualitySettings(level, globalThis.devicePixelRatio); app.graphicsDevice.maxPixelRatio = q.pixelRatio;
-      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; if (size) app.graphicsDevice.resizeCanvas(size[0], size[1]);
+      q = qualitySettings(level, globalThis.devicePixelRatio);
+      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; if (size) applySize();
     },
     dispose() {
       if (api.disposed) return; api.disposed = true;

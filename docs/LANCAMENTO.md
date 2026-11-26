@@ -46,7 +46,8 @@ Não se aplica: o projeto é de **uso pessoal e não será publicado**. (Se isso
 **Opções (menu 🔊):**
 | Opção | Valores | Efeito |
 |---|---|---|
-| **Qualidade 3D** | Auto (padrão) / Baixa / Média / Alta | Baixa: sem sombras, pixel ratio 1, atletas low-poly. Auto começa em Média e **desce sozinha** se o tempo médio de quadro passar de 28 ms (sobe só com folga). |
+| **Qualidade 3D** | **Alta (padrão)** / Auto / Baixa / Média | Baixa: sem sombras, pixel ratio 1, atletas low-poly. Auto começa em Média e **desce sozinha** se o tempo médio de quadro passar de 28 ms (sobe só com folga). |
+| **Full HD no 3D** | ligado (padrão) / desligado | Na qualidade Alta o 3D renderiza em **pelo menos 1920 px de largura** (supersampling, depois reduzido pelo navegador = bordas limpas; teto 3x). Desligue se o fps cair. |
 | **FPS do 3D** | 30 / 45 / 60 (padrão) / 75 / 90 / 100 | Teto de quadros por segundo; a GPU fica ociosa nos quadros pulados (menos calor e bateria). O monitor limita o máximo real. |
 | **Mostrar FPS** | liga/desliga | Mede o desempenho real (use isto para me passar os números). |
 | Botão 🌗 **Luz** (NFL) | auto (padrão) → dia → tarde → noite | Iluminação, névoa e refletores; Auto segue o quarto (Q3 tarde, Q4 noite). Telão com o placar no estádio. |
