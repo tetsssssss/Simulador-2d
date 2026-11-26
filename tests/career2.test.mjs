@@ -353,7 +353,8 @@ test('calendar: NEXT_DAY / NEXT_WEEK / NEXT_GAME; stops before the user game; un
   const before = c.slate; r = await A.advance(spec, c, 'NEXT_WEEK'); assert.ok(c.slate <= before + 4 && ['USER_GAME', null, 'EVENT'].includes(r.stopped), r.stopped);
   // auto plays everything, through offseason into the next season
   let guard = 0; while (c.season === 2026 && guard++ < 120) await A.advance(spec, c, 'NEXT_WEEK', { auto: true });
-  assert.equal(c.season, 2027); assert.equal(c.phase, 'PRESEASON'); assert.ok(c.x.cal.day < 0);
+  // a week-long step can cross the 7-day preseason entirely (where it lands depends on how long the playoffs ran)
+  assert.equal(c.season, 2027); assert.ok(['PRESEASON', 'REGULAR'].includes(c.phase), c.phase); if (c.phase === 'PRESEASON') assert.ok(c.x.cal.day < 0); else assert.ok(c.x.cal.day >= 0 && c.x.cal.day < 14);
   assert.ok(finite(c));
   const cv = A.getCalendarView(c); assert.ok(cv.upcoming.length && cv.deadline.day > 0 && cv.stages.some(s => s.current));
 });

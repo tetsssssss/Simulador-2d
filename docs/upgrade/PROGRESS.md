@@ -1,6 +1,6 @@
 # Upgrade integrado (gráficos 3D · carreira · interface) — checkpoint
 
-**Estado:** M0–M4 em andamento (branch `ccr-1d32cd32-jtupys`). Engine: PlayCanvas 2.24.3 + canvas 2D, JS/ES modules, sem build.
+**Estado:** M0–M6 concluídos no escopo viável (resultado: parcial — fps/celular não verificáveis aqui) (branch `ccr-1d32cd32-jtupys`). Engine: PlayCanvas 2.24.3 + canvas 2D, JS/ES modules, sem build.
 Saves: `localStorage` (`asu_career_*`, envelope versionado v3, migração e corrupção testadas). Testes: `npm test` (raiz + `cd nfl`), navegador em `tests/browser/*.mjs`.
 
 ## Inventário (resumo)
@@ -17,5 +17,12 @@ Saves: `localStorage` (`asu_career_*`, envelope versionado v3, migração e corr
 - Recap = fatos do save (placares do avanço, classificação, diretoria/moral/torcida/reputação/caixa antes e depois, novas lesões). Campo opcional `c.x.recap` (saves antigos: sem recap, sem migração).
 - Não trocar engine nem reescrever telas: a UI do Career Hub já cobre todas as views (`getXView`).
 
-## Próximo passo
-M2/M3 gráficos (torcida NHL lado oposto, borrão MLB, mangas), M5 HUD/menu, M6 validação final. Ver `VALIDATION.md`.
+## Feito depois do 1º checkpoint
+- Torcida 3D visível (NHL/MLB/NFL), arquibancada próxima oculta na câmera de transmissão, bancos do NHL com reservas.
+- OT do NHL na carreira calibrado (15,7 % → 22,5 %).
+- Contraste do token `--dim`.
+
+## Backlog (P2)
+OT do motor de partida do NHL; fiapos nas mangas dos atletas HD; dugouts/bullpen do MLB; bloom; fps real no PC e no celular.
+
+Detalhes e comandos: `VALIDATION.md`.
