@@ -73,6 +73,23 @@ export function createDiamond(stage) {
   for (const b of [BASES.first, BASES.second, BASES.third]) { const e = mk('box', white); e.setLocalScale(0.38, 0.08, 0.38); e.setPosition(b.x * FT, 0.04, -b.y * FT); e.setEulerAngles(0, 45, 0); add(e, 'base'); }
   const props = createProps(stage); props.homePlate();
   const mound = mk('cylinder', mat(m => { m.diffuse = new pc.Color(0.65, 0.47, 0.27); })); mound.setLocalScale(MOUND.r * 2 * FT, 0.25, MOUND.r * 2 * FT); mound.setPosition(0, 0.12, -MOUND.y * FT); add(mound, 'mound'); props.pitcherRubber(root, 0.26).setPosition(0, 0.262, -MOUND.y * FT);
+  // dugouts (1B / 3B side, outside the foul lines) and bullpens (down the lines near the fence). Structures only; positions in feet -> metres.
+  const concM = mat(m => { m.diffuse = new pc.Color(0.2, 0.22, 0.26); m.gloss = 0.1; }), woodM = mat(m => { m.diffuse = new pc.Color(0.5, 0.36, 0.2); m.gloss = 0.2; }), roofM = mat(m => { m.diffuse = new pc.Color(0.08, 0.1, 0.14); m.gloss = 0.25; }), pen = mat(m => { m.diffuse = new pc.Color(0.62, 0.45, 0.26); m.gloss = 0.03; });
+  for (const sg of [-1, 1]) {
+    const g = new pc.Entity(), cx = sg * 80 * FT, cz = -50 * FT;   // long side parallel to the foul line, open toward the field
+    g.setPosition(cx, 0, cz); g.setEulerAngles(0, sg > 0 ? -45 : 45, 0); root.addChild(g); g.name = 'dugout'; parts.push(g);
+    const L = 9.5, D = 2.6, part = (type, m, sx, sy, sz, x, y, z, sh = false) => { const e = mk(type, m, sh); e.setLocalScale(sx, sy, sz); e.setLocalPosition(x, y, z); g.addChild(e); return e; };
+    part('box', concM, L, 1.2, 0.3, 0, 0.6 - 0.45, -D / 2);            // sunken floor wall / back
+    part('box', concM, L, 2.2, 0.25, 0, 1.1, -D / 2 - 0.1);            // back wall
+    part('box', roofM, L + 0.8, 0.18, D + 0.9, 0, 2.3, 0.1, true);      // roof overhang
+    part('box', woodM, L - 1.0, 0.12, 0.45, 0, 0.5, -D / 2 + 0.55);   // bench
+    part('box', concM, 0.25, 2.2, D, L / 2, 1.1, 0); part('box', concM, 0.25, 2.2, D, -L / 2, 1.1, 0);   // side walls
+    part('box', concM, L, 0.45, 0.2, 0, 0.55, D / 2 - 0.05);          // front rail (the dugout is sunk below the field line)
+    // bullpen: dirt strip + rubber + bench, near the fence down the line
+    const b = new pc.Entity(); b.setPosition(sg * 105 * FT, 0.02, -268 * FT); b.setEulerAngles(0, 0, 0); root.addChild(b); b.name = 'bullpen'; parts.push(b);
+    const pp = (type, m, sx, sy, sz, x, y, z) => { const e = mk(type, m); e.setLocalScale(sx, sy, sz); e.setLocalPosition(x, y, z); b.addChild(e); return e; };
+    pp('box', pen, 5.2, 0.03, 14, 0, 0, 0); pp('box', white, 0.61, 0.04, 0.15, 0, 0.04, -4.5); pp('box', woodM, 0.4, 0.5, 5, sg * 3.4, 0.25, 0); pp('box', white, 0.43, 0.05, 0.43, 0, 0.04, 5.5);
+  }
   const wasGround = stage.ground.enabled; stage.ground.enabled = false;
   const markers = root.children.filter(e => e.name === 'marker' && e.enabled); markers.forEach(m => { m.enabled = false; });
   return { dispose() { props.dispose(); parts.forEach(p => p.destroy()); mats.forEach(m => m.destroy()); tex.destroy(); stage.ground.enabled = wasGround; markers.forEach(m => { if (m.root) m.enabled = true; }); } };

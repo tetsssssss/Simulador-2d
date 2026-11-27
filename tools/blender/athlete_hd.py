@@ -193,7 +193,7 @@ def build_athlete_hd(kit='football', colors=None, build=1, skin_i=1, with_prop=T
     # ---- arms: sleeve (jersey), bare forearm (skin) + gloves ----
     for s, y in (('F', -SH_HALF), ('B', SH_HALF)):
         z0 = SH_Z - 0.04; z1 = z0 - UPPER; z2 = z1 - FORE; sg = -1 if s == 'F' else 1
-        P.add(loft_z([(z0 + 0.02, 0, y, 0.07 * k, 0.07 * k), (z0 - 0.12, 0, y, 0.066 * k, 0.064 * k), (z1, 0, y, 0.056 * k, 0.054 * k)], 14, (False, False)), f'upper_{s}', 'jersey', True)
+        P.add(loft_z([(z0 + 0.02, 0, y, 0.07 * k, 0.07 * k), (z0 - 0.12, 0, y, 0.066 * k, 0.064 * k), (z1, 0, y, 0.056 * k, 0.054 * k)], 14, (False, True)), f'upper_{s}', 'jersey', True)   # end capped: no see-through rim (the white "fuzz" at the cuff)
         P.add(loft_z([(z0 - 0.17, 0, y, 0.069 * k, 0.067 * k), (z0 - 0.21, 0, y, 0.068 * k, 0.066 * k)], 14, (False, False)), f'upper_{s}', 'accent', True)          # sleeve band
         P.add(ball((0, y, z1), 0.062 * k, 1, 1, 1, 2), f'fore_{s}', 'skin', True)   # slightly bigger than the sleeve rim: a crisp seam instead of z-fighting "fuzz"
         P.add(loft_z([(z1, 0, y, 0.052 * k, 0.05 * k), (z1 - 0.12, 0, y, 0.048 * k, 0.046 * k), (z2, 0, y, 0.038, 0.036)], 12, (False, False)), f'fore_{s}', 'skin', True)
