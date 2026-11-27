@@ -79,9 +79,12 @@ export const NHL_COMMENTARY = {
     (e, c) => `${L(c, e.on)} vai para o banco de penalidades. ${e.infraction}.`,
   ],
   POWER_PLAY: [(e, c) => `Power play para ${T(c, e.team)}!`, (e, c) => `${T(c, e.team)} com vantagem numérica.`],
+  GOALIE_PULLED: [(e, c) => `${T(c, e.team)} tira o goleiro! Rede vazia, sexto atacante em campo.`, (e, c) => `Goleiro de ${T(c, e.team)} sai para o ataque extra.`],
+  GOALIE_RETURNS: [(e, c) => `O goleiro de ${T(c, e.team)} volta para a rede.`],
   POWER_PLAY_END: [(e, c) => `Fim do power play. Equipes completas.`],
   GOAL: [
     (e, c) => e.strength === 'PP' ? `GOL NO POWER PLAY! ${N(c, e.by)}!` : null,
+    (e, c) => e.strength === 'EN' ? `GOL NA REDE VAZIA! ${N(c, e.by)} sela para ${T(c, e.team)}!` : null,
     (e, c) => e.strength === 'SH' ? `GOL EM INFERIORIDADE! ${N(c, e.by)}!` : null,
     (e, c) => lead(c, e.team) === 0 ? `GOOOL! ${N(c, e.by)} empata para ${T(c, e.team)}!` : null,
     (e, c) => lead(c, e.team) === 1 && lateGame(c) ? `GOOOL no fim! ${N(c, e.by)} coloca ${T(c, e.team)} na frente!` : null,

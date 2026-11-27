@@ -15,7 +15,8 @@ export function applyLook(stage, name, floods = [], fogMul = 1) {
   camera.camera.clearColor = C(L.sky); app.scene.ambientLight = C(L.ambient);
   sun.light.color = C(L.sun.color); sun.light.intensity = L.sun.intensity; sun.setEulerAngles(...L.sun.euler);
   app.scene.fog.type = pc.FOG_EXP2; app.scene.fog.color = C(L.fog.color); app.scene.fog.density = L.fog.density * fogMul;
-  camera.camera.toneMapping = pc.TONEMAP_ACES2; app.scene.exposure = L.exposure;
+  if (!stage.frameActive?.()) camera.camera.toneMapping = pc.TONEMAP_ACES2;   // with Bloom the CameraFrame tone-maps
+  app.scene.exposure = L.exposure;
   for (const f of floods) f.enabled = L.flood > 0, f.light && (f.light.intensity = 22 * L.flood);
   return L;
 }

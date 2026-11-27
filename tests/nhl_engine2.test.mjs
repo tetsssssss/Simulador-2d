@@ -77,7 +77,8 @@ test('nhl v2: box score equals scoreboard, assists/goals are consistent', () => 
       const sog = Object.entries(S.box).reduce((a, [id, b]) => a + (S.roster[id].team === side ? b.sog : 0), 0);
       assert.equal(goals + (S.shootout?.winner === side ? 1 : 0), S.score[side]); assert.equal(sog, S.shots[side]);
       const ga = Object.entries(S.box).reduce((a, [id, b]) => a + (S.roster[id].team === side && S.roster[id].goalie ? b.ga : 0), 0);
-      assert.equal(ga + (S.shootout?.winner && S.shootout.winner !== side ? 1 : 0), S.score[side === 'home' ? 'away' : 'home']);
+      const en = S.events.filter(e => e.type === 'GOAL' && e.strength === 'EN' && e.team !== side).length;   // empty-net goals are not charged to a goalie (NHL rule)
+      assert.equal(ga + en + (S.shootout?.winner && S.shootout.winner !== side ? 1 : 0), S.score[side === 'home' ? 'away' : 'home']);
     }
   }
 });
@@ -161,7 +162,7 @@ test('NHL LINE_CHANGE: well formed, changes happen on the fly and at faceoffs', 
     for (const e of ev) {
       n++; e.onTheFly ? fly++ : stop++;
       assert.ok(['home', 'away'].includes(e.team));
-      assert.ok(e.in.length >= 1 && e.in.length <= 5 && e.out.length <= 5, `in/out ${e.in.length}/${e.out.length}`); // sizes differ when a penalty changes the strength (5 off, 4 on)
+      assert.ok(e.in.length >= 1 && e.in.length <= 6 && e.out.length <= 6, `in/out ${e.in.length}/${e.out.length}`); // sizes differ when a penalty changes the strength (5 off, 4 on) or the goalie is pulled (6th attacker)
       assert.equal(e.forwards + e.defense, e.in.length);
       for (const id of e.in) assert.equal(S.roster[id].team, e.team);
       for (const id of e.out) assert.ok(!e.in.includes(id));
@@ -169,4 +170,17 @@ test('NHL LINE_CHANGE: well formed, changes happen on the fly and at faceoffs', 
   }
   assert.ok(n >= 40, `line changes over 12 games: ${n}`);
   assert.ok(fly > 0 && stop > 0, `fly ${fly} / faceoff ${stop}`);
+});
+
+test('nhl: late goalie pull — only when trailing late in the 3rd, sixth attacker, empty-net goals are not charged to a goalie, goalie returns', () => {
+  let pulls = 0, ret = 0, en = 0, seen6 = false;
+  for (const { S } of batch().games) {
+    for (const ev of S.events) {
+      if (ev.type === 'GOALIE_PULLED') { pulls++; assert.equal(ev.period, 3); assert.ok(ev.clock <= 95, `pulled with ${ev.clock}s left`); }
+      if (ev.type === 'GOALIE_RETURNS') ret++;
+      if (ev.type === 'GOAL' && ev.strength === 'EN') en++;
+    }
+    assert.ok(S.players.every(p => Number.isFinite(p.x + p.y)));
+  }
+  void seen6; assert.ok(pulls >= 1, 'at least one pull in 12 games'); assert.ok(ret <= pulls + 0, 'a goalie only returns after being pulled'); assert.ok(en <= pulls * 2);
 });

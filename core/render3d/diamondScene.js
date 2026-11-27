@@ -76,9 +76,9 @@ export function createDiamond(stage) {
   // dugouts (1B / 3B side, outside the foul lines) and bullpens (down the lines near the fence). Structures only; positions in feet -> metres.
   const concM = mat(m => { m.diffuse = new pc.Color(0.2, 0.22, 0.26); m.gloss = 0.1; }), woodM = mat(m => { m.diffuse = new pc.Color(0.5, 0.36, 0.2); m.gloss = 0.2; }), roofM = mat(m => { m.diffuse = new pc.Color(0.08, 0.1, 0.14); m.gloss = 0.25; }), pen = mat(m => { m.diffuse = new pc.Color(0.62, 0.45, 0.26); m.gloss = 0.03; });
   for (const sg of [-1, 1]) {
-    const g = new pc.Entity(), cx = sg * 80 * FT, cz = -50 * FT;   // long side parallel to the foul line, open toward the field
+    const g = new pc.Entity(), cx = sg * 90.5 * FT, cz = -14.1 * FT   // same spot as the 2D dugout (74 ft along the line, 54 ft out);   // long side parallel to the foul line, open toward the field
     g.setPosition(cx, 0, cz); g.setEulerAngles(0, sg > 0 ? -45 : 45, 0); root.addChild(g); g.name = 'dugout'; parts.push(g);
-    const L = 9.5, D = 2.6, part = (type, m, sx, sy, sz, x, y, z, sh = false) => { const e = mk(type, m, sh); e.setLocalScale(sx, sy, sz); e.setLocalPosition(x, y, z); g.addChild(e); return e; };
+    const L = 15.8, D = 2.8, part = (type, m, sx, sy, sz, x, y, z, sh = false) => { const e = mk(type, m, sh); e.setLocalScale(sx, sy, sz); e.setLocalPosition(x, y, z); g.addChild(e); return e; };
     part('box', concM, L, 1.2, 0.3, 0, 0.6 - 0.45, -D / 2);            // sunken floor wall / back
     part('box', concM, L, 2.2, 0.25, 0, 1.1, -D / 2 - 0.1);            // back wall
     part('box', roofM, L + 0.8, 0.18, D + 0.9, 0, 2.3, 0.1, true);      // roof overhang
@@ -86,9 +86,9 @@ export function createDiamond(stage) {
     part('box', concM, 0.25, 2.2, D, L / 2, 1.1, 0); part('box', concM, 0.25, 2.2, D, -L / 2, 1.1, 0);   // side walls
     part('box', concM, L, 0.45, 0.2, 0, 0.55, D / 2 - 0.05);          // front rail (the dugout is sunk below the field line)
     // bullpen: dirt strip + rubber + bench, near the fence down the line
-    const b = new pc.Entity(); b.setPosition(sg * 105 * FT, 0.02, -268 * FT); b.setEulerAngles(0, 0, 0); root.addChild(b); b.name = 'bullpen'; parts.push(b);
+    const b = new pc.Entity(); b.setPosition(sg * 200 * FT, 0.02, -160.5 * FT); b.setEulerAngles(0, sg > 0 ? -45 : 45, 0); root.addChild(b); b.name = 'bullpen'; parts.push(b);
     const pp = (type, m, sx, sy, sz, x, y, z) => { const e = mk(type, m); e.setLocalScale(sx, sy, sz); e.setLocalPosition(x, y, z); b.addChild(e); return e; };
-    pp('box', pen, 5.2, 0.03, 14, 0, 0, 0); pp('box', white, 0.61, 0.04, 0.15, 0, 0.04, -4.5); pp('box', woodM, 0.4, 0.5, 5, sg * 3.4, 0.25, 0); pp('box', white, 0.43, 0.05, 0.43, 0, 0.04, 5.5);
+    pp('box', pen, 18.3, 0.03, 3.7, 0, 0, 0); pp('box', white, 0.61, 0.04, 0.15, -6.5, 0.04, 0); pp('box', white, 0.43, 0.05, 0.43, 6.5, 0.04, 0); pp('box', woodM, 6, 0.5, 0.4, 0, 0.25, -1.5);
   }
   const wasGround = stage.ground.enabled; stage.ground.enabled = false;
   const markers = root.children.filter(e => e.name === 'marker' && e.enabled); markers.forEach(m => { m.enabled = false; });

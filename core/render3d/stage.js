@@ -1,6 +1,6 @@
 // 3D stage on the PlayCanvas Engine (MIT, vendored in vendor/playcanvas): application, sky, ground, sun with shadows, camera.
 // Loaded lazily (the 2.9 MB engine is only fetched when the "3D (PlayCanvas)" visual mode is chosen). Everything created here is released by dispose().
-import { qualitySettings, DEFAULT_QUALITY, pixelRatioFor } from './quality.js';
+import { qualitySettings, DEFAULT_QUALITY, pixelRatioFor, readBloom } from './quality.js';
 
 let enginePromise = null;
 export const loadEngine = () => (enginePromise ||= import('../../vendor/playcanvas/playcanvas.min.mjs'));
@@ -31,6 +31,16 @@ export async function createStage(canvas, { quality = DEFAULT_QUALITY } = {}) {
   let size = null;
   // The engine's resizeCanvas multiplies by min(maxPixelRatio, devicePixelRatio) so it can never SUPERsample on a 1x screen; for Full HD we set the buffer resolution ourselves (css size stays the same).
   const applySize = () => { const dev = app.graphicsDevice, ratio = pixelRatioFor(q, size[0]); dev.maxPixelRatio = ratio; dev.resizeCanvas(size[0], size[1]); const W = Math.round(size[0] * ratio), H = Math.round(size[1] * ratio); if (dev.canvas.width !== W || dev.canvas.height !== H) dev.setResolution(W, H); };
+  // Post-processing (quality high + Bloom on): the engine's CameraFrame renders the scene in HDR, blooms the bright parts (floodlights, video board, lit
+  // ice / lamps) and tone-maps in the compose pass (so applyLook must not tone-map the camera again). Anything else: plain forward rendering.
+  let frame = null;
+  const applyFx = () => {
+    const want = q.level === 'high' && readBloom() && typeof pc.CameraFrame === 'function';
+    if (want && !frame) { try { frame = new pc.CameraFrame(app, camera.camera); frame.rendering.toneMapping = pc.TONEMAP_ACES2; frame.bloom.intensity = 0.03; frame.bloom.blurLevel = 14; camera.camera.toneMapping = pc.TONEMAP_NONE; frame.update(); } catch (e) { console.warn('bloom unavailable:', e.message); frame = null; } }
+    else if (!want && frame) { frame.destroy(); frame = null; camera.camera.toneMapping = pc.TONEMAP_ACES2; }
+    else if (frame) frame.update();
+  };
+  applyFx();
   app.start();
   const api = {
     pc, app, root, camera, sun, ground,
@@ -39,8 +49,9 @@ export async function createStage(canvas, { quality = DEFAULT_QUALITY } = {}) {
     resize(w, h) { if (w > 0 && h > 0) { size = [w, h]; applySize(); } },
     setQuality(level) {
       q = qualitySettings(level, globalThis.devicePixelRatio);
-      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; if (size) applySize();
+      sun.light.castShadows = q.shadow.on; sun.light.shadowResolution = q.shadow.resolution; sun.light.shadowDistance = q.shadow.distance; if (size) applySize(); applyFx();
     },
+    get bloom() { return !!frame; }, frameActive: () => !!frame,
     dispose() {
       if (api.disposed) return; api.disposed = true;
       try { app.destroy(); } catch { /* already gone */ }

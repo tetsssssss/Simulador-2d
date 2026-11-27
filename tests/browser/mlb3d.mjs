@@ -19,5 +19,6 @@ check('animation clips play (stance / ready / run / pitch …)', clips.size >= 2
 const seats = await f.evaluate(() => window.__asu3dRenderer.crowdSeats());
 check('crowd stands built (thousands of seats, 2 meshes)', seats > 900, seats + ' seats');
 if (OUT) await page.screenshot({ path: `${OUT}/mlb3d.png` });
+check('dugout / bullpen reserves are on the field (>= 6 low-poly athletes seated)', (await f.evaluate(() => window.__asu3dRenderer.benchInfo?.().n)) >= 6);
 check('no JS errors', errs.length === 0, errs.slice(0, 2).join(' | '));
 console.log(`\n${pass}/${pass + fail} checks passed`); await b.close(); process.exit(fail ? 1 : 0);

@@ -23,11 +23,13 @@ export const roleOf = (e, kind) => e.role || (kind === 'batter' ? 'batter' : kin
 export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
   const { pc } = stage;
   let factory = null, field = null, crowd = null, crowdKey = '', pool = [], ready = false, initP = null, evIdx = 0, simRef = null, cam = null, last = 0, replaying = false, replayT = 0, ballE = null, props = null;
+  const benchPool = [], R2 = Math.SQRT1_2, DUG_N = 5, PEN_N = 3; let lastScore = null;
   const slot = new Map(), acts = new Map(), wall = () => performance.now() / 1000;
   let hdOn = stage.quality?.level !== 'low';   // LOD by quality (HD player ~4 000 triangles, low-poly ~620)
   async function init() {
     factory = createAthleteFactory(stage, { base }); field = createDiamond(stage);
     for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { hd: hdOn, name: 'p' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); pool.push(a); }
+    for (let i = 0; i < 2 * (DUG_N + PEN_N); i++) { const a = await factory.spawn('baseball', { hd: false, name: 'b' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); a.play('mv_idle'); benchPool.push(a); }
     props = createProps(stage); ballE = props.baseball(); stage.root.addChild(ballE);
     ready = true;
   }
@@ -38,12 +40,29 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
       const set = (id, type, dt0, dur) => acts.set(id, { type, t0: t0 + dt0, dur, token: `${t0}|${type}|${id}` });
       if (e.type === 'PITCH') { set(e.pitcher, 'throw', 0, 0.85); if (e.decision && e.decision !== 'TAKE') set(e.batter, 'swing', 0.45, 0.55); }
       else if (e.type === 'PICKOFF_ATTEMPT') { set(e.pitcher, 'throw', 0, 0.7); set(e.runner, 'dive', 0.3, 0.7); }
-      else if (e.type === 'HOME_RUN') { set(e.by, 'celebrate', 0, 3); crowd?.cheer(1); }
-      else if (e.type === 'RUN_SCORES') { set(e.runner, 'celebrate', 0, 1.6); crowd?.cheer(0.6); }
+      else if (e.type === 'HOME_RUN') { set(e.by, 'celebrate', 0, 3); crowd?.cheer(1); lastScore = { team: state.roster?.[e.by]?.team || e.team, t0: state.t ?? 0 }; }
+      else if (e.type === 'RUN_SCORES') { set(e.runner, 'celebrate', 0, 1.6); crowd?.cheer(0.6); lastScore = { team: state.roster?.[e.runner]?.team || e.team, t0: state.t ?? 0 }; }
     }
   }
   const actOf = (id, state) => { const A = acts.get(id); if (!A) return null; const k = ((state.t ?? 0) - A.t0) / A.dur; if (k < 0) return null; if (k > 1) { acts.delete(id); return null; } return A; };
 
+  // Dugout / bullpen occupants (same rule and slots as the 2D renderer): hitters not at bat or on base sit in the dugout, relievers in the bullpen; they cheer on runs.
+  function drawBench(state) {
+    const roster = Object.values(state.roster || {}), t = state.t ?? 0, busy = new Set([...(state.fielders || []).map(f => f.id), state.batter?.id, ...(state.runners || []).map(r => r.id)].filter(Boolean));
+    const inOrder = new Set(); for (const side of ['home', 'away']) for (const r of state[side]?.lineup?.order || []) if (r) inOrder.add(r.id);
+    let i = 0;
+    for (const [side, sgn] of [['home', 1], ['away', -1]]) {
+      const mine = roster.filter(r => r.team === side && !busy.has(r.id)).sort((x, y) => (x.id < y.id ? -1 : 1)), team = state[side] || {};
+      const dug = mine.filter(r => inOrder.has(r.id)).slice(0, DUG_N), pen = mine.filter(r => !inOrder.has(r.id)).slice(0, PEN_N);
+      const place = (list, along, off, spread, ly) => { const th = sgn > 0 ? Math.PI / 4 : -Math.PI / 4, c = { x: sgn * R2 * along + sgn * R2 * off, y: R2 * along - R2 * off };
+        list.forEach((r, j) => { const a = benchPool[i++]; if (!a) return; const lx = (j - (list.length - 1) / 2) * spread, x = c.x + lx * Math.cos(th) - ly * Math.sin(th), y = c.y - (lx * Math.sin(th) + ly * Math.cos(th));
+          const tk = `${team.color}|${team.color2}`; if (a.tk !== tk) { a.setTeam(team.color, team.color2); a.tk = tk; }
+          const cheer = lastScore && lastScore.team === side && t - lastScore.t0 >= 0 && t - lastScore.t0 < 3, want = cheer ? 'gs_arms_up' : 'mv_idle';
+          a.entity.enabled = true; a.setPosition('mlb', x, y); a.setFacing(Math.atan2(-y, -x)); if (a.clip !== want && a.has(want)) a.play(want, { loop: !cheer, blend: 0.2 }); }); };
+      place(dug, 74, 54, 9, 1.2); place(pen, 255, 28, 12, 0);
+    }
+    for (; i < benchPool.length; i++) benchPool[i].entity.enabled = false;
+  }
   function render(state, alpha, opts = {}) {
     if (!ready) { initP ||= init().catch(e => console.error('3D MLB init failed', e)); return; }
     if (!state) return;
@@ -55,7 +74,7 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
     pump(state);
     const now = wall(), dt = last ? Math.min(0.1, now - last) : 0; last = now; const k = Math.max(0, Math.min(1, alpha ?? 1));
     if (!crowd || crowdKey !== `${state.home?.color}|${state.away?.color}`) { crowd?.dispose(); crowdKey = `${state.home?.color}|${state.away?.color}`; const c = x => parseColor(x || '#244c8f').map(v => v / 255); crowd = createCrowdStands(stage, { ...arcStands(undefined, { low: 0.5, medium: 0.8, high: 1 }[stage.quality?.level] || 0.8), home: c(state.home?.color), away: c(state.away?.color) }); }
-    crowd.update(dt, now);
+    crowd.update(dt, now); drawBench(state);
     const items = [...(state.fielders || []).map(e => [e, 'fielder']), ...(state.batter ? [[state.batter, 'batter']] : []), ...(state.runners || []).map(e => [e, 'runner'])];
     const present = new Set();
     for (const [e, kind] of items) {
@@ -89,7 +108,8 @@ export function createMlbRenderer3d(stage, { canvas3d, base = '/' } = {}) {
       for (let i = 0; i < 15; i++) { const a = await factory.spawn('baseball', { hd: hdOn, name: 'p' + i }); a.entity.enabled = false; a.setPartVisible('asu_bat', false); pool.push(a); }
       old.forEach(a => a.dispose()); slot.clear(); simRef = null; ready = true;
     },
+    benchInfo: () => ({ n: benchPool.filter(a => a.entity.enabled).length, slots: benchPool.length }),
     get hd() { return hdOn; }, get ready() { return ready; }, crowdSeats: () => crowd?.seats || 0, athletes: () => pool.filter(a => a.e), cameraState: () => (cam ? { pos: cam.pos.slice(), look: cam.look.slice(), replaying } : null),
-    dispose() { crowd?.dispose(); field?.dispose(); props?.dispose(); pool.forEach(a => a.dispose()); pool = []; factory?.dispose(); },
+    dispose() { crowd?.dispose(); field?.dispose(); props?.dispose(); pool.forEach(a => a.dispose()); pool = []; benchPool.forEach(a => a.dispose()); benchPool.length = 0; factory?.dispose(); },
   };
 }

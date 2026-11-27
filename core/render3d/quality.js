@@ -15,6 +15,7 @@ export function qualitySettings(level = DEFAULT_QUALITY, devicePixelRatio = 1) {
 // "Full HD": at 'high' the drawing buffer is at least FULL_HD_WIDTH px wide whatever the size of the on-screen view (supersampled, then scaled down by the browser = clean edges); capped at 3x.
 export const FULL_HD_WIDTH = 1920;
 export const readFullHd = () => { try { return localStorage.getItem('asu_3d_fullhd') !== '0'; } catch { return true; } };   // menu checkbox "Full HD"; default on
+export const readBloom = () => { try { return localStorage.getItem('asu_3d_bloom') !== '0'; } catch { return true; } };   // menu checkbox "Bloom"; only used at quality high
 export const pixelRatioFor = (q, cssWidth, fullHd = readFullHd()) => (fullHd && q.level === 'high' && cssWidth > 0 ? Math.min(3, Math.max(q.pixelRatio, FULL_HD_WIDTH / cssWidth)) : q.pixelRatio);
 export const QUALITY_MODES = ['auto', ...QUALITY_LEVELS];
 // Default = 'high' (everything at full quality, own-HD athletes, Full HD buffer). 'auto' (menu choice) starts at medium and lets autoQuality.js move between levels; any other value is a fixed level.

@@ -22,7 +22,7 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
       stage = s; const [w, h] = size(); stage.resize(w, h);
       if (createRenderer) { renderer = await createRenderer(stage, canvas3d); if (my !== token || disposed) { renderer.dispose?.(); renderer = null; stage.dispose(); stage = null; canvas3d?.remove(); canvas3d = null; return; } }
       ro = new ResizeObserver(() => { const [a, b] = size(); stage?.resize(a, b); }); ro.observe(wrap);
-      window.__asu3dRenderer = renderer; window.__asu3dStage = stage.app;   // test hooks
+      window.__asu3dRenderer = renderer; window.__asu3dStage = stage.app; window.__asu3dStageApi = stage;   // test hooks
       window.__asu3d = { sport, version: stage.pc.version, device: stage.app.graphicsDevice.deviceType, quality: stage.quality.level, mounts: (window.__asu3d?.mounts || 0) + 1 };
     } catch (e) { console.error('3D mode failed:', e); leave(); note('Não foi possível iniciar o 3D. Voltando ao 2D.'); onFallback(); }
   }
@@ -31,7 +31,7 @@ export function mount3dOverlay({ canvas, sport = 'game', createRenderer = null, 
     if (window.__asu3d) window.__asu3d = { ...window.__asu3d, active: false };
   }
   let auto = null, lastT = 0, lastDraw = 0, cap = 60;
-  const onQ = e => { if (!e.key || e.key === 'asu_3d_fps') cap = readFpsCap(); if (e.key === 'asu_3d_fullhd' && stage) { stage.setQuality(stage.quality.level); }
+  const onQ = e => { if (!e.key || e.key === 'asu_3d_fps') cap = readFpsCap(); if ((e.key === 'asu_3d_fullhd' || e.key === 'asu_3d_bloom') && stage) { stage.setQuality(stage.quality.level); }
     if (!e.key || e.key === 'asu_3d_quality' || e.key === 'asu_3d_fps') { const m = readQualityMode(); auto = m === 'auto' ? createAutoQuality({ start: stage?.quality?.level || 'medium', ...autoThresholds(cap) }) : null; if (stage && m !== 'auto') { stage.setQuality(m); renderer?.setQuality?.(m); } if (window.__asu3d && stage) window.__asu3d = { ...window.__asu3d, quality: stage.quality.level }; } };
   window.addEventListener('storage', onQ);
   const sync = () => (getVisualMode() === '3d' ? enter() : leave());

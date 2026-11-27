@@ -97,9 +97,12 @@ export const NHL_COMMENTARY_EN = {
     (e, c) => `${L(c, e.on)} heads to the penalty box. ${e.infraction}.`,
   ],
   POWER_PLAY: [(e, c) => `Power play for ${T(c, e.team)}!`, (e, c) => `${T(c, e.team)} has the man advantage.`],
+  GOALIE_PULLED: [(e, c) => `${T(c, e.team)} pulls the goalie! Extra attacker on.`, (e, c) => `Empty net for ${T(c, e.team)}: six skaters.`],
+  GOALIE_RETURNS: [(e, c) => `${T(c, e.team)} goalie is back in the crease.`],
   POWER_PLAY_END: [() => 'Power play over. Teams back to full strength.'],
   GOAL: [
     (e, c) => e.strength === 'PP' ? `POWER-PLAY GOAL! ${N(c, e.by)}!` : null,
+    (e, c) => e.strength === 'EN' ? `EMPTY-NET GOAL! ${N(c, e.by)} seals it for ${T(c, e.team)}!` : null,
     (e, c) => e.strength === 'SH' ? `SHORT-HANDED GOAL! ${N(c, e.by)}!` : null,
     (e, c) => lead(c, e.team) === 0 ? `GOOOAL! ${N(c, e.by)} ties it for ${T(c, e.team)}!` : null,
     (e, c) => lead(c, e.team) === 1 && lateGame(c) ? `GOAL late! ${N(c, e.by)} puts ${T(c, e.team)} in front!` : null,
