@@ -72,7 +72,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   const skaters = side => (skCache ||= { home: S.players.filter(p => p.team === 'home' && !p.goalie), away: S.players.filter(p => p.team === 'away' && !p.goalie) })[side];
   const allowed = side => S.period >= 4 ? 3 : Math.max(3, 5 - T[side].box.length);
 
-  const PULL_T1 = 120, PULL_T2 = 70, PULL_BOOST = 2.2;   // seconds left in the 3rd period (tuned against the real ~23 % of games that reach OT / SO)
+  const PULL_T1 = 150, PULL_T2 = 90, PULL_BOOST = 3;   // seconds left in the 3rd period (tuned against the real ~23 % of games that reach OT / SO)
   // ---------- on-ice personnel ----------
   function assemble(side, keepIds = null) {
     const t = T[side], L = t.lines[t.line], Pr = t.pairs[t.pair], n = allowed(side);
