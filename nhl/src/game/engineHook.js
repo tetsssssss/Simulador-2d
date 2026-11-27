@@ -13,7 +13,8 @@ export function hockeyHook(deps) {
     commentaryCtx: s => {
       const att = s.possession, u = att ? (s.puck.x - RINK.center) * s.attack[att] : 0;
       return {
-        name: id => s.roster[id]?.name, last: id => s.roster[id]?.last, team: side => s[side]?.abbr || side,
+        name: id => s.roster[id]?.name, last: id => s.roster[id]?.last, num: id => s.roster[id]?.num, box: s.box,
+        tot: (side, k) => Object.entries(s.box || {}).reduce((a, [id, b]) => a + (s.roster[id]?.team === side ? b[k] : 0), 0), team: side => s[side]?.abbr || side,
         score: { ...s.score }, period: s.period, clock: s.clock, powerPlay: s.powerPlay, possession: s.possession, inZone: u > 25,
         clockLabel: s.over ? 'FINAL' : `${['1º', '2º', '3º', 'OT'][Math.min(3, s.period - 1)]} ${clk(s.clock)}`,
       };

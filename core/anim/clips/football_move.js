@@ -1,0 +1,38 @@
+// NFL animation batch 2a — Movimentação (20 clips). Locomotion loops are driven by DISTANCE (stride phase), not by time:
+// the renderer passes t = phase / 2π, so one loop = one full stride cycle (two steps) and feet never slide.
+import { defineClip as C } from '../pose.js';
+const G = 'move';
+
+// One full stride cycle (two steps) as a closed loop. s = foot reach (u), k = foot lift (u), sw = arm swing (rad),
+// elb = elbow flexion added to the forearm angle, lean = torso lean, crouch = hip drop, bounce = body rise at mid-stance.
+function cyc(id, name, o) {
+  const { s = 1, k = 0.9, sw = 0.7, elb = 0.9, lean = 0.1, crouch = 0, bounce = 0.12, ball = '', catalog = null, dur = 0.6, back = false } = o;
+  const A = (sg) => ({ lF: sg * s, kF: sg > 0 ? k : 0, lB: -sg * s, kB: sg > 0 ? 0 : k, aF: -sg * sw, fF: -sg * sw + elb, aB: sg * sw, fB: sg * sw + elb, lean, crouch, ball });
+  const a = A(1), b = A(-1), m = { air: bounce };
+  if (ball) { a.aF = 1.0; a.fF = 2.3; a.aB = 0.9; a.fB = 2.1; b.aF = 1.0; b.fF = 2.3; b.aB = 0.9; b.fB = 2.1; }
+  if (back) { a.lean = b.lean = -0.08; }
+  return C({ id, name, catalog, source: catalog ? undefined : 'extra', group: G, dur, loop: true, keys: [[0, a], [0.25, { ...m }], [0.5, b], [0.75, { ...m }], [1, { ...a, air: 0 }]] });
+}
+
+export const MOVE_CLIPS = [
+  C({ id: 'mv_idle', name: 'Idle Stance', source: 'extra', group: G, dur: 2.4, loop: true, keys: [[0, { aF: 0.18, fF: 0.5, aB: -0.14, fB: 0.3 }], [0.5, { aF: 0.22, fF: 0.55, aB: -0.18, fB: 0.34, lean: 0.03, air: 0.04 }], [1, { aF: 0.18, fF: 0.5, aB: -0.14, fB: 0.3 }]] }),
+  cyc('mv_walk', 'Walk', { s: 0.55, k: 0.25, sw: 0.35, elb: 0.35, lean: 0.03, bounce: 0.04, dur: 1.1 }),
+  cyc('mv_jog', 'Jog', { s: 0.85, k: 0.6, sw: 0.55, elb: 0.8, lean: 0.07, bounce: 0.1, dur: 0.78 }),
+  cyc('mv_run', 'Run', { s: 1.2, k: 1.0, sw: 0.8, elb: 1.0, lean: 0.14, bounce: 0.14, dur: 0.58 }),
+  cyc('mv_sprint', 'Sprint', { s: 1.6, k: 1.5, sw: 1.05, elb: 1.2, lean: 0.3, crouch: 0.1, bounce: 0.18, dur: 0.45, catalog: 'Speed Run' }),
+  cyc('mv_run_ball', 'Run with Ball', { s: 1.15, k: 1.0, lean: 0.16, bounce: 0.14, dur: 0.58, ball: 'F' }),
+  cyc('mv_sprint_ball', 'Sprint with Ball', { s: 1.55, k: 1.45, lean: 0.3, crouch: 0.1, bounce: 0.18, dur: 0.45, ball: 'F' }),
+  cyc('mv_backpedal', 'Backpedal', { s: 0.8, k: 0.5, sw: 0.4, elb: 0.7, lean: -0.05, crouch: 0.35, bounce: 0.05, dur: 0.6, back: true, catalog: 'Backpedal' }),
+  C({ id: 'mv_shuffle', name: 'Lateral Shuffle', source: 'extra', group: G, dur: 0.5, loop: true, keys: [[0, { crouch: 0.55, lean: 0.12, lF: 0.9, lB: -0.9, aF: 0.9, fF: 1.5, aB: 0.6, fB: 1.2 }], [0.5, { lF: -0.4, lB: 0.4, kF: 0.35, kB: 0.35, air: 0.06 }], [1, { lF: 0.9, lB: -0.9, kF: 0, kB: 0, air: 0 }]] }),
+  C({ id: 'mv_carioca', name: 'Carioca', source: 'extra', group: G, dur: 0.7, loop: true, keys: [[0, { crouch: 0.3, lean: 0.05, lF: 1.1, lB: -1.0, kB: 0.6, aF: 1.3, fF: 1.5, aB: -1.3, fB: -1.5 }], [0.5, { lF: -1.0, lB: 1.1, kF: 0.6, kB: 0, aF: 1.3, fF: 1.5, aB: -1.3, fB: -1.5, air: 0.08 }], [1, { lF: 1.1, lB: -1.0, kF: 0, kB: 0.6, air: 0 }]] }),
+  cyc('mv_high_knees', 'High Knees', { s: 0.5, k: 2.0, sw: 0.9, elb: 1.4, lean: 0.02, bounce: 0.1, dur: 0.5 }),
+  C({ id: 'mv_plant_cut', name: 'Plant and Cut', source: 'extra', group: G, dur: 0.55, ev: { plant: 0.4 }, keys: [[0, { lean: 0.2, lF: 1.1, kF: 0.8, lB: -1.0, aF: 0.8, fF: 1.9, aB: 0.9, fB: 1.8 }], [0.4, { lean: -0.2, crouch: 0.6, lF: 1.8, kF: 0, lB: -0.4, aF: 1.4, fF: 1.5, aB: -1.0, fB: -0.8 }], [0.7, { lean: 0.35, crouch: 0.3, lF: 0.5, lB: -0.9, kB: 0.8, aF: 0.6, fF: 1.8, aB: 1.0, fB: 1.9 }], [1, { lean: 0.2, crouch: 0, lF: 1.0, kF: 0.8, lB: -1.0, kB: 0 }]] }),
+  C({ id: 'mv_jump_cut', name: 'Jump Cut', source: 'extra', group: G, dur: 0.55, keys: [[0, { lean: 0.2, lF: 1.0, kF: 0.8, lB: -1.0, aF: 0.8, fF: 1.9, aB: 0.9, fB: 1.8 }], [0.3, { lean: 0.1, crouch: 0.5, air: 0, lF: 0.5, lB: -0.4 }], [0.5, { lean: -0.1, crouch: 0, air: 0.9, kF: 1.0, kB: 1.0, lF: 0.3, lB: -0.3, aF: 1.6, fF: 1.5, aB: -1.2, fB: -1.0 }], [0.75, { lean: 0.3, crouch: 0.4, air: 0, kF: 0, kB: 0, lF: 1.0, lB: -0.8 }], [1, { lean: 0.2, crouch: 0, lF: 1.0, kF: 0.8, lB: -1.0 }]] }),
+  C({ id: 'mv_decelerate', name: 'Decelerate / Brake', source: 'extra', group: G, dur: 0.6, keys: [[0, { lean: 0.3, lF: 1.4, kF: 0.9, lB: -1.4, aF: 1.0, fF: 2.0, aB: 0.9, fB: 1.9 }], [0.35, { lean: -0.25, crouch: 0.7, lF: 2.0, lB: -0.6, aF: 1.6, fF: 1.7, aB: 1.2, fB: 1.3 }], [0.7, { lean: -0.05, crouch: 0.4, lF: 1.2, lB: -0.5, aF: 1.1, fF: 1.5, aB: 0.7, fB: 1.2 }], [1, { lean: 0, crouch: 0.2, lF: 0.4, lB: -0.3, aF: 0.4, fF: 0.8, aB: 0.2, fB: 0.6 }]] }),
+  C({ id: 'mv_burst', name: 'Explosive Burst', catalog: 'Explosive Burst', group: G, dur: 0.55, keys: [[0, { crouch: 0.9, lean: 0.5, lF: 0.9, lB: -1.5, aF: 1.1, fF: 1.3, aB: -0.7, fB: -0.5 }], [0.3, { crouch: 0.6, lean: 0.65, lF: 1.2, lB: -2.0, kB: 0.4, aF: -1.0, fF: 0.2, aB: 1.2, fB: 1.9 }], [0.65, { crouch: 0.2, lean: 0.5, lF: -0.6, kF: 0.9, lB: 1.4, kB: 0, aF: 1.0, fF: 2.1, aB: -0.9, fB: -0.2, air: 0.1 }], [1, { crouch: 0.1, lean: 0.4, lF: 1.4, kF: 1.2, lB: -1.4, kB: 0, aF: -0.8, fF: 0.2, aB: 0.9, fB: 1.9, air: 0 }]] }),
+  C({ id: 'mv_turn_180', name: 'Turn 180', source: 'extra', group: G, dur: 0.6, keys: [[0, { crouch: 0.2, lF: 0.4, lB: -0.4 }], [0.35, { crouch: 0.5, lean: 0.3, lF: 1.4, lB: -1.2, aF: 1.4, fF: 1.5, aB: -1.4, fB: -1.5 }], [0.7, { crouch: 0.4, lean: 0.15, lF: -0.3, lB: 0.8, kB: 0.6, aF: 0.9, fF: 1.4, aB: 0.9, fB: 1.4 }], [1, { crouch: 0.2, lean: 0.1, lF: 0.6, lB: -0.6, kB: 0 }]] }),
+  C({ id: 'mv_open_hip', name: 'Open-Hip Turn', catalog: 'Open-Hip Turn', group: G, dur: 0.55, keys: [[0, { crouch: 0.5, lean: -0.05, lF: 0.5, lB: -0.7, aF: 0.8, fF: 1.2, aB: 0.5, fB: 0.9 }], [0.4, { crouch: 0.65, lean: 0.18, lF: 1.5, lB: -0.4, kB: 0.5, aF: 1.5, fF: 1.5, aB: -1.4, fB: -1.5 }], [0.75, { crouch: 0.4, lean: 0.3, lF: 1.2, kF: 0.8, lB: -1.1, kB: 0, aF: 0.8, fF: 1.9, aB: 0.9, fB: 1.8 }], [1, { crouch: 0.2, lean: 0.25, lF: 1.1, kF: 0.8, lB: -1.1 }]] }),
+  C({ id: 'mv_stumble_recover', name: 'Stumble and Recover', catalog: 'Balance Recovery', group: G, dur: 0.8, keys: [[0, { lean: 0.15, lF: 1.0, kF: 0.8, lB: -1.0 }], [0.25, { lean: 0.7, crouch: 0.4, lF: 1.8, kF: 0.2, lB: -0.4, aF: 1.9, fF: 2.2, aB: -2.0, fB: -2.3 }], [0.55, { lean: 0.5, crouch: 0.6, lF: 1.2, lB: -1.2, kB: 0.4, aF: 2.3, fF: 2.5, aB: -1.7, fB: -2.0 }], [0.85, { lean: 0.2, crouch: 0.3, lF: 0.8, lB: -0.6, kB: 0, aF: 1.0, fF: 1.5, aB: -0.4, fB: -0.2 }], [1, { lean: 0.1, crouch: 0, lF: 0.6, lB: -0.5, aF: 0.4, fF: 0.8, aB: -0.2, fB: 0 }]] }),
+  C({ id: 'mv_vertical_jump', name: 'Vertical Jump', source: 'extra', group: G, dur: 1.0, keys: [[0, { crouch: 0.2 }], [0.2, { crouch: 0.9, lean: 0.2, aF: -0.6, fF: -0.3, aB: -0.6, fB: -0.3, lF: 0.3, lB: -0.3 }], [0.45, { crouch: 0, air: 1.8, lean: -0.05, aF: 3.0, fF: 3.1, aB: -3.0, fB: -3.1, kF: 1.0, kB: 1.2, lF: 0.2, lB: -0.2 }], [0.75, { air: 0.6, aF: 2.6, fF: 2.8, aB: -2.4, fB: -2.6, kF: 0.4, kB: 0.4 }], [0.85, { air: 0.15, crouch: 0.3, aF: 1.3, fF: 1.7, aB: -0.9, fB: -0.5, kF: 0.2, kB: 0.2 }], [0.95, { air: 0, crouch: 0.6, aF: 0.6, fF: 0.9, aB: 0.2, fB: 0.5, kF: 0, kB: 0 }], [1, { crouch: 0.1, aF: 0.2, fF: 0.5, aB: -0.1, fB: 0.2 }]] }),
+  C({ id: 'mv_athletic_ready', name: 'Athletic Ready Stance', source: 'extra', group: G, dur: 1.6, loop: true, keys: [[0, { crouch: 0.55, lean: 0.12, lF: 0.5, lB: -0.5, aF: 0.9, fF: 1.5, aB: 0.6, fB: 1.2 }], [0.5, { crouch: 0.6, lean: 0.14, lF: 0.55, lB: -0.5, aF: 0.95, fF: 1.55, aB: 0.65, fB: 1.25, air: 0.03 }], [1, { crouch: 0.55, lean: 0.12, lF: 0.5, lB: -0.5, aF: 0.9, fF: 1.5, aB: 0.6, fB: 1.2 }]] }),
+];

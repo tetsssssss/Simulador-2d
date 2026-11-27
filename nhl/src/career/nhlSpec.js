@@ -31,7 +31,7 @@ export const NHL_SPEC = {
   v3: NHL_V3,
   sport: 'nhl', label: 'NHL', confLabel: 'Conferência', starOvr: 80, usePoints: true, homeAdvantage: 1.5, aiTradeRate: 0.025,
   calendar: { games: 82, crossesYear: true, startMonth: 10, startDay: 8, slateDays: 2.2, firstSeason: 2026 },
-  scoring: { kind: 'poisson', mean: 3.05, k: 0.018, ties: false, otLoss: true, otAdds: 1 },
+  scoring: { kind: 'poisson', mean: 3.05, k: 0.018, ties: false, otLoss: true, otAdds: 1, tieBoost: 0.24 },   // tieBoost: real NHL ~23 % of games go to OT/SO (plain Poisson gave 15.7 %, measured 2026-11-26)
   playoffs: { perConf: 8, byes: 0, bestOf: [7, 7, 7, 7], names: ['1ª rodada', '2ª rodada', 'Final de conferência', 'Stanley Cup Final'] },
   ageCurve: { growthEnd: 24, peakEnd: 30, decline: 1.6, retireMin: 34 },
   injuries: { perPlayerGame: 0.0055, irGames: 7, table: [['Lower-body', 1, 6], ['Upper-body', 1, 8], ['Concussão', 3, 15], ['Joelho', 8, 30], ['Ombro', 5, 25], ['Mão', 4, 12]] },

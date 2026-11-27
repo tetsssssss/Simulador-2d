@@ -14,7 +14,7 @@ import { simRatings } from './ratings.js';
 export const DT = 1 / 30;
 const POSTS = 3, CENTER = RINK.center, BLUE_U = RINK.center - RINK.blueLine, GOAL_U = RINK.center - RINK.goalLine;
 // Stable event vocabulary (state.events[].type). PASS carries `kind`, SHOT `shotType`, SAVE `save` (goalie state).
-export const EVENT_TYPES = ['FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
+export const EVENT_TYPES = ['GOALIE_PULLED', 'GOALIE_RETURNS', 'FACEOFF', 'PASS', 'RECEPTION', 'INTERCEPTION', 'TURNOVER', 'TAKEAWAY', 'ZONE_ENTRY', 'BREAKAWAY', 'HIT', 'SHOT', 'BLOCK', 'MISS', 'SAVE', 'REBOUND', 'GOAL', 'PENALTY', 'POWER_PLAY', 'POWER_PLAY_END', 'ICING', 'LINE_CHANGE', 'PERIOD_START', 'PERIOD_END', 'SHOOTOUT', 'FINAL'];
 export const PASS_KINDS = ['short', 'cross', 'saucer', 'stretch', 'drop', 'bank'];
 export const SHOT_TYPES = ['wrist', 'snap', 'slap', 'backhand', 'one-timer'];
 export const GOALIE_STATES = ['READY', 'BUTTERFLY', 'SLIDE', 'GLOVE', 'BLOCKER', 'PAD_SAVE', 'RECOVER'];
@@ -72,6 +72,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   const skaters = side => (skCache ||= { home: S.players.filter(p => p.team === 'home' && !p.goalie), away: S.players.filter(p => p.team === 'away' && !p.goalie) })[side];
   const allowed = side => S.period >= 4 ? 3 : Math.max(3, 5 - T[side].box.length);
 
+  const PULL_T1 = 150, PULL_T2 = 90, PULL_BOOST = 3;   // seconds left in the 3rd period (tuned against the real ~23 % of games that reach OT / SO)
   // ---------- on-ice personnel ----------
   function assemble(side, keepIds = null) {
     const t = T[side], L = t.lines[t.line], Pr = t.pairs[t.pair], n = allowed(side);
@@ -80,6 +81,10 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const inBox = new Set(t.box.map(b => b.rec.id));
     const taken = new Set(list.filter(r => !inBox.has(r.id)).map(r => r.id)); // never put the same skater on the ice twice
     list = list.map(r => { if (!inBox.has(r.id)) return r; const x = substitute(side, r, inBox, taken); taken.add(x.id); return x; });
+    if (t.pulled && n >= 5) {   // goalie pulled: a sixth skater (next line's centre / winger) replaces the goalie
+      const used = new Set(list.map(r => r.id)), ex = t.lines.flatMap(l => [l.C, l.LW, l.RW]).find(r => !used.has(r.id) && !inBox.has(r.id));
+      if (ex) return [...list, ex];
+    }
     return [...list, t.goalie];
   }
   function substitute(side, r, inBox, taken = new Set()) {
@@ -102,7 +107,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     updateStrength();
   }
   function updateStrength() {
-    const h = skaters('home').length, a = skaters('away').length;
+    const ex = side => (T[side].pulled && skaters(side).length > 5 ? 1 : 0), h = skaters('home').length - ex('home'), a = skaters('away').length - ex('away');
     S.powerPlay = h > a ? 'home' : a > h ? 'away' : null;
     S.strength = h === a ? (h === 3 ? '3 on 3' : '') : `${S.powerPlay === 'home' ? home.abbr : away.abbr} PP ${Math.max(h, a)}v${Math.min(h, a)}`;
   }
@@ -112,15 +117,26 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (force || t.dShift > 50) { t.pair = (t.pair + 1) % 3; t.dShift = 0; }
   }
 
+  // Line change = rotate lines/pairs, put the new five on the ice and announce who came on / went off (LINE_CHANGE event).
+  function shiftChange(side, entering, onTheFly) {
+    const before = skaters(side).map(p => p.id);
+    changeLines(side, false); setOnIce(entering);
+    const after = skaters(side).map(p => p.id), out = before.filter(id => !after.includes(id)), inn = after.filter(id => !before.includes(id));
+    if (inn.length && !S.over) emit('LINE_CHANGE', { team: side, onTheFly, out, in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length });
+  }
+
   // ---------- faceoffs / stoppages ----------
   function setFaceoff(dot) {
     faceoffDot = dot; S.phase = 'FACEOFF'; phaseT = 1.2;
+    if (S.period === 3 && S.clock < 100) maybePull(true);
     for (const side of ['home', 'away']) changeLines(side, false);
+    const onIceBefore = { home: skaters('home').map(p => p.id), away: skaters('away').map(p => p.id) };
     setOnIce(false);
+    for (const side of ['home', 'away']) { const after = skaters(side).map(p => p.id), inn = after.filter(id => !onIceBefore[side].includes(id)); if (inn.length && S.t > 0) emit('LINE_CHANGE', { team: side, onTheFly: false, out: onIceBefore[side].filter(id => !after.includes(id)), in: inn, forwards: inn.filter(id => ['C', 'LW', 'RW'].includes(roster[id]?.slot)).length, defense: inn.filter(id => ['LD', 'RD'].includes(roster[id]?.slot)).length }); }
     for (const side of ['home', 'away']) {
       const spots = faceoffSpots(T[side].dir, dot.x, dot.y);
       const sk = skaters(side), order = ['C', 'LW', 'RW', 'LD', 'RD'];
-      sk.forEach((p, i) => { const sp = spots[p.slot] && !sk.slice(0, i).some(q => q.slot === p.slot) ? spots[p.slot] : spots[order[i]]; Object.assign(p, { x: sp.x, y: sp.y, px: sp.x, py: sp.y, vx: 0, vy: 0, facing: T[side].dir > 0 ? 0 : Math.PI }); });
+      sk.forEach((p, i) => { const sp = spots[p.slot] && !sk.slice(0, i).some(q => q.slot === p.slot) ? spots[p.slot] : spots[order[i % 5]]; if (i >= 5) { sp.x += T[side].dir * -2; sp.y += 3; } Object.assign(p, { x: sp.x, y: sp.y, px: sp.x, py: sp.y, vx: 0, vy: 0, facing: T[side].dir > 0 ? 0 : Math.PI }); });
       const g = T[side].goalie, gs = spots.G; Object.assign(g, { x: gs.x, y: gs.y, px: gs.x, py: gs.y, vx: 0, vy: 0, facing: T[side].dir > 0 ? 0 : Math.PI });
     }
     for (const p of Object.values(roster)) { p.wind = null; if (p.goalie) setGoalie(p, 'READY', 0); }
@@ -235,7 +251,11 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // net frame: bounce off the back/sides of the cage
       const nx0 = side < 0 ? gx - RINK.netD : gx, nx1 = side < 0 ? gx : gx + RINK.netD;
-      if (P.x > nx0 && P.x < nx1 && Math.abs(P.y - MIDY) < POSTS + 0.3) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
+      const yCage = Math.abs(P.y - MIDY) < POSTS + 0.3, backX = side < 0 ? nx0 : nx1;
+      // swept test: a hard shot from behind the net travels more than the cage depth (3.3 ft) in one tick (≥ ~100 mph), so a
+      // point-in-box check let it tunnel through the cage. Crossing the back plane inside the posts counts as hitting the mesh.
+      const sweptBack = yCage && (ox - backX) * (P.x - backX) < 0 && (side < 0 ? ox < nx0 : ox > nx1);
+      if (sweptBack || (P.x > nx0 && P.x < nx1 && yCage)) { P.x = ox; P.vx = -P.vx * 0.4; P.vy *= 0.6; }
     }
     if (!insideRink(P.x, P.y, 0.6)) {
       const c = clampInside(P.x, P.y, 0.6);
@@ -345,6 +365,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const defSide = other(s.team), g = T[defSide].goalie, net = netOf(s.team);
     if (!force && Math.hypot(P.x - g.x, P.y - g.y) > 3.5 && Math.hypot(P.x - net.x, P.y - net.y) > 4.5) return;
     s.resolved = true;
+    if (T[defSide].pulled) { S.shots[s.team]++; box(s.by).sog++; scoreGoal(s.team, s.by); return; }   // empty net: a shot on target is a goal
     const st = s.save || (force ? 'BUTTERFLY' : 'READY');
     let pg = s.d < 10 ? 0.16 : s.d < 20 ? 0.1 : s.d < 35 ? 0.05 : s.d < 55 ? 0.024 : 0.01;
     pg *= 0.65 + 0.35 * (s.accu + s.power);
@@ -388,7 +409,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (S.phase !== 'PLAY') return;
     const att = T.home.dir === side ? 'home' : 'away';
     const g = T[other(att)].goalie;
-    if (Math.hypot(g.x - goalX(side), g.y - MIDY) < 5 && rng.next() < 0.93) { // goalie at home smothers the loose puck
+    if (!T[other(att)].pulled && Math.hypot(g.x - goalX(side), g.y - MIDY) < 5 && rng.next() < 0.93) { // goalie at home smothers the loose puck
       emit('SAVE', { goalie: g.id, shooter: null, team: att, big: false, rebound: false, cover: true, save: 'BUTTERFLY' });
       stoppage(dotNear(goalX(side), P.y), 1.6); return;
     }
@@ -398,13 +419,13 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   }
   function scoreGoal(team, scorerId) {
     S.score[team]++;
-    const g = T[other(team)].goalie; box(g.id).ga++;
+    const g = T[other(team)].goalie, emptyNet = !!T[other(team)].pulled; if (!emptyNet) box(g.id).ga++;
     const tm = touches.filter(t => t.team === team && t.id !== scorerId).reverse();
     const assists = [...new Set(tm.map(t => t.id))].slice(0, 2);
     if (scorerId) box(scorerId).g++;
     for (const a of assists) box(a).a++;
     for (const p of S.players) if (!p.goalie) box(p.id).pm += p.team === team ? 1 : -1;
-    const strength = skaters(team).length > skaters(other(team)).length ? 'PP' : skaters(team).length < skaters(other(team)).length ? 'SH' : 'EV';
+    const strength = emptyNet ? 'EN' : skaters(team).length > skaters(other(team)).length ? 'PP' : skaters(team).length < skaters(other(team)).length ? 'SH' : 'EV';
     emit('GOAL', { by: scorerId, assists, team, strength, src: lastShot && lastShot.t > S.t - 3 ? (lastShot.rebound ? 'rebound' : lastShot.breakaway ? 'breakaway' : lastShot.shotType + ':' + Math.round(lastShot.d)) : 'loose' });
     const net = netOf(team); Object.assign(P, { x: net.x + T[team].dir * 1.5, y: MIDY, vx: 0, vy: 0, z: 0, owner: null });
     if (strength === 'PP') { const t = T[other(team)]; t.box.sort((a, b) => a.until - b.until); const out = t.box.shift(); if (out) { emit('POWER_PLAY_END', { team }); } }
@@ -448,7 +469,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (u > BLUE_U - 2 && S.t > c.cd) {
       const angle = Math.abs(Math.atan2(c.y - MIDY, Math.abs(net.x - c.x)));
       const q = (dNet < 15 ? 1 : dNet < 30 ? 0.75 : dNet < 50 ? 0.4 : 0.15) * (angle > 1.15 ? 0.25 : 1) * (0.7 + 0.5 * c.R.offIQ);
-      const want = q * (0.30 + 0.35 * pressure) + (T[side].breakaway && dNet < 22 ? 0.6 : 0);
+      const want = (q * (0.30 + 0.35 * pressure) + (T[side].breakaway && dNet < 22 ? 0.6 : 0)) * (T[side].pulled ? PULL_BOOST : 1);
       if (rng.next() < want * 0.07) { shoot(c, S.t - (c.gotAt || 0) < 0.35 && touches.length > 1); return; }
     }
     // passing
@@ -729,11 +750,30 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     const tgt = Math.atan2(P.y - p.y, P.x - p.x); p.facing += clamp(angDiff(tgt, p.facing), -9 * DT, 9 * DT);
     p.skate = Math.hypot(p.vx, p.vy) > 2 ? 'shuffle' : 'idle';
   }
+  // Body separation (position + velocity). Skaters have a 2.6 ft personal radius; goalies are immovable in the crease,
+  // so the skater takes the whole correction. Exact overlaps (d = 0) get a deterministic push axis, closing speed is
+  // removed (inelastic contact) and the result is clamped back inside the rink, so nobody is shoved through the boards.
   function separate() {
-    const L = S.players;
-    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
-      const a = L[i], b = L[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
-      if (d > 0 && d < 2.6) { const push = (2.6 - d) / 2, nx = dx / d, ny = dy / d; if (!a.goalie) { a.x -= nx * push; a.y -= ny * push; } if (!b.goalie) { b.x += nx * push; b.y += ny * push; } }
+    const L = S.players.filter(p => !p.onBench), R = 2.6, R2 = R * R;
+    for (let pass = 0; pass < 2; pass++) {
+      let any = false;
+      for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+        const a = L[i], b = L[j]; if (a.goalie && b.goalie) continue;
+        let dx = b.x - a.x, dy = b.y - a.y; const d2 = dx * dx + dy * dy;
+        if (d2 >= R2) continue; // cheap reject: most pairs are far apart
+        any = true;
+        let d = Math.sqrt(d2), over;
+        if (d < 1e-4) { const ang = ((i * 7 + j * 13) % 16) * (Math.PI / 8); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; over = R; } else over = R - d;
+        const nx = dx / d, ny = dy / d, wa = a.goalie ? 0 : b.goalie ? 1 : 0.5, wb = 1 - wa;
+        a.x -= nx * over * wa; a.y -= ny * over * wa; b.x += nx * over * wb; b.y += ny * over * wb;
+        const rel = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rel < 0) { // closing: kill the approach component on the movable side(s)
+          if (!a.goalie) { a.vx += nx * rel * wa; a.vy += ny * rel * wa; }
+          if (!b.goalie) { b.vx -= nx * rel * wb; b.vy -= ny * rel * wb; }
+        }
+        for (const q of [a, b]) if (!q.goalie) { const c = clampInside(q.x, q.y, 1.6); if (c.x !== q.x || c.y !== q.y) { q.x = c.x; q.y = c.y; } }
+      }
+      if (!any) break; // second pass only when the first one moved somebody
     }
   }
 
@@ -762,11 +802,24 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
       }
       // change on the fly when tired and the puck is not in our defensive zone
       const pu = uOf(side, P.x);
-      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) { changeLines(side, false); setOnIce(true); }
+      if ((t.fShift > 52 || t.dShift > 64) && pu > -BLUE_U + 5 && (S.possession === side || pu > 0)) {
+        shiftChange(side, true, true);
+      }
     }
     if (slow) for (const r of rosterList) if (r.onBench) r.energy = Math.min(1, r.energy + 0.02 * bdt);
   }
+  // Late-game goalie pull (real hockey): trailing by 1 with <= 120 s left, or by 2 with <= 55 s, and no own penalty -> sixth attacker, empty net;
+  // the goalie returns when the game is tied / the team leads. This is what makes one-goal games end level (and empty-net goals) at the real rate.
+  function maybePull(atFaceoff = false) {   // the pull happens at a faceoff (stoppage: the extra attacker jumps on cleanly); the goalie may return any time
+    for (const side of ['home', 'away']) {
+      const d = S.score[other(side)] - S.score[side], t = T[side];
+      const should = (d === 1 && S.clock <= PULL_T1) || (d === 2 && S.clock <= PULL_T2);
+      if (should && !t.pulled && t.box.length === 0 && atFaceoff) { t.pulled = true; emit('GOALIE_PULLED', { team: side }); }
+      else if (t.pulled && !should) { t.pulled = false; emit('GOALIE_RETURNS', { team: side }); if (!atFaceoff) setOnIce(false); }
+    }
+  }
   function endOfPeriod() {
+    for (const side of ['home', 'away']) if (T[side].pulled) { T[side].pulled = false; setOnIce(false); }
     emit('PERIOD_END', { period: S.period });
     const tied = S.score.home === S.score.away;
     if (S.period >= 3 && (!tied || S.period >= 4)) {
@@ -802,7 +855,8 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     }
     if (S.phase === 'STOPPAGE' || S.phase === 'GOAL' || S.phase === 'INTERMISSION' || S.phase === 'FINAL_PENDING') {
       phaseT -= DT;
-      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * 18; p.ty = MIDY + (p.y - MIDY) * 0.3; } } move(p); }
+      for (const p of S.players) { p.want = 0.35; if (S.phase === 'GOAL') { const n = netOf(S.possession || 'home'); if (p.team === S.possession && !p.goalie) { p.tx = n.x - T[p.team].dir * (16 + ((p.num || 0) % 3) * 2.8); p.ty = MIDY + (p.y - MIDY) * 0.3 + (((p.num || 0) % 5) - 2) * 3.2; } } move(p); }
+      separate(); // celebration huddles / stoppage scrums keep body spacing (no stacked sprites)
       puckStep();
       if (phaseT <= 0) {
         if (S.phase === 'FINAL_PENDING') { finish(); return; }
@@ -813,6 +867,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     }
     // PLAY
     S.clock -= DT; S.elapsed += DT;
+    if (S.period === 3 && S.clock < 100) maybePull(false);
     if (++aiTick % 3 === 0) {
       const c = P.owner ? roster[P.owner] : null;
       if (c) {

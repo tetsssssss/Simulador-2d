@@ -2,8 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>American Sports Universe 2D</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#070b11" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="assets/icons/icon-192.png" />
 <style>
   /* SportsUniverse shell: one always-visible sport switcher. Each sport is its own app in its own document
      (iframe), so engines, globals and requestAnimationFrame loops never mix; switching unloads the previous sport. */
@@ -27,6 +32,7 @@
   .su-audio{position:relative}
   .su-audio>button{background:#0f1824;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px 10px;font:inherit;cursor:pointer}
   .su-audio>button:hover{background:#162233}
+  .su-lang{background:#0f1824;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px 6px;font:inherit;margin-right:8px}
   .su-pop{position:absolute;right:0;top:36px;width:270px;background:#0c131d;border:1px solid var(--line2);border-radius:10px;padding:12px 14px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:none}
   .su-pop.show{display:block}
   .su-pop h4{margin:0 0 8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -35,7 +41,15 @@
   .su-pop .su-mute{display:flex;gap:8px;align-items:center;margin-top:8px;grid-template-columns:none}
   .su-pop small{color:var(--muted);display:block;margin-top:8px;font-size:10.5px;line-height:1.35}
   .su-test{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;align-items:center}.su-test b{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:4px}.su-test button{background:#142130;border:1px solid var(--line2);color:var(--text);border-radius:6px;padding:3px 8px;font:inherit;font-size:11px;cursor:pointer}.su-test button:hover{background:#1c2f45}
-  @media (max-width:560px){.su-brand span,.su-hint{display:none}.su-seg a{padding:6px 12px}}
+  /* phone: the bar wraps instead of overflowing, respects the Android/iOS status bar, and the audio panel becomes a full-width sheet */
+  @media (max-width:700px){
+    .su-bar{height:auto;flex-wrap:wrap;gap:6px 8px;padding:calc(6px + env(safe-area-inset-top,0)) 10px 6px}
+    .su-brand,.su-hint,.su-grow{display:none}
+    .su-seg a{padding:8px 14px}.su-car{padding:8px 12px}
+    .su-lang{margin-right:0;max-width:34vw}
+    .su-audio{margin-left:auto}
+    .su-pop{position:fixed;left:8px;right:8px;top:auto;width:auto;max-height:70vh;overflow:auto}
+  }
 </style>
 </head>
 <body>
@@ -44,6 +58,7 @@
   <nav class="su-seg" aria-label="Esporte"><a href="#nfl" data-sport="nfl">NFL</a><a href="#nhl" data-sport="nhl">NHL</a><a href="#mlb" data-sport="mlb">MLB</a></nav>
   <a class="su-car" href="#career" data-sport="career" title="Carreiras de NFL, NHL e MLB (Técnico, Dirigente, Jogador)">★ Carreiras</a>
   <span class="su-grow"></span><span class="su-hint" id="suHint"></span>
+  <select class="su-lang" id="suLang" aria-label="Idioma / Language" title="Idioma da narração e da interface (vale a partir da próxima partida)"></select>
   <div class="su-audio"><button id="suAudioBtn" title="Áudio: volumes por categoria">🔊</button><div class="su-pop" id="suAudioPop"></div></div>
 </header>
 <iframe id="sportFrame" title="Universo do esporte" allow="fullscreen; autoplay"></iframe>
@@ -82,24 +97,65 @@
 </script>
 <script type="module">
   // Audio settings (shared by the three sports through localStorage + storage events). No sound plays here.
+  import { LOCALES, getLocale, setLocale } from './core/i18n/i18n.js';
+  const langSel = document.getElementById('suLang');
+  langSel.innerHTML = Object.entries(LOCALES).map(([k, v]) => `<option value="${k}">${v}</option>`).join(''); langSel.value = getLocale();
+  langSel.onchange = () => setLocale(langSel.value);
   import { CATEGORIES, CATEGORY_LABELS, loadAudioSettings, saveAudioSettings, getAudio } from './core/audio/audioEngine.js';
   const btn = document.getElementById('suAudioBtn'), pop = document.getElementById('suAudioPop');
   const draw = () => {
     const st = loadAudioSettings();
     btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
     pop.innerHTML = '<h4>Áudio</h4>' + ['master', ...CATEGORIES].map(k => `<label>${CATEGORY_LABELS[k]}<input type="range" min="0" max="100" data-k="${k}" value="${Math.round(st[k] * 100)}"><span>${Math.round(st[k] * 100)}</span></label>`).join('')
-      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
+      + `<label class="su-mute"><input type="checkbox" id="suMute" ${st.muted ? 'checked' : ''}> Silenciar tudo</label><label class="su-mute" title="Clima visual do estádio (NFL e MLB); Auto sorteia pela partida">Clima <select id="suWx">${['auto', 'clear', 'rain', 'snow', 'fog'].map(k => `<option value="${k}" ${(() => { try { return (localStorage.getItem('asu_weather') || 'auto') === k; } catch { return k === 'auto'; } })() ? 'selected' : ''}>${{ auto: 'Auto', clear: 'Limpo', rain: 'Chuva', snow: 'Neve', fog: 'Neblina' }[k]}</option>`).join('')}</select></label><label class="su-mute" title="Usa os atletas HD (modelos 3D importados) no modo Sprites 3D; desligue se o celular ficar pesado"><input type="checkbox" id="suHd" ${(() => { try { return localStorage.getItem('asu_sheet_hd') !== '0'; } catch { return true; } })() ? 'checked' : ''}> Sprites HD (NFL e NHL)</label><label class="su-mute" title="Qualidade do modo 3D (PlayCanvas). Auto começa em Média e baixa sozinha se o quadro ficar lento">Qualidade 3D <select id="suQ3">${['auto', 'low', 'medium', 'high'].map(k => `<option value="${k}" ${(() => { try { return (localStorage.getItem('asu_3d_quality') || 'high') === k; } catch { return k === 'high'; } })() ? 'selected' : ''}>${{ auto: 'Auto', low: 'Baixa', medium: 'Média', high: 'Alta' }[k]}</option>`).join('')}</select></label><label class="su-mute" title="Renderiza o 3D em pelo menos 1920 px de largura (supersampling) na qualidade Alta; desligue se o fps cair"><input type="checkbox" id="suFhd" ${(() => { try { return localStorage.getItem('asu_3d_fullhd') !== '0'; } catch { return true; } })() ? 'checked' : ''}> Full HD no 3D</label><label class="su-mute" title="Brilho suave nas luzes (refletores, telão) na qualidade Alta; desligue se o fps cair"><input type="checkbox" id="suBloom" ${(() => { try { return localStorage.getItem('asu_3d_bloom') !== '0'; } catch { return true; } })() ? 'checked' : ''}> Bloom</label><label class="su-mute" title="Limite de quadros por segundo do modo 3D (30 a 100). Menos quadros = menos calor e bateria; o monitor limita o máximo real">FPS do 3D <select id="suFps">${[30, 45, 60, 75, 90, 100].map(k => `<option value="${k}" ${(() => { try { return +(localStorage.getItem('asu_3d_fps') || 60) === k; } catch { return k === 60; } })() ? 'selected' : ''}>${k}</option>`).join('')}</select></label><label class="su-mute" title="Mostra FPS e tempo de quadro no canto (diagnóstico, para medir no celular)"><input type="checkbox" id="suPerf" ${(() => { try { return localStorage.getItem('asu_perf') === '1'; } catch { return false; } })() ? 'checked' : ''}> Mostrar FPS (diagnóstico)</label><div class="su-test"><b>Testar</b>${[['apito', 'whistle', 'GAME_EFFECT'], ['taco', 'crack', 'GAME_EFFECT'], ['puck', 'slapShot', 'GAME_EFFECT'], ['pads', 'padsCrunch', 'GAME_EFFECT'], ['torcida', 'cheer', 'CROWD'], ['órgão', 'organCharge', 'MUSIC'], ['buzina', 'goalHorn', 'GAME_EFFECT']].map(([l, n, c]) => `<button data-snd="${n}" data-cat="${c}">${l}</button>`).join('')}</div><div class="su-test"><b>Dados</b><button data-bk="export" title="Baixa um arquivo com todas as carreiras, saves e ajustes">Exportar tudo</button><button data-bk="import" title="Restaura um backup (não sobrescreve o que já existe)">Importar</button></div><small id="suStore"></small><input type="file" id="suBkFile" accept="application/json,.json" hidden><small>Sons sintetizados localmente (WebAudio). Narração por voz usa as vozes do navegador e é ligada no painel Live Commentary.</small>`;
   };
   pop.addEventListener('input', e => {
+    if (e.target.id === 'suHd') { try { localStorage.setItem('asu_sheet_hd', e.target.checked ? '1' : '0'); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suWx') { try { localStorage.setItem('asu_weather', e.target.value); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suFps') { try { localStorage.setItem('asu_3d_fps', e.target.value); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suBloom') { try { localStorage.setItem('asu_3d_bloom', e.target.checked ? '1' : '0'); window.dispatchEvent(new StorageEvent('storage', { key: 'asu_3d_bloom' })); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suFhd') { try { localStorage.setItem('asu_3d_fullhd', e.target.checked ? '1' : '0'); window.dispatchEvent(new StorageEvent('storage', { key: 'asu_3d_fullhd' })); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suQ3') { try { localStorage.setItem('asu_3d_quality', e.target.value); } catch { /* private mode */ } return; }
+    if (e.target.id === 'suPerf') { try { localStorage.setItem('asu_perf', e.target.checked ? '1' : '0'); } catch { /* private mode */ } return; }
     const k = e.target.dataset.k; const st = loadAudioSettings();
     if (k) { st[k] = +e.target.value / 100; e.target.nextElementSibling.textContent = e.target.value; }
     if (e.target.id === 'suMute') st.muted = e.target.checked;
     saveAudioSettings(st); btn.textContent = st.muted || st.master === 0 ? '🔇' : '🔊';
   });
+  // ---- backup of every save / setting in one file + storage protection ----
+  import { collectBackup, restoreBackup, validateBackup, protectStorage } from './core/saves/backup.js';
+  const note = msg => { const s = document.getElementById('suStore'); if (s) s.textContent = msg; };
+  const storeInfo = async () => {
+    const p = await protectStorage(); let used = 0; try { const b = collectBackup(localStorage); used = Math.round(b.bytes / 1024); } catch { /* private mode */ }
+    note(`Dados do jogo: ${used} KB · armazenamento ${p === true ? 'protegido contra limpeza automática' : p === false ? 'pode ser limpo pelo navegador (instale o app / permita notificações de armazenamento)' : 'sem informação'}.`);
+  };
+  pop.addEventListener('click', async e => {
+    const bk = e.target.closest('[data-bk]'); if (!bk) return;
+    if (bk.dataset.bk === 'export') {
+      const b = collectBackup(localStorage), name = `asu-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (window.AsuNative?.saveFile) window.AsuNative.saveFile(name, JSON.stringify(b));      // Android app: system "save as" dialog (a WebView cannot download blobs)
+      else { const blob = new Blob([JSON.stringify(b)], { type: 'application/json' }), a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+      note(`Backup baixado: ${b.count} itens (${Math.round(b.bytes / 1024)} KB).`);
+    } else document.getElementById('suBkFile').click();
+  });
+  pop.addEventListener('change', async ev => {
+    if (ev.target.id !== 'suBkFile') return;
+    const f = ev.target.files?.[0]; ev.target.value = ''; if (!f) return;
+    let doc; try { doc = JSON.parse(await f.text()); } catch { return note('Arquivo inválido (não é JSON).'); }
+    const v = validateBackup(doc); if (!v.ok) return note(v.error);
+    const r = restoreBackup(localStorage, doc, { overwrite: false });
+    if (!r.ok) return note(r.error);
+    note(`Importado: ${r.written.length} novo(s)${r.conflicts.length ? `, ${r.conflicts.length} já existiam e foram mantidos (para substituir, apague o item local antes)` : ''}. Recarregue o jogo para ver.`);
+    document.getElementById('sportFrame')?.contentWindow?.location.reload();
+  });
   pop.addEventListener('click', e => { const b = e.target.closest('[data-snd]'); if (!b) return; const a = getAudio(); a.unlock(); setTimeout(() => a.play(b.dataset.snd, { category: b.dataset.cat, power: 0.9 }), 60); });
-  btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); });
+  btn.addEventListener('click', () => { draw(); pop.classList.toggle('show'); storeInfo(); });
   document.addEventListener('click', e => { if (!e.target.closest('.su-audio')) pop.classList.remove('show'); });
   draw();
+</script>
+<script>
+  // Offline / installable: the service worker caches the app shell on first visit (sports assets are cached when first used).
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && !/ASUApp/.test(navigator.userAgent)) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
 </html>

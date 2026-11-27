@@ -1,0 +1,37 @@
+/* Phone / small tablet layout for NFL, NHL and MLB (they share the same shell): the side menu is hidden in a drawer and opened with the ☰ button. */
+.mn-burger{display:none}
+@media (max-width:900px){
+  :root{--side:0px}
+  html,body{overflow-x:hidden}
+  #app{display:block}
+  .main{margin-left:0!important;padding:10px 12px 22px!important;min-width:0;max-width:100vw}
+  .topbar{gap:8px;align-items:center;padding-top:env(safe-area-inset-top,0)}
+  .tb-title{min-width:0;flex:1}.tb-title h1{font-size:19px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-title p{display:none}
+  .top-actions{flex:none;gap:6px}
+  .mn-burger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;border-radius:10px;border:1px solid var(--line,#1f2d3f);background:var(--panel2,#101a27);color:#e9f0f7;font-size:22px;line-height:1;cursor:pointer;margin-right:2px}
+  /* drawer */
+  .sidebar{position:fixed!important;inset:0 auto 0 0!important;width:min(82vw,320px)!important;height:100dvh!important;flex-direction:column!important;flex-wrap:nowrap!important;overflow-y:auto;padding:calc(14px + env(safe-area-inset-top,0)) 12px 18px!important;transform:translateX(-104%);transition:transform .22s ease;z-index:60;box-shadow:0 0 40px rgba(0,0,0,.6)}
+  body.nav-open .sidebar{transform:none}
+  #nav{display:block!important}
+  .nav-sec{display:block!important}
+  .nav-btn{padding:11px 12px;font-size:15px}
+  .side-foot{display:grid!important}
+  .mn-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .2s;z-index:55}
+  body.nav-open .mn-backdrop{opacity:1;pointer-events:auto}
+  body.nav-open{overflow:hidden}
+  /* wide content scrolls inside its box instead of stretching the page */
+  .content{min-width:0}.panel{min-width:0}
+  .panel table,.content table{display:block;overflow-x:auto;max-width:100%}
+  .mode-grid,.dash-grid,.profile-grid{grid-template-columns:1fr!important}
+  canvas{max-width:100%}
+  button,select,input{min-height:36px}
+}
+@media (max-width:520px){
+  .main{padding:8px 8px 20px!important}
+  .controls{flex-wrap:wrap;gap:6px}
+}
+
+.mn-rotate{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0));z-index:70;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:10px;background:#1a2a3d;color:#e9f0f7;border:1px solid #35506f;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.mn-rotate[hidden]{display:none}
+.mn-rotate button{flex:none;background:transparent;border:0;color:#9db4cc;font-size:16px;min-height:0;padding:2px 6px}

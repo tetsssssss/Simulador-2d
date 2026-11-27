@@ -4,6 +4,8 @@ import { D, teamBy, logo, placeholder, playerName, nameOf, age, makeAttrs, overa
 import { mountMatch } from './game/matchView.js';
 import { photoUrl } from './photos.js';
 import { hockeyHook } from './game/engineHook.js';
+import { initMobileNav } from '../../core/ui/mobileNav.js';
+import { initPerfHud } from '../../core/ui/perfHud.js'; initMobileNav(); initPerfHud();   // diagnostic FPS overlay (off unless asu_perf=1)
 
 const $ = s => document.querySelector(s);
 const content = $('#content');

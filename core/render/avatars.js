@@ -39,21 +39,45 @@ export function getAvatar(sport, id) { return { ...defaultAvatar(`${sport}|${id}
 export function hasCustomAvatar(sport, id) { return !!read()[sport]?.[id]; }
 export function setAvatar(sport, id, opts) { const m = read(); (m[sport] ||= {})[id] = { ...opts }; write(); }
 export function resetAvatar(sport, id) { const m = read(); if (m[sport]) delete m[sport][id]; write(); }
-export const VISUAL_MODES = [['avatar', 'Bonecos'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
-export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain') return v; return 'avatar'; } catch { return 'avatar'; } }
-export function setVisualMode(v) { try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ } }
+// Positional physique (presentation only; a customised avatar keeps the user's choice): linemen/tight ends/defensemen bigger, receivers
+// and defensive backs slimmer, everyone else medium. build: 0 slim · 1 medium · 2 heavy.
+const NFL_BUILD = [[/^(LT|LG|C|RG|RT|LDE|LDT|RDT|RDE|NT|DT|DE|TE)$/, 2], [/^(QB|RB|FB|SAM|MIKE|WILL|LB)$/, 1], [/^(X|Z|SLOT|WR|CBL|CBR|CB|FS|SS|S|K|P)$/, 0]];
+export function positionBuild(sport, slot) {
+  if (sport === 'nfl') { for (const [re, b] of NFL_BUILD) if (re.test(slot || '')) return b; return null; }
+  if (sport === 'nhl') return slot === 'LD' || slot === 'RD' ? 2 : null;
+  return null;
+}
+export function avatarFor(sport, id, slot) { const base = getAvatar(sport, id), b = positionBuild(sport, slot); return !hasCustomAvatar(sport, id) && b != null ? { ...base, build: b } : base; }
+export const VISUAL_MODES = [['avatar', 'Bonecos'], ['sheet', 'Sprites 3D'], ['3d', '3D (PlayCanvas)'], ['photo', 'Fotos'], ['plain', 'Cor + número']];
+export const isAvatarMode = m => m === 'avatar' || m === 'sheet' || m === '3d';   // draw athletes (procedural or Blender sprite sheet); in '3d' the 2D layer runs hidden under the 3D canvas
+export function getVisualMode() { try { const v = localStorage.getItem(MODE_KEY); if (v === 'photo' || v === 'plain' || v === 'sheet' || v === '3d') return v; return 'avatar'; } catch { return 'avatar'; } }
+export function setVisualMode(v) {
+  try { localStorage.setItem(MODE_KEY, v); } catch { /* private mode */ }
+  try { window.dispatchEvent(new CustomEvent('asu-visual-mode', { detail: v })); } catch { /* no window (tests) */ }
+}
 
 const shade = (hex, f) => { const n = parseInt(hex.replace('#', '').padEnd(6, '0').slice(0, 6), 16); const c = k => Math.max(0, Math.min(255, Math.round(((n >> k) & 255) * f))); return `rgb(${c(16)},${c(8)},${c(0)})`; };
 function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 function limb(ctx, x0, y0, x1, y1, w, color) { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
 
 // kit: 'baseball' | 'hockey' | 'football'. prop: 'bat' | 'stick' | 'glove' | 'ball' | 'none'. pose: 'stand' | 'crouch' | 'goalie'.
-// action (optional): { type: 'swing' | 'throw' | 'shoot' | 'catch' | 'celebrate' | 'dive' | 'check', t: 0..1 } — one-shot animations the sport
+// action (optional): { type: 'swing' | 'throw' | 'shoot' | 'catch' | 'celebrate' | 'dive' | 'check' | 'snap' | 'handoff', t: 0..1 } — one-shot animations the sport
 // renderer drives from engine events. Locomotion is a procedural cycle: two-bone legs (knee bend, foot lift), counter-swinging arms,
 // forward lean with speed, head bob; hockey skaters glide (stride + lean) instead of stepping. Sharpness: the feet anchor is snapped to
 // the device-pixel grid and strokes use round caps/joins, so small figures stay crisp instead of shimmering between pixels.
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const ease = t => t * t * (3 - 2 * t);
+import { clipPoseOf } from '../anim/registry.js';
+// Body proportion profiles (all in u = body height / 10). 'chibi' is the original cartoon look (kept, selectable);
+// 'athlete' is the default: smaller head, broad V-shaped shoulders, tapered waist, longer and thicker legs, longer arms.
+export const AVATAR_STYLES = [['athlete', 'Atleta'], ['chibi', 'Cartoon']];
+const STYLES = {
+  chibi: { hip: -3.5, sh: -6.2, head: -8.2, hr: 1.95, shW: 3.1, waistW: 3.1, taper: false, legW: 1.15, lower: 0.92, legLen: 3.2, hipX: 0.7, spread: 0.75, legS: 1, armLen: 2.6, aw: 0.95, hand: 0.5, shoulderIn: 0, pad: [1.05, 0.85], foot: [1.55, 0.7], neck: [1.1, 0.9] },
+  athlete: { hip: -4.55, sh: -7.35, head: -8.7, hr: 1.38, shW: 3.55, waistW: 2.35, taper: true, legW: 1.5, lower: 0.78, legLen: 4.55, hipX: 0.7, spread: 0.85, legS: 1.3, armLen: 3.5, aw: 1.2, hand: 0.55, shoulderIn: 0.3, pad: [1.2, 0.92], foot: [1.9, 0.8], neck: [1.2, 1.0] },
+};
+const STYLE_KEY = 'asu_avatar_style';
+export function getAvatarStyle() { try { const v = localStorage.getItem(STYLE_KEY); return v === 'chibi' ? 'chibi' : 'athlete'; } catch { return 'athlete'; } }
+export function setAvatarStyle(v) { try { localStorage.setItem(STYLE_KEY, v === 'chibi' ? 'chibi' : 'athlete'); } catch { /* private mode */ } }
 export function drawAvatar(ctx, o) {
   const { h, opts, kit = 'baseball', color = '#1d4ed8', color2 = '#ffffff', number = '', facing = null, moving = false, t = 0,
     prop = 'none', pose = 'stand', role = '', showNumber = true, seed = 0, action = null, speed = null } = o;
@@ -61,39 +85,42 @@ export function drawAvatar(ctx, o) {
   const dpr = ctx.getTransform?.()?.a || 1;
   x = Math.round(x * dpr) / dpr; y = Math.round(y * dpr) / dpr;
   const u = h / 10, a = { ...defaultAvatar('x'), ...opts };
+  const P = STYLES[o.style] || STYLES[getAvatarStyle()];
   const dir = facing != null && Math.abs(Math.cos(facing)) > 0.2 ? Math.sign(Math.cos(facing)) : (o.dir || 1);
   const sp = moving ? clamp01(speed == null ? 1 : speed) : 0;
   const skate = kit === 'hockey' && pose !== 'goalie';
-  const ph = t * (skate ? 6 : 11) + seed * 1.7, sw = moving ? Math.sin(ph) : 0;
+  const ph = o.phase != null ? o.phase + seed * 1.7 : t * (skate ? 6 : 11) + seed * 1.7, sw = moving ? Math.sin(ph) : 0; // o.phase = distance-driven stride phase (no foot sliding)
   const act = action && action.type ? { type: action.type, p: clamp01(action.t ?? 0) } : null;
+  const cp = clipPoseOf(action); // keyframed pose from core/anim (null for the legacy procedural actions)
   const breathe = moving ? 0 : Math.sin(t * 2.2 + seed) * 0.1 * u;
   const bob = moving ? Math.abs(Math.cos(ph)) * (skate ? 0.12 : 0.34) * u : breathe;
   const skin = SKINS[a.skin % SKINS.length], skinD = shade(skin, 0.78), hair = HAIR_COLORS[a.hairColor % HAIR_COLORS.length];
-  const bw = [0.88, 1, 1.18][a.build % 3], crouch = pose === 'crouch' ? 1.5 * u : 0;
+  const bw = (P.taper ? [0.9, 1, 1.14] : [0.88, 1, 1.18])[a.build % 3], lim = Math.sqrt(bw), crouch = (pose === 'crouch' ? 1.5 * u : 0) + (cp ? cp.crouch * 1.5 * u : 0);
   const pants = kit === 'baseball' ? (role === 'batter' || role === 'runner' ? '#e9edf2' : '#dfe5ec') : kit === 'hockey' ? shade(color, 0.62) : color2 === '#ffffff' ? '#e9edf2' : color2;
   const sock = kit === 'baseball' ? color : kit === 'hockey' ? color2 : color;
   const lw = ctx.lineWidth; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.save(); ctx.translate(x, y);
   // ground shadow (squashes while airborne / celebrating)
-  const air = act?.type === 'celebrate' ? Math.abs(Math.sin(act.p * Math.PI * 3)) * 1.3 * u : 0;
+  const air = cp ? cp.air * u : act?.type === 'celebrate' ? Math.abs(Math.sin(act.p * Math.PI * 3)) * 1.3 * u : 0;
   ctx.fillStyle = `rgba(0,0,0,${0.32 - air * 0.05})`; ctx.beginPath(); ctx.ellipse(0, 0.2 * u, (2.1 * u - air * 0.2) * bw, 0.75 * u, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.translate(0, -bob - air);
-  const hipY = -3.5 * u + crouch * 0.4, shY = -6.2 * u + crouch, headY = -8.2 * u + crouch * 1.1, torsoW = 3.1 * u * bw;
-  const legW = 1.15 * u * (pose === 'goalie' ? 1.9 : 1);
+  ctx.translate(0, -(cp ? 0 : bob) - air);
+  const hipY = P.hip * u + crouch * 0.4, shY = P.sh * u + crouch, headY = P.head * u + crouch * 1.1, torsoW = P.shW * u * bw, waistW = P.waistW * u * bw;
+  const legW = P.legW * u * lim * (pose === 'goalie' ? 1.9 : 1);
   // ---- legs: two bones (hip → knee → foot) ----
-  const stride = (skate ? 1.9 : 1.55) * u * (0.6 + 0.4 * sp), spread = pose === 'goalie' ? 1.1 * u : 0.75 * u, legLen = 3.2 * u - crouch * 0.1;
+  const stride = (skate ? 1.9 : 1.55) * u * (0.6 + 0.4 * sp), spread = pose === 'goalie' ? 1.1 * u : P.spread * u, legLen = P.legLen * u - crouch * 0.1;
   const legs = [-1, 1].map(s => {
-    const phs = ph + (s > 0 ? Math.PI : 0), swing = moving ? Math.sin(phs) : 0, lift = moving && !skate ? Math.max(0, Math.cos(phs)) * 1.15 * u : 0;
-    let fx = s * spread + swing * stride * dir * 0.55, fy = -lift;
-    if (skate && moving) fx = s * spread * 0.9 + swing * stride * dir * 0.8; // push-and-glide
+    const phs = ph + (s > 0 ? Math.PI : 0), swing = moving ? Math.sin(phs) : 0, lift = moving && !skate ? Math.max(0, Math.cos(phs)) * 1.15 * u * P.legS : 0;
+    let fx = s * spread + swing * stride * P.legS * dir * 0.55, fy = -lift;
+    if (cp) { const front = s === dir; fx = s * spread + dir * (front ? cp.lF : cp.lB) * u * P.legS; fy = -(front ? cp.kF : cp.kB) * u * P.legS; } // keyframed legs replace the locomotion cycle
+    if (skate && moving) fx = s * spread * 0.9 + swing * stride * P.legS * dir * 0.8; // push-and-glide
     if (act?.type === 'dive') fy = 0;
-    const hx = s * 0.7 * u, hy = hipY, dx = fx - hx, dy = (fy) - hy - 0.0, d = Math.min(Math.hypot(dx, dy), legLen * 1.98) || 0.01;
+    const hx = s * P.hipX * u, hy = hipY, dx = fx - hx, dy = (fy) - hy - 0.0, d = Math.min(Math.hypot(dx, dy), legLen * 1.98) || 0.01;
     const k = Math.sqrt(Math.max(0, (legLen / 2) ** 2 - (d / 2) ** 2)), mx = hx + dx / 2 + (dy / d) * k * dir * (moving ? 1 : 0.35), my = hy + dy / 2 - (dx / d) * k * dir * (moving ? 1 : 0.35);
     return { s, fx, fy, hx, hy, mx, my };
   }).sort((p, q) => (p.fy - q.fy));
   for (const L of legs) {
-    limb(ctx, L.hx, L.hy, L.mx, L.my, legW, pants); limb(ctx, L.mx, L.my, L.fx, L.fy - 0.2 * u, legW * 0.92, sock);
-    ctx.fillStyle = skate ? '#d9dde3' : '#12161c'; rr(ctx, L.fx - 0.7 * u + dir * 0.25 * u, L.fy - 0.5 * u, 1.55 * u, 0.7 * u, 0.3 * u); ctx.fill();
+    limb(ctx, L.hx, L.hy, L.mx, L.my, legW, pants); limb(ctx, L.mx, L.my, L.fx, L.fy - 0.2 * u, legW * P.lower, sock);
+    ctx.fillStyle = skate ? '#d9dde3' : '#12161c'; rr(ctx, L.fx - 0.7 * u + dir * 0.25 * u, L.fy - 0.5 * u, P.foot[0] * u, P.foot[1] * u, 0.3 * u); ctx.fill();
     if (skate) { ctx.strokeStyle = '#8b95a3'; ctx.lineWidth = Math.max(1, 0.18 * u); ctx.beginPath(); ctx.moveTo(L.fx - 0.9 * u, L.fy + 0.28 * u); ctx.lineTo(L.fx + 1.1 * u, L.fy + 0.28 * u); ctx.stroke(); }
   }
   if (pose === 'goalie') { ctx.fillStyle = shade(color2, 0.95); ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = Math.max(1, u * 0.12); for (const s of [-1, 1]) { rr(ctx, s * spread - 0.75 * u, hipY + 0.2 * u, 1.5 * u, 3 * u, 0.5 * u); ctx.fill(); ctx.stroke(); } }
@@ -102,25 +129,64 @@ export function drawAvatar(ctx, o) {
   if (act?.type === 'swing') lean += dir * (-0.18 + 0.5 * ease(clamp01((act.p - 0.25) / 0.35)) - 0.22 * ease(clamp01((act.p - 0.7) / 0.3)));
   if (act?.type === 'throw') lean += dir * (-0.25 * ease(clamp01(act.p / 0.4)) + 0.55 * ease(clamp01((act.p - 0.4) / 0.25)) - 0.3 * ease(clamp01((act.p - 0.8) / 0.2)));
   if (act?.type === 'check') lean += dir * 0.35 * Math.sin(act.p * Math.PI);
+  if (act?.type === 'snap') lean += dir * 0.45 * Math.sin(act.p * Math.PI); // center folds over the ball and returns
+  if (act?.type === 'handoff') lean += dir * 0.2 * Math.sin(act.p * Math.PI);
+  if (cp) lean = dir * cp.lean;
   ctx.save(); ctx.translate(0, hipY); ctx.rotate(lean); ctx.translate(0, -hipY);
   // back arm
-  const armLen = 2.6 * u, aw = 0.95 * u;
-  const sh = (side) => ({ x: side * torsoW * 0.5, y: shY + 0.25 * u });
+  const armLen = P.armLen * u, aw = P.aw * u * lim;
+  const sh = (side) => ({ x: side * (torsoW * 0.5 - P.shoulderIn * u), y: shY + 0.25 * u });
   const swingA = moving ? sw * (skate ? 0.4 : 0.85) : 0;
   const handAt = (S, ang, len = armLen) => ({ x: S.x + Math.sin(ang) * len * dir, y: S.y + Math.cos(ang) * len });
   const backS = sh(-dir), backH = handAt(backS, -0.12 - swingA * 0.5 - (act?.type === 'celebrate' ? 2.9 + Math.sin(act.p * 20) * 0.3 : 0));
-  limb(ctx, backS.x, backS.y, backH.x, backH.y, aw, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(backH.x, backH.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill();
+  let cpB = null; // keyframed back arm: shoulder → elbow → hand (forearm angle is absolute, see core/anim/pose.js)
+  let lateBack = null; // a raised back arm is also drawn over the head (referee signals, catches, celebrations)
+  if (cp) {
+    const el = handAt(backS, cp.aB, armLen * 0.5); cpB = { el, h: { x: el.x + Math.sin(cp.fB) * armLen * 0.5 * dir, y: el.y + Math.cos(cp.fB) * armLen * 0.5 } };
+    const drawB = () => { limb(ctx, backS.x, backS.y, el.x, el.y, aw, color); limb(ctx, el.x, el.y, cpB.h.x, cpB.h.y, aw * 0.95, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(cpB.h.x, cpB.h.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); };
+    if (Math.abs(cp.aB) > 1.9 || Math.abs(cp.fB) > 2.6) lateBack = drawB; else drawB();
+  }
+  else { limb(ctx, backS.x, backS.y, backH.x, backH.y, aw, color); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(backH.x, backH.y + 0.15 * u, 0.5 * u, 0, Math.PI * 2); ctx.fill(); }
   // torso
-  ctx.fillStyle = color; rr(ctx, -torsoW / 2, shY, torsoW, hipY - shY + 0.6 * u, 0.9 * u); ctx.fill();
-  ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, hipY - 0.15 * u, torsoW, 0.45 * u);
-  if (kit === 'football') { ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, shY + 0.2 * u, torsoW, 0.35 * u); }
+  if (P.taper) { // V-shaped torso: broad shoulders narrowing to the waist, belt/pants line, subtle side shading
+    const yb = hipY + 0.6 * u, r = 0.7 * u;
+    ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(-torsoW / 2 + r, shY); ctx.lineTo(torsoW / 2 - r, shY); ctx.quadraticCurveTo(torsoW / 2, shY, torsoW / 2 - 0.05 * u, shY + r);
+    ctx.lineTo(waistW / 2, yb - 0.4 * u); ctx.quadraticCurveTo(waistW / 2, yb, waistW / 2 - 0.4 * u, yb); ctx.lineTo(-waistW / 2 + 0.4 * u, yb); ctx.quadraticCurveTo(-waistW / 2, yb, -waistW / 2, yb - 0.4 * u);
+    ctx.lineTo(-torsoW / 2 + 0.05 * u, shY + r); ctx.quadraticCurveTo(-torsoW / 2, shY, -torsoW / 2 + r, shY); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.beginPath(); ctx.moveTo(-dir * torsoW * 0.5 + dir * 0.0, shY + r); ctx.lineTo(-dir * waistW * 0.5, yb - 0.4 * u); ctx.lineTo(-dir * (waistW * 0.5 - 0.5 * u), yb - 0.4 * u); ctx.lineTo(-dir * (torsoW * 0.5 - 0.6 * u), shY + r); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = color2; ctx.fillRect(-waistW / 2, hipY - 0.1 * u, waistW, 0.4 * u);
+  } else {
+    ctx.fillStyle = color; rr(ctx, -torsoW / 2, shY, torsoW, hipY - shY + 0.6 * u, 0.9 * u); ctx.fill();
+    ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, hipY - 0.15 * u, torsoW, 0.45 * u);
+  }
+  if (kit === 'football') {
+    if (role !== 'ref') { ctx.fillStyle = color2; ctx.fillRect(-torsoW / 2, shY + 0.2 * u, torsoW, 0.35 * u); }
+    else { ctx.fillStyle = '#f4f4f4'; const n = 7, w = torsoW / n; for (let i = 0; i < n; i += 2) ctx.fillRect(-torsoW / 2 + i * w, shY, w, hipY - shY + 0.45 * u); } // black & white stripes
+    // shoulder pads: the silhouette that reads as "football" at a glance (wider than the jersey, darker rim)
+    for (const sd of [-1, 1]) { ctx.fillStyle = shade(color, 1.1); ctx.strokeStyle = shade(color, 0.6); ctx.lineWidth = Math.max(1, u * 0.14); ctx.beginPath(); ctx.ellipse(sd * (torsoW * 0.5 - P.shoulderIn * 0.5 * u), shY + 0.45 * u, P.pad[0] * u, P.pad[1] * u, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  }
   if (showNumber && number !== '' && u >= 3.3) {
     const fg = (() => { const n = parseInt(color.replace('#', '').padEnd(6, '0').slice(0, 6), 16); return ((0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 150) ? '#0b1118' : '#ffffff'; })();
     ctx.fillStyle = fg; ctx.font = `900 ${Math.max(6, Math.round(u * 1.55))}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(number), 0, shY + (hipY - shY) * 0.52);
   }
   // front arm + props
   const F = sh(dir), skinDot = (px, py) => { ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(px, py, 0.5 * u, 0, Math.PI * 2); ctx.fill(); };
-  if (prop === 'bat') {
+  let lateFront = null; // a raised throwing arm is drawn over the head, otherwise it hides behind the helmet
+  const drawCpFront = () => {
+    const el = handAt(F, cp.aF, armLen * 0.5), fh = { x: el.x + Math.sin(cp.fF) * armLen * 0.5 * dir, y: el.y + Math.cos(cp.fF) * armLen * 0.5 };
+    limb(ctx, F.x, F.y, el.x, el.y, aw, color); limb(ctx, el.x, el.y, fh.x, fh.y, aw * 0.95, color); skinDot(fh.x, fh.y + 0.15 * u);
+    if (prop === 'stick' && !cp.ball) { // hockey stick follows the front hand, blade on the ice ahead of the skater
+      const groundY = 0.1 * u, tipX = fh.x + dir * 3.2 * u, tipY = Math.min(fh.y + 4.6 * u * P.legS * 0.8, groundY);
+      ctx.strokeStyle = '#d9dde3'; ctx.lineWidth = Math.max(1.2, 0.5 * u); ctx.beginPath(); ctx.moveTo(fh.x, fh.y); ctx.lineTo(tipX, tipY); ctx.stroke();
+      ctx.strokeStyle = '#11161c'; ctx.lineWidth = Math.max(1.6, 0.85 * u); ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.lineTo(tipX + dir * 1.5 * u, groundY); ctx.stroke();
+    } else if (prop === 'glove' && !cp.ball) { ctx.fillStyle = '#8a5a2b'; ctx.beginPath(); ctx.arc(fh.x + dir * 0.2 * u, fh.y + 0.1 * u, 0.95 * u, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3d2610'; ctx.lineWidth = Math.max(1, u * 0.14); ctx.stroke(); }
+    if (cp.ball) { // football held by the front hand, the back hand, or both (centre)
+      const bx = cp.ball === 'FB' ? (fh.x + cpB.h.x) / 2 : cp.ball === 'B' ? cpB.h.x : fh.x, by = cp.ball === 'FB' ? (fh.y + cpB.h.y) / 2 : cp.ball === 'B' ? cpB.h.y : fh.y;
+      ctx.fillStyle = '#7a4a22'; ctx.beginPath(); ctx.ellipse(bx + dir * 0.3 * u, by - 0.3 * u, 0.95 * u, 0.6 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#f1c27d'; ctx.lineWidth = Math.max(0.8, u * 0.1); ctx.stroke();
+    }
+  };
+  if (cp) { if (Math.abs(cp.aF) > 1.9 || Math.abs(cp.fF) > 2.6) lateFront = drawCpFront; else drawCpFront(); }
+  else if (prop === 'bat') {
     // swing: bat goes from raised-back (angle -2.4) through the zone to follow-through (+2.2) driven by action.p
     const sp0 = act?.type === 'swing' ? act.p : 0, ang = act?.type === 'swing' ? -2.4 + 4.6 * ease(clamp01((sp0 - 0.2) / 0.5)) : -2.3 + Math.sin(t * 3 + seed) * 0.07;
     const grip = { x: F.x + dir * 0.9 * u, y: F.y + 0.5 * u };
@@ -141,18 +207,20 @@ export function drawAvatar(ctx, o) {
     let ang = 0.15 + (moving ? -swingA * 0.55 : 0);
     if (act?.type === 'throw') ang = -2.6 + 3.2 * ease(clamp01((act.p - 0.3) / 0.35)) - 0.5 * ease(clamp01((act.p - 0.75) / 0.25));
     else if (act?.type === 'catch') ang = -1.9 + 0.9 * Math.sin(act.p * Math.PI);
+    else if (act?.type === 'snap') ang = 0.5 + 1.0 * Math.sin(act.p * Math.PI); // arm sweeps the ball back
+    else if (act?.type === 'handoff') ang = 0.6 + 0.9 * Math.sin(act.p * Math.PI); // arm extends the ball to the runner
     else if (act?.type === 'celebrate') ang = -2.9 + Math.sin(act.p * 20 + 1) * 0.3;
     else if (prop === 'glove') ang = 0.55; else if (prop === 'ball') ang = moving ? 0.9 : 0.6;
     const hnd = handAt(F, ang);
     limb(ctx, F.x, F.y, hnd.x, hnd.y, aw, color);
     if (prop === 'glove' && act?.type !== 'throw') { ctx.fillStyle = '#8a5a2b'; ctx.beginPath(); ctx.arc(hnd.x + dir * 0.2 * u, hnd.y, 0.95 * u, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#3d2610'; ctx.lineWidth = Math.max(1, u * 0.14); ctx.stroke(); }
-    else if (prop === 'ball' || (act?.type === 'throw' && act.p < 0.6)) { ctx.fillStyle = kit === 'football' ? '#7a4a22' : '#f4f1ea'; ctx.beginPath(); ctx.ellipse(hnd.x + dir * 0.35 * u, hnd.y - 0.35 * u, kit === 'football' ? 0.95 * u : 0.5 * u, kit === 'football' ? 0.6 * u : 0.5 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); }
+    else if (prop === 'ball' || (act?.type === 'throw' && act.p < 0.6) || (act?.type === 'snap' && act.p < 0.55) || (act?.type === 'handoff' && act.p < 0.65)) { ctx.fillStyle = kit === 'football' ? '#7a4a22' : '#f4f1ea'; ctx.beginPath(); ctx.ellipse(hnd.x + dir * 0.35 * u, hnd.y - 0.35 * u, kit === 'football' ? 0.95 * u : 0.5 * u, kit === 'football' ? 0.6 * u : 0.5 * u, -0.5 * dir, 0, Math.PI * 2); ctx.fill(); }
     else skinDot(hnd.x, hnd.y + 0.2 * u);
   }
   // ---- head ----
-  const hr = 1.95 * u * (a.build === 2 ? 1.04 : a.build === 0 ? 0.97 : 1), hdY = headY + (act?.type === 'celebrate' ? -0.1 * u : 0);
-  ctx.fillStyle = skinD; ctx.fillRect(-0.55 * u, hdY + hr * 0.7, 1.1 * u, 0.9 * u);
-  const geared = a.gear === 0;
+  const hr = P.hr * u * (a.build === 2 ? 1.04 : a.build === 0 ? 0.97 : 1), hdY = headY + (act?.type === 'celebrate' ? -0.1 * u : 0);
+  ctx.fillStyle = skinD; if (P.taper) ctx.fillRect(-P.neck[0] * u / 2, hdY + hr * 0.6, P.neck[0] * u, Math.max(0.9 * u, shY + 0.5 * u - (hdY + hr * 0.6))); else ctx.fillRect(-0.55 * u, hdY + hr * 0.7, 1.1 * u, 0.9 * u); // legacy neck for the cartoon style
+  const geared = a.gear === 0 && role !== 'ref';
   if (a.hairStyle === 2 || a.hairStyle === 6) { ctx.fillStyle = hair; if (a.hairStyle === 2) rr(ctx, -hr * 1.05, hdY - hr * 0.2, hr * 2.1, hr * 1.7, hr * 0.7); else { ctx.beginPath(); ctx.ellipse(-dir * hr * 1.05, hdY + hr * 0.5 + (moving ? Math.sin(ph) * 0.2 * u : 0), hr * 0.38, hr * 0.8, -dir * 0.35, 0, Math.PI * 2); } ctx.fill(); }
   ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, hdY, hr, 0, Math.PI * 2); ctx.fill();
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * hr * 0.98, hdY + hr * 0.1, hr * 0.2, 0, Math.PI * 2); ctx.fill(); }
@@ -175,6 +243,10 @@ export function drawAvatar(ctx, o) {
   else if (a.beard === 2) { ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(0, hdY, hr * 1.02, 0.05, Math.PI - 0.05); ctx.arc(0, hdY + hr * 0.2, hr * 0.7, Math.PI - 0.3, 0.3, true); ctx.fill(); }
   else if (a.beard === 3) { ctx.fillStyle = hair; rr(ctx, ex - hr * 0.5, ey + hr * 0.38, hr * 1.0, hr * 0.2, hr * 0.1); ctx.fill(); }
   if (a.accessory === 2 && (!geared || kit !== 'baseball')) { ctx.fillStyle = color2; ctx.fillRect(-hr * 1.0, hdY - hr * 0.55, hr * 2.0, hr * 0.28); }
+  if (role === 'ref') { // white referee cap with a short brim on the facing side
+    ctx.fillStyle = '#f6f6f6'; ctx.beginPath(); ctx.arc(0, hdY - hr * 0.1, hr * 1.06, Math.PI * 1.02, Math.PI * 1.98); ctx.lineTo(hr * 0.98, hdY - hr * 0.1); ctx.lineTo(-hr * 0.98, hdY - hr * 0.1); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#d8d8d8'; ctx.beginPath(); ctx.ellipse(dir * hr * 0.75, hdY - hr * 0.1, hr * 0.62, hr * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+  }
   if (geared) {
     ctx.fillStyle = color;
     if (kit === 'baseball') {
@@ -192,6 +264,7 @@ export function drawAvatar(ctx, o) {
       ctx.strokeStyle = '#d7dde5'; ctx.lineWidth = Math.max(1, hr * 0.11); ctx.beginPath(); ctx.moveTo(dir * hr * 0.2, hdY + hr * 0.1); ctx.lineTo(dir * hr * 1.1, hdY + hr * 0.25); ctx.moveTo(dir * hr * 0.2, hdY + hr * 0.45); ctx.lineTo(dir * hr * 1.05, hdY + hr * 0.5); ctx.stroke();
     }
   }
+  lateBack?.(); lateFront?.();
   ctx.restore(); // lean pivot
   ctx.restore(); ctx.lineWidth = lw;
 }

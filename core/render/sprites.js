@@ -7,6 +7,7 @@
 // target/receiving (cyan). `shape: 'goalie'` / 'pitcher' / 'batter' give role-specific silhouettes.
 import { drawCirclePhoto } from './images.js';
 import { drawAvatar } from './avatars.js';
+import { drawSheet, resolveSheet, pantsColorFor } from './spriteSheet.js';
 
 export function zoomLevel(pxRadius) { return pxRadius >= 15 ? 'close' : pxRadius >= 9 ? 'mid' : 'far'; }
 
@@ -20,6 +21,35 @@ export function textColorOn(hex) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#0b1118' : '#ffffff';
 }
 
+
+// Name plate: drawn immediately unless a LabelLayer (`o.labels`) is supplied, in which case placement is deferred so
+// plates of nearby bodies do not pile up (see labels.js). below/above = top-y of the plate in each candidate spot.
+function namePlate(ctx, o, label, font, hh, color, below, above, cx, bodyRect) {
+  ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const w = ctx.measureText(label).width + 10;
+  const must = !!(o.carrier || o.target || o.selected || o.shape === 'goalie' || o.shape === 'pitcher' || o.shape === 'batter' || o.avatar?.role === 'goalie' || o.avatar?.role === 'qb');
+  const prio = (o.carrier || o.target || o.selected) ? 3 : must ? 2 : 1;
+  const draw = (c, r) => {
+    c.font = font; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = 'rgba(5,10,16,.82)'; roundRect(c, r.x, r.y, w, hh, 4); c.fill();
+    c.fillStyle = color; c.fillRect(r.x, r.y, 3, hh);
+    c.fillStyle = '#f2f6fb'; c.fillText(label, r.x + w / 2 + 1.5, r.y + hh / 2 + 0.5);
+  };
+  if (o.labels) {
+    o.labels.body({ id: o.labelId, ...bodyRect });
+    o.labels.add({ id: o.labelId, cx, below, above, w, h: hh, side: bodyRect.w / 2 + 3, prio, must, tf: ctx.getTransform(), draw });
+  } else draw(ctx, { x: cx - w / 2, y: below });
+}
+
+// Fatigue pip (career / game state feeding the picture): a thin bar under the athlete's feet that appears once energy drops below 50 % and goes
+// amber -> red; nothing is drawn for fresh players, so the field stays readable. energy: 0..1 (null / undefined = unknown, draws nothing).
+export function fatigueLevel(energy) { return typeof energy === 'number' && energy < 0.5 ? Math.max(0, Math.min(1, energy / 0.5)) : null; }
+export function drawFatigue(ctx, x, y, r, energy) {
+  const k = fatigueLevel(energy); if (k === null) return false;
+  const w = r * 1.5, h = Math.max(2, r * 0.16), g = Math.round(200 * k + 40), red = k < 0.5 ? 235 : 235 - Math.round((k - 0.5) * 200);
+  ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - w / 2 - 1, y - 1, w + 2, h + 2);
+  ctx.fillStyle = `rgb(${red},${g},50)`; ctx.fillRect(x - w / 2, y, Math.max(1, w * k), h); ctx.restore(); return true;
+}
 export function drawSprite(ctx, o) {
   const { x, y, r, color = '#1d4ed8', color2 = '#ffffff', number = '', pos = '', name = '', img = null,
     shape = 'circle', facing = null, carrier = false, selected = false, target = false, dim = false, level = zoomLevel(r), t = 0 } = o;
@@ -77,12 +107,9 @@ export function drawSprite(ctx, o) {
   }
   // name plate (close zoom)
   if (level === 'close' && name) {
-    const label = `${name}${pos ? ' · ' + pos : ''}`;
-    ctx.font = `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`;
-    const w = ctx.measureText(label).width + 10, h = Math.max(14, r * 0.72), py = y + r + ringW + 3;
-    ctx.fillStyle = 'rgba(5,10,16,.82)'; roundRect(ctx, x - w / 2, py, w, h, 4); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(x - w / 2, py, 3, h);
-    ctx.fillStyle = '#f2f6fb'; ctx.fillText(label, x + 1.5, py + h / 2 + 0.5);
+    const label = `${name}${pos ? ' · ' + pos : ''}`, hh = Math.max(14, r * 0.72), py = y + r + ringW + 3;
+    namePlate(ctx, o, label, `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`, hh, color, py, y - r - ringW - 3 - hh, x,
+      { x: x - r - ringW, y: y - r - ringW, w: 2 * (r + ringW), h: 2 * (r + ringW) });
   }
   // indicators (subtle)
   const ringR = (shape === 'goalie' ? r * 1.25 : r) + ringW + 3;
@@ -149,19 +176,26 @@ function drawAvatarSprite(ctx, o, level) {
   if (carrier) ring(r * 1.45, `rgba(246,196,83,${0.6 + 0.35 * Math.sin(t * 6)})`, 2.4);
   if (target) ring(r * 1.65, 'rgba(92,220,255,.95)', 2, [5, 4]);
   if (selected) ring(r * 1.85, 'rgba(255,255,255,.95)', 1.7, [3, 3]);
-  drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, seed: avatar.seed, dir: avatar.dir,
+  drawFatigue(ctx, x, fy + r * 0.28, r, o.energy);
+  let usedSheet = false;
+  if (avatar.sheet) { // Blender sprite sheet (5 directions on locomotion, mirrored left/right); anything without a clip falls back to the procedural avatar below
+    const r = resolveSheet(avatar, t);
+    if (r) {
+      const phi = facing != null ? Math.atan2(Math.sin(facing), Math.cos(facing)) : null;
+      const pal = r.kit === 'ref' ? ['#ffffff', '#ffffff'] : [color, pantsColorFor(avatar.kit, color, color2)];
+      usedSheet = drawSheet(ctx, { x, feetY: fy, h, kit: r.kit, clip: r.clip, t: r.t, phi, dir: avatar.dir || 1, jersey: pal[0], pants: pal[1], accent: r.kit === 'ref' ? '#ffffff' : color2, key: avatar.key ?? `${name}|${number}|${color}` });
+    }
+  }
+  if (!usedSheet) drawAvatar(ctx, { x, y: fy, h, opts: avatar.opts, kit: avatar.kit, prop: avatar.prop, pose: avatar.pose, role: avatar.role, moving: avatar.moving, speed: avatar.speed, action: avatar.action, phase: avatar.phase, seed: avatar.seed, dir: avatar.dir,
     color, color2, number, facing, t, showNumber: true });
-  if (h / 10 < 3.3 && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
+  if ((h / 10 < 3.3 || usedSheet) && number !== '' && level !== 'far') { // too small for a torso number → badge by the feet
     const bw = Math.max(13, r * 0.95), bh = Math.max(10, r * 0.62), fg = textColorOn(color);
     ctx.fillStyle = color; roundRect(ctx, x + r * 0.45, fy - bh * 0.5, bw, bh, bh * 0.35); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
     ctx.fillStyle = fg; ctx.font = `800 ${Math.max(8, bh * 0.78)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(number), x + r * 0.45 + bw / 2, fy + 0.5);
   }
   if (level !== 'far' && name) {
-    const label = `${name}${pos && level === 'close' ? ' · ' + pos : ''}`;
-    ctx.font = `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const w = ctx.measureText(label).width + 10, hh = Math.max(14, r * 0.72), py = fy + 3 + r * 0.25;
-    ctx.fillStyle = 'rgba(5,10,16,.82)'; roundRect(ctx, x - w / 2, py, w, hh, 4); ctx.fill();
-    ctx.fillStyle = color; ctx.fillRect(x - w / 2, py, 3, hh);
-    ctx.fillStyle = '#f2f6fb'; ctx.fillText(label, x + 1.5, py + hh / 2 + 0.5);
+    const label = `${name}${pos && level === 'close' ? ' · ' + pos : ''}`, hh = Math.max(14, r * 0.72);
+    namePlate(ctx, o, label, `700 ${Math.max(10, r * 0.5)}px Inter, system-ui, sans-serif`, hh, color, fy + 3 + r * 0.25, fy - h - hh - 3, x,
+      { x: x - r * 1.1, y: fy - h, w: r * 2.2, h: h + r * 0.4 });
   }
 }

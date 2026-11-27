@@ -1,0 +1,19 @@
+{
+  "name": "American Sports Universe 2D",
+  "short_name": "ASU 2D",
+  "description": "NFL, NHL e MLB em 2D: partidas, carreiras e saves. Funciona offline depois da primeira abertura.",
+  "lang": "pt-BR",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "any",
+  "background_color": "#070b11",
+  "theme_color": "#070b11",
+  "categories": ["games", "sports"],
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

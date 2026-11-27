@@ -1,0 +1,19 @@
+# Unreal Engine project (copie para a raiz do projeto Unreal, ao lado do .uproject)
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vs/
+.idea/
+*.sln
+*.suo
+*.VC.db
+*.opensdf
+*.sdf
+*.xcodeproj
+*.xcworkspace
+.vscode/
+# Plugins compilados localmente
+Plugins/*/Binaries/
+Plugins/*/Intermediate/

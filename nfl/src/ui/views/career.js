@@ -26,9 +26,10 @@ export function bindSaves(ctx, rerender) {
   });
   content.querySelectorAll('[data-export]').forEach(b => b.onclick = () => {
     const json = sm.exportSlot(+b.dataset.export); if (!json) return;
-    const md = JSON.parse(json).metadata, a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    a.download = `nfl-universe-${md.team}-S${md.season}-W${md.week}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    const md = JSON.parse(json).metadata, fname = `nfl-universe-${md.team}-S${md.season}-W${md.week}.json`;
+    if (window.AsuNative?.saveFile) { window.AsuNative.saveFile(fname, json); return; }   // Android app: system "save as" dialog
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = fname; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   });
   const file = content.querySelector('#importFile');
   content.querySelectorAll('[data-import]').forEach(b => b.onclick = () => { importSlot = +b.dataset.import; file.value = ''; file.click(); });

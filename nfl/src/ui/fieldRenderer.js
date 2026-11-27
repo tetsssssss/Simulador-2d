@@ -4,8 +4,16 @@
 // (lanes + scores, chosen lane, RB decision/move, double teams, climbs/pulls, free defenders).
 import { photoImage } from './photos.js';
 import { drawSprite } from '../../../core/render/sprites.js';
-import { getAvatar } from '../../../core/render/avatars.js';
+import { createLabelLayer } from '../../../core/render/labels.js';
+import { actionsFor, locomotionClipId, contactPull, CONTACT_CLIPS, smooth01, huddlePose } from './animationMap.js';
+import { buildPenalty, buildSignal, SIGNALS, REF_ID } from './penalties.js';
+import { sideColors } from './teamColors.js';
+const CLIP_LOCOMOTION = true; // keyframed gait (core/anim mv_* clips); set false to fall back to the procedural cycle
+import { clipPoseOf } from '../../../core/anim/registry.js';
+import { avatarFor, isAvatarMode } from '../../../core/render/avatars.js';
+import { preloadKits } from '../../../core/render/spriteSheet.js';
 import { FIELD_LEN, FIELD_W } from '../sim/geometry.js';
+import { createWeather, weatherPref } from '../../../core/render/weather.js';
 import { attachHiDPI } from '../../../core/render/hidpi.js';
 import { TEAM_COLORS } from './teamColors.js';
 
@@ -236,25 +244,119 @@ export function createRenderer(canvas, { crowd = null } = {}) {
 
   // Shared sprite grammar: far = team color + number · mid = photo + number (+ position) · close = photo + name.
   // QB gets a role outline, the ball carrier a gold ring; offense/defense use their real team colors.
-  function drawPlayer(e, a, isCarrier) {
+  // One-shot avatar actions driven by sim events (same grammar as NHL/MLB): QB throw on release, receiver catch, rush/sack/
+  // forced-fumble contact → check, pass breakup → dive, interception → catch, block engage → short check, TD → celebrate.
+  const acts = new Map(); let evIdx = 0, evSim = null, ballWas = false;
+  // ---- penalty presentation (wall-clock; the simulation is untouched) ----
+  let penalty = null; // { label, ref:{pos,facing}, until }
+  const wallNow = () => performance.now() / 1000;
+  function startPenalty(foul, sim, o = {}) {
+    const pn = buildPenalty(foul, sim, { ...o, now: wallNow() }); if (!pn) return null;
+    for (const a of pn.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true, next: a.next });
+    penalty = pn; return pn;
+  }
+  let cheer = null, curTeams = {}, benchEnts = new Map();   // sideline reserves cheer for 3 s after their team scores
+  let replaying = false;   // gameView drives an instant replay of the finished sim (see ui/replay.js)
+  const contacts = new Map();   // tackler/assist id -> carrier id (visual contact pull while the tackle clip runs)
+  function pumpActions(sim) {
+    if (sim !== evSim) { evSim = sim; evIdx = 0; ballWas = false; acts.clear(); contacts.clear(); }
+    let t0 = sim.t ?? 0; const set = (id, type, dur, delay = 0) => { if (id != null) acts.set(id, { type, t0: t0 + delay, dur }); };
+    const ev = sim.events || []; if (evIdx > ev.length) evIdx = 0;
+    for (; evIdx < ev.length; evIdx++) {
+      const e = ev[evIdx];
+      if (replaying) { if (e.t > (sim.t ?? 0)) break; t0 = e.t; }   // replay: events fire at their own recorded time
+      if (e.type === 'TOUCHDOWN') cheer = { team: e.side === 'def' ? curTeams.def : curTeams.off, t0: replaying ? e.t : (sim.t ?? 0) };
+      if (e.type === 'TACKLE' && e.carrier != null) { if (e.by != null) contacts.set(e.by, { c: e.carrier, gap: 0.75 }); for (const a of e.assists || []) contacts.set(a, { c: e.carrier, gap: 1.0 }); }
+      if (e.type === 'WHISTLE') for (const [id, A] of acts) if (A.loop) acts.delete(id); // loops (scramble…) end with the play
+      for (const a of actionsFor(e, sim)) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, loop: a.loop }); // keyframed clips (core/anim)
+      if (e.type === 'PENALTY') startPenalty(e.foul, sim, { by: e.by, on: e.on }); // future engine event
+      else if (SIGNALS[e.type] && !(penalty && wallNow() < penalty.until)) {   // referee signals what the engine decided (touchdown, safety, incomplete)
+        const sg = buildSignal(e.type, sim, { now: wallNow() });
+        if (sg) { if (typeof window !== 'undefined') (window.__asuSignals ||= []).push(e.type);   // test hook: signals shown
+          for (const a of sg.actions) acts.set(a.who, { type: a.type, t0: a.t0, dur: a.dur, wall: true }); penalty = sg; }
+      }
+      switch (e.type) {
+        case 'SNAP': set(sim.off?.C?.id, 'snap', 0.5); break;                // legacy procedural actions kept where no clip exists yet
+        case 'HANDOFF': set(e.to, 'catch', 0.5, 0.2); break;
+        case 'WHISTLE': if (/TOUCHDOWN/i.test(String(e.outcome || '')) && sim.carrier) acts.set(sim.carrier.id, { type: 'clip:gs_arms_up', t0: t0, dur: 1.6, loop: true }); break;
+      }
+    }
+  }
+  const actionOf = (sim, id) => {
+    let A = acts.get(id); if (!A) return null;
+    const clock = () => (A.wall ? wallNow() : (sim.t ?? 0));
+    let k = (clock() - A.t0) / A.dur;
+    while (k > 1 && A.next) { A = { ...A.next, t0: A.t0 + A.dur, wall: A.wall }; acts.set(id, A); k = (clock() - A.t0) / A.dur; } // chained clip (flag throw → signal)
+    if (k < 0) return null; if (k > 1 && !A.loop) { if (!A.hold) acts.delete(id); return A.hold ? { type: A.type, t: 1 } : null; }
+    return { type: A.type, t: k };
+  };
+  const labelLayer = createLabelLayer();
+  // Stride phase follows DISTANCE covered (not wall-clock time) so feet never skate over the grass: rad per yard falls with speed.
+  const strides = new Map();
+  function stridePhase(e, p) {
+    const now = performance.now(); let st = strides.get(e.id);
+    if (!st) { st = { x: p.x, y: p.y, ph: (e.jersey || 0) * 0.7, t: now }; strides.set(e.id, st); }
+    const d = Math.hypot(p.x - st.x, p.y - st.y), dt = Math.max(1e-3, (now - st.t) / 1000), v = Math.min(11, d / dt);
+    if (d < 3) st.ph += d * (2.5 - 0.11 * v); // d >= 3 yd in one frame = teleport (new play): keep the phase
+    st.x = p.x; st.y = p.y; st.t = now; return st.ph;
+  }
+  let wx = null, wxSeed = '', wxT = 0;
+  let huddleK = null; // 0..1 while the pre-snap huddle plays (gameView), else null
+  let handBall = false; // a keyframed clip is drawing the ball in the athlete's hands → skip the separate carried-ball sprite
+  function drawPlayer(e, a, isCarrier, override = null) {
     const s = ppy();
-    const p = lerpPos(e, a);
-    const [X, Y] = pt(p.x, p.y);
     const level = s >= 17 ? 'close' : s >= 9 ? 'mid' : 'far';
-    const av = prefs.visual === 'avatar';
+    const av = isAvatarMode(prefs.visual); if (prefs.visual === 'sheet') preloadKits('nfl');
+    let p = lerpPos(e, a);
+    const ct = contacts.get(e.id);
+    if (ct && av && lastSim) {   // render-only: close the gap to the carrier while the two-body tackle clip plays so the bodies touch
+      const ca = actionOf(lastSim, e.id), ce = lastSim.ents?.find(x => x.id === ct.c);
+      if (ca && ce && CONTACT_CLIPS.has(ca.type)) p = contactPull(p, lerpPos(ce, a), ct.gap, smooth01(ca.t / 0.45));
+    }
+    let hFacing = null, hBreak = false;
+    if (huddleK != null && e.side === 'off' && !override && lastSim?.offense) {   // pre-snap huddle (render-only; the simulation has not started stepping)
+      const hp = huddlePose(huddleK, lastSim.offense.indexOf(e), lastSim.offense.length, { x: lastSim.losX - 8.5, y: lastSim.by }, p);
+      if (hp.active) { p = { x: hp.x, y: hp.y }; hFacing = hp.facing; hBreak = hp.breaking; }
+    }
+    const [X, Y] = pt(p.x, p.y);
     const r = (level === 'close' ? Math.min(22, s * 0.62) : level === 'mid' ? Math.max(9.5, s * 0.5) : Math.max(5, s * 0.55)) * (av ? 1.35 : 1);
     const off = e.side === 'off';
-    const c = off ? teamCols.off : teamCols.def;
+    const c = override?.colors || (off ? teamCols.off : teamCols.def);
+    let clipAct = av && lastSim ? actionOf(lastSim, e.id) : null;
+    const ph = stridePhase(e, p);
+    if (av && !clipAct && CLIP_LOCOMOTION) { // no event clip running: keyframed gait from real speed (stride phase = distance), or lying on the ground when tackled
+      if (e.down) clipAct = { type: 'clip:ag_pile_bottom', t: 1 };
+      else { const sp = Math.hypot(e.vel?.x || 0, e.vel?.y || 0), back = sp > 0.5 && ((e.vel.x * Math.cos(e.facing) + e.vel.y * Math.sin(e.facing)) / sp) < -0.35, lat = sp > 0.8 && Math.abs((-(e.vel.x || 0) * Math.sin(e.facing) + (e.vel.y || 0) * Math.cos(e.facing)) / sp) > 0.8, id = locomotionClipId({ lateral: lat && e.side === 'def', ready: e.side === 'def' && !isCarrier && !(lastSim?.t > 0.2), speed: sp, backwards: back, carrying: isCarrier }); if (id) clipAct = { type: 'clip:' + id, t: ph / (Math.PI * 2) }; }
+    }
+    if (hBreak && av) clipAct = { type: 'clip:mv_jog', t: ph / (Math.PI * 2) };   // jogging out of the huddle
+    if (clipAct && clipPoseOf(clipAct)?.ball) handBall = true;
     const qb = e === lastSim?.qb;
     drawSprite(ctx, {
       x: X, y: Y, r, color: c[0], color2: c[1], number: e.jersey || '', pos: e.slot, name: level === 'close' ? lastName(e.name) : '',
       img: prefs.visual === 'photo' && level !== 'far' ? photoImage(e.p) : null,
-      avatar: av ? { opts: getAvatar('nfl', e.p?.gsis_id || e.p?.full_name || e.id), kit: 'football', role: qb ? 'qb' : 'player', prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1 } : null, shape: qb ? 'pitcher' : 'circle', facing: e.facing + cam.rot,
-      carrier: isCarrier, selected: prefs.selected === e.id, dim: e.down, level, t: performance.now() / 1000,
+      avatar: av ? { opts: avatarFor('nfl', e.p?.gsis_id || e.p?.full_name || e.id, e.slot), kit: 'football', role: override?.role || (qb ? 'qb' : 'player'), prop: isCarrier || qb ? 'ball' : 'none', pose: 'stand', moving: Math.hypot(e.pos.x - e.prev.x, e.pos.y - e.prev.y) > 0.03, seed: (e.jersey || 0) % 9, dir: e.side === 'off' ? 1 : -1, action: clipAct, phase: ph, sheet: prefs.visual === 'sheet' } : null, shape: qb ? 'pitcher' : 'circle', facing: (hFacing ?? e.facing) + cam.rot,
+      carrier: isCarrier, selected: prefs.selected === e.id, energy: override?.bench ? null : e.energy, dim: e.down || !!override?.dim, level, t: performance.now() / 1000, labels: labelLayer, labelId: e.id,
     });
     return { X, Y, r };
   }
 
+  // Sideline reserves (presentation only): up to 7 non-starters per team stand on their own sideline near the ball (home team below the field,
+  // away team above), face the field, and throw their arms up for 3 s when their team scores. Rows come from the game view (opts.bench[abbr]).
+  const BENCH_N = 7;
+  function drawBench(sim, a, opts) {
+    const rows = opts.bench, T = opts.teams; if (!rows || !T?.home) return;
+    const bx = sim.ball?.pos?.x ?? sim.losX ?? 60, t = sim.t ?? 0;
+    for (const [abbr, y, facing] of [[T.home, -2.6, Math.PI / 2], [T.away, FIELD_W + 2.6, -Math.PI / 2]]) {
+      const list = (rows[abbr] || []).slice(0, BENCH_N), side = abbr === T.off ? 'off' : 'def';
+      list.forEach((p, i) => {
+        const id = `bench:${abbr}:${p.gsis_id || p.full_name}`, x = Math.max(14, Math.min(106, bx - 6 + i * 2.1)), pos = { x, y };
+        let ent = benchEnts.get(id); if (!ent) { ent = { id, slot: p.position, jersey: p.jersey_number, name: p.full_name, p, vel: { x: 0, y: 0 }, down: false }; benchEnts.set(id, ent); }
+        ent.side = side; ent.pos = pos; ent.prev = pos; ent.facing = facing;
+        if (cheer && cheer.team === abbr && t - cheer.t0 >= 0 && t - cheer.t0 < 3) acts.set(id, { type: 'clip:gs_arms_up', t0: cheer.t0, dur: 3, loop: false });
+        drawPlayer(ent, 1, false, { colors: side === 'off' ? teamCols.off : teamCols.def, dim: true, bench: true });
+      });
+    }
+  }
   function drawBall(sim, a) {
     const b = sim.ball;
     const s = ppy();
@@ -263,6 +365,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const pv = b.prev || { x: b.pos.x, y: b.pos.y, z: b.z };
       x = pv.x + (b.pos.x - pv.x) * a; y = pv.y + (b.pos.y - pv.y) * a; z = Math.max(0, pv.z + (b.z - pv.z) * a);
     } else {
+      if (handBall) return;
       const h = sim.carrier || (sim.phase === 'PRE_THROW' || sim.phase === 'SCRAMBLE' || sim.phase === 'HANDOFF' ? sim.qb : null);
       if (!h) return;
       const p = lerpPos(h, a); x = p.x + 0.35; y = p.y + 0.2; z = 1.1;
@@ -420,6 +523,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
       const y = sc.Y - sc.r - 7;
       ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(sc.X, y + 5); ctx.lineTo(sc.X - 4.5, y - 3); ctx.lineTo(sc.X + 4.5, y - 3); ctx.closePath(); ctx.fill();
     };
+    pumpActions(sim); handBall = false;
     const holder = sim.carrier;
     const qb = sim.qb;
     if (qb && !qb.down) ring(qb, 'rgba(150,205,255,.85)', [], 3, 1.4);
@@ -453,16 +557,26 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     if (opts.zoom) cam.zoom = opts.zoom;
     prefs = { photos: opts.photos !== false, visual: opts.visual || (opts.photos === false ? 'plain' : 'photo'), follow: opts.follow !== false, selected: opts.selected || null, camera: CAMERAS[opts.camera] ? opts.camera : null, highlights: opts.highlights !== false };
     cam.preset = prefs.camera;
-    lastSim = sim;
+    lastSim = sim; huddleK = opts.huddle ?? null; curTeams = opts.teams || {};
     teamCols = sideColors(opts.teams?.off, opts.teams?.def);
     updateCamera(sim, alpha);
     drawField(sim, opts.teams || {});
     screen = new Map();
     const holder = sim.carrier;
+    drawBench(sim, alpha, opts);
     for (const e of [...sim.ents].sort((a, b) => (a.down ? 0 : 1) - (b.down ? 0 : 1))) screen.set(e, drawPlayer(e, alpha, e === holder));
+    if (penalty && wallNow() < penalty.until) { // referee entity + banner while a penalty is being presented
+      const pos = penalty.ref.pos, ref = { id: REF_ID, slot: 'REF', side: 'off', jersey: '', name: 'Árbitro', p: null, pos, prev: pos, vel: { x: 0, y: 0 }, facing: penalty.ref.facing, down: false };
+      const rs = drawPlayer(ref, 1, false, { colors: ['#15181d', '#ffffff'], role: 'ref' });
+      labelLayer.flush(ctx);
+      if (penalty.label) label(penalty.label, rs.X, rs.Y - rs.r * 3.4 - 6, '#111', '#ffd24a');
+    } else { penalty = null; labelLayer.flush(ctx); }
     if (prefs.highlights) drawHighlights(sim, alpha, screen);
     if (opts.debug) drawDebug(sim, alpha, screen);
     drawBall(sim, alpha);
+    { const seed = `${opts.teams?.home || ''}@${opts.teams?.away || ''}`, now = performance.now() / 1000;   // weather overlay (visual only)
+      if (!wx || wxSeed !== seed) { wx = createWeather({ sport: 'nfl', seed }); wxSeed = seed; }
+      wx.setMode(weatherPref()); wx.draw(ctx, W, H, wxT ? Math.min(0.1, now - wxT) : 0.016); wxT = now; }
   }
 
   // Hit test in CSS pixels (canvas-relative) → entity under the cursor (last rendered frame).
@@ -472,7 +586,7 @@ export function createRenderer(canvas, { crowd = null } = {}) {
     return best;
   }
 
-  return { render, resize, pick, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
+  return { beginReplay(sim) { replaying = true; evSim = sim; evIdx = 0; acts.clear(); contacts.clear(); }, endReplay(sim) { replaying = false; acts.clear(); evIdx = (sim?.events || []).length; }, render, resize, pick, demoPenalty: (foul, o) => (lastSim ? startPenalty(foul, lastSim, o) : null), get penalty() { return penalty; }, get colors() { return teamCols; }, camera: cam, dispose: () => hd.dispose(), get size() { return { w: hd.w, h: hd.h, dpr: hd.dpr }; } };
 }
 
 function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
@@ -480,10 +594,3 @@ function hexA(hex, a) { const h = (hex || '#000').replace('#', ''); const n = pa
 const SUFFIX = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;
 const lastName = n => { const w = String(n || '').trim().split(/\s+/); while (w.length > 1 && SUFFIX.test(w[w.length - 1])) w.pop(); return w[w.length - 1] || ''; };
 // Offense/defense colors; when both teams' primaries are too close, the defense switches to white jerseys.
-function sideColors(off, def) {
-  const o = TEAM_COLORS[off] || '#1d4ed8', d = TEAM_COLORS[def] || '#b91c1c';
-  const rgb = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-  const [a, b] = [rgb(o), rgb(d)];
-  const close = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 90;
-  return { off: [o, '#ffffff'], def: close ? ['#f2f4f7', d] : [d, '#ffffff'] };
-}

@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8"><title>Clip preview</title>
+<style>body{margin:0;background:#0d1520;color:#cfe;font:12px Inter,system-ui,sans-serif}h1{font-size:14px;margin:8px 12px}#bar{margin:0 12px 8px;display:flex;gap:8px;align-items:center}canvas{display:block;margin:0 auto}</style>
+<h1>NFL clips — contact sheet (usa o mesmo drawAvatar do jogo)</h1>
+<div id="bar"><label>grupo <select id="grp"></select></label><label>fases <input id="ph" type="number" value="7" min="2" max="10" style="width:46px"></label><label><input id="anim" type="checkbox"> animar</label></div>
+<canvas id="c"></canvas>
+<script type="module">
+import { drawAvatar, defaultAvatar } from '../../core/render/avatars.js';
+import { ALL_CLIPS, BATCHES } from '../../core/anim/registry.js';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d'), grp = document.getElementById('grp');
+for (const g of ['all', ...Object.keys(BATCHES)]) grp.append(new Option(g, g));
+const U = 12, CELL_W = 118, CELL_H = 150, LABEL = 150, dpr = Math.min(2, devicePixelRatio || 1);
+function render(t = 0) {
+  const phases = +document.getElementById('ph').value, list = ALL_CLIPS.filter(c => grp.value === 'all' || c.group === grp.value), animate = document.getElementById('anim').checked;
+  const W = LABEL + phases * CELL_W, H = list.length * CELL_H + 4; cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#16243a'; ctx.fillRect(0, 0, W, H);
+  const av = { ...defaultAvatar('qb'), gear: 0, skin: 2 };
+  list.forEach((c, r) => {
+    const y0 = r * CELL_H; ctx.fillStyle = r % 2 ? '#122033' : '#16243a'; ctx.fillRect(0, y0, W, CELL_H);
+    ctx.fillStyle = '#e8f1ff'; ctx.font = '700 12px Inter, system-ui'; ctx.textAlign = 'left'; ctx.fillText(c.name, 8, y0 + 18);
+    ctx.fillStyle = '#8fb0d6'; ctx.font = '11px Inter, system-ui'; ctx.fillText(`${c.id} · ${c.dur}s${c.loop ? ' · loop' : ''}`, 8, y0 + 34);
+    for (let i = 0; i < phases; i++) {
+      const p = animate ? (((t / 1000) / c.dur) + i / phases) % 1 : i / (phases - 1), x = LABEL + i * CELL_W + CELL_W / 2, y = y0 + CELL_H - 18;
+      ctx.strokeStyle = '#2b4263'; ctx.beginPath(); ctx.moveTo(x - 40, y); ctx.lineTo(x + 40, y); ctx.stroke();
+      drawAvatar(ctx, { x, y, h: U * 10, opts: av, kit: 'football', color: '#0b2a6f', color2: '#ffffff', number: 12, dir: 1, facing: 0, role: 'qb', action: { type: 'clip:' + c.id, t: p }, t: 0 });
+      ctx.fillStyle = '#6f90ba'; ctx.font = '10px Inter, system-ui'; ctx.textAlign = 'center'; ctx.fillText(p.toFixed(2), x, y0 + CELL_H - 4);
+    }
+  });
+}
+document.querySelectorAll('select,input').forEach(e => e.addEventListener('input', () => render(0)));
+let raf; (function loop(t) { if (document.getElementById('anim').checked) render(t); raf = requestAnimationFrame(loop); })(0);
+render(0); window.__previewDone = true;
+</script>

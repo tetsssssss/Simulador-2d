@@ -6,7 +6,7 @@ import { buildLineup, faceoffSpots, skaterRecord } from './lineup.js';
 import { createRinkRenderer, CAMERAS } from '../rink/rinkRenderer.js';
 import { RINK, MIDY } from '../rink/geometry.js';
 import { photoUrl } from '../photos.js';
-import { getVisualMode, setVisualMode, VISUAL_MODES } from '../../../core/render/avatars.js';
+import { getVisualMode, setVisualMode, VISUAL_MODES, AVATAR_STYLES, getAvatarStyle, setAvatarStyle } from '../../../core/render/avatars.js';
 import { openAvatarEditor, avatarThumb } from '../../../core/ui/avatarEditor.js';
 import { mountFocus } from '../../../core/ui/focusMode.js';
 import { showFinal, hideFinal } from '../../../core/ui/finalOverlay.js';
@@ -21,7 +21,11 @@ import { nhlLinesFromState } from '../career/nhlSpec.js';
 import { createAtmosphere } from '../../../core/presentation/atmosphere.js';
 import { getAudio } from '../../../core/audio/audioEngine.js';
 import { NHL_ATMOSPHERE, nhlStands } from '../presentation/atmosphere.js';
-import { NHL_COMMENTARY } from '../presentation/commentary.js';
+import { mount3dOverlay } from '../../../core/render3d/overlay.js';
+import { attachPinchZoom, ladderStep } from '../../../core/ui/touchZoom.js';
+import { createInstantReplay, mountReplayControls } from '../../../core/ui/instantReplay.js';
+import { commentaryPack } from '../../../core/commentary/packs.js';
+import { getLocale } from '../../../core/i18n/i18n.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]));
 const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private */ } } };
@@ -40,6 +44,7 @@ export function mountMatch(root, deps = {}) {
           <div class="seg" id="camSeg">${Object.entries(CAMERAS).map(([k, c]) => `<button data-cam="${k}" class="${k === pref.camera ? 'on' : ''}">${c.label}</button>`).join('')}</div>
           <span id="ctrlExtra" class="ctrl-extra"></span><span class="grow"></span>
           <label class="chk"><input type="checkbox" id="optNames" ${pref.names ? 'checked' : ''}> Nomes</label>
+          <label class="chk">Estilo <select id="optStyle">${AVATAR_STYLES.map(([k, l]) => `<option value="${k}" ${k === getAvatarStyle() ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk">Visual <select id="optVisual">${VISUAL_MODES.map(([k, l]) => `<option value="${k}" ${k === pref.visual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="chk"><input type="checkbox" id="optDebug"> Rotas/Debug</label>
           <button id="focusBtn" class="primary" title="Só o rinque 2D em tela cheia (F)">⛶ Modo 2D</button>
@@ -106,14 +111,22 @@ export function mountMatch(root, deps = {}) {
     $('#side').innerHTML = ['away', 'home'].map(k => `<div class="panel"><div class="panel-h"><b style="color:${s[k].color === '#111111' ? '#e9f0f7' : 'inherit'}">${esc(s[k].abbr)} · no gelo</b></div>${onIce(k).map(row).join('')}</div>`).join('') + (deps.sidePanels ? deps.sidePanels(s) : '');
   }
 
+  // ---------- instant replay (goals; or the button for the last ~8 s): the engine is paused and a COPY of the state is rendered ----------
+  const replay = createInstantReplay({ adapter: { snap: S => ({ t: S.t, lists: { players: S.players }, objs: { puck: S.puck } }), build: (S, l, o, t) => ({ ...S, players: l.players, puck: o.puck, t }) } });
+  const replayUi = mountReplayControls(root.querySelector('.nhl-ice-wrap'), { onReplay: () => view.state && !view.simming && replay.now(view.state), onSkip: () => replay.skip() });
+  // two-finger pinch = next camera on the ladder (closest -> widest), through the same buttons the user taps
+  const un3d = mount3dOverlay({ canvas, sport: 'nhl', createRenderer: (stage, c3d) => import('../rink/rinkRenderer3d.js').then(m => m.createNhlRenderer3d(stage, { canvas3d: c3d, base: new URL('../../../', import.meta.url).pathname })), onFallback: () => { pref.visual = 'sheet'; setVisualMode('sheet'); const s = $('#optVisual'); if (s) s.value = 'sheet'; } });   // 3D (PlayCanvas) visual mode
+  const unPinch = attachPinchZoom(canvas, s => { const next = ladderStep(['PUCK', 'BROADCAST', 'TACTICAL', 'FULL'], pref.camera, s); root.querySelector(`#camSeg [data-cam="${next}"]`)?.click(); });
   // ---------- frame loop ----------
   function frame(ts) {
     if (view.disposed || !canvas.isConnected) { dispose(); return; }
     const dt = view.last ? Math.min(0.1, (ts - view.last) / 1000) : 0; view.last = ts;
     let alpha = 1;
-    if (view.engine && !view.paused && !view.simming) { alpha = view.engine.advance(dt); view.state = view.engine.state; }
+    if (view.engine && !view.paused && !view.simming && !replay.active) { alpha = view.engine.advance(dt); view.state = view.engine.state; if (!view.simming) replay.record(view.state); }
     if (view.engine && (view.uiT = (view.uiT || 0) + dt) > 0.25) { view.uiT = 0; drawBug(); if ((view.sideT = (view.sideT || 0) + 1) % 4 === 0) drawSide(); }
-    if (view.state) renderer.render(view.state, alpha, { camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    const rp = view.state && !view.simming ? replay.step(dt, view.state) : null; replayUi.sync(!!rp, !!view.state && !view.simming);
+    if (view.state) renderer.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, showNames: pref.names, visual: pref.visual, debug: pref.debug, selected: view.selected, drawDebug: deps.drawDebug });
+    if (view.state) un3d.render(rp ? rp.state : view.state, rp ? rp.alpha : alpha, { replay: !!rp, camera: pref.camera, selected: view.selected });   // 3D mode (no-op otherwise)
     if (view.state?.players && !view.paused) { let v = 0, n = 0; for (const q of view.state.players) { if (q.onBench || q.goalie) continue; v += Math.hypot(q.vx || 0, q.vy || 0); n++; } audio.setBedLevel('skates', n ? Math.min(1, v / n / 24) : 0); } else audio.setBedLevel('skates', 0);
     drainEvents();
     pres.engine?.tick(dt);
@@ -127,13 +140,14 @@ export function mountMatch(root, deps = {}) {
   $('#controls').addEventListener('click', e => { if (e.target.closest('button')) audio.play('uiTick', { category: 'UI' }); });
   $('#camSeg').onclick = e => { const k = e.target.dataset.cam; if (!k) return; pref.camera = k; store.set('asu_nhl_cam', k); root.querySelectorAll('#camSeg button').forEach(b => b.classList.toggle('on', b.dataset.cam === k)); };
   $('#optNames').onchange = e => { pref.names = e.target.checked; store.set('asu_nhl_names', pref.names ? '1' : '0'); };
+  $('#optStyle').onchange = e => { setAvatarStyle(e.target.value); };
   $('#optVisual').onchange = e => { pref.visual = e.target.value; setVisualMode(pref.visual); };
   const unfocus = mountFocus(root.querySelector('.nhl-match'), { button: $('#focusBtn') });
   $('#optDebug').onchange = e => { pref.debug = e.target.checked; };
   $('#homeSel').onchange = e => { pref.home = e.target.value; store.set('asu_nhl_home', pref.home); restart(); };
   $('#awaySel').onchange = e => { pref.away = e.target.value; store.set('asu_nhl_away', pref.away); restart(); };
   canvas.addEventListener('click', ev => {
-    const r = canvas.getBoundingClientRect(); const p = renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
+    const r = canvas.getBoundingClientRect(); const p = un3d.active ? un3d.pick(ev.clientX - r.left, ev.clientY - r.top) : renderer.pick(ev.clientX - r.left, ev.clientY - r.top);
     view.selected = p && view.selected !== p.id ? p.id : null;
     const el = $('#pcard');
     if (!view.selected) { el.classList.remove('show'); return; }
@@ -150,7 +164,7 @@ export function mountMatch(root, deps = {}) {
     const s0 = view.state;
     stands.cur = s0 ? nhlStands({ home: s0.home.abbr, away: s0.away.abbr, homeColor: s0.home.color, awayColor: s0.away.color }) : null;
     pres.atmosphere = createAtmosphere({ rules: NHL_ATMOSPHERE, audio, crowd: stands });
-    pres.comm = createCommentary({ pack: NHL_COMMENTARY, seed });
+    pres.comm = createCommentary({ pack: commentaryPack('nhl', getLocale()), seed });
     pres.engine = createPresentation({ sport: 'nhl', listeners: [pres.comm, pres.atmosphere] });
     if (deps.commentaryCtx && s0) pres.atmosphere.refreshBaseline(deps.commentaryCtx(s0));
     pres.unmount = mountCommentaryPanel($('#liveComm'), pres.comm, { sport: 'nhl', voiceVolume: () => audio.volume('COMMENTARY') });
@@ -177,7 +191,7 @@ export function mountMatch(root, deps = {}) {
     if (pres.idx > ev.length) pres.idx = 0;
     if (pres.idx === ev.length) return;
     const ctx = deps.commentaryCtx ? deps.commentaryCtx(s) : {};
-    while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); }
+    while (pres.idx < ev.length) { const e = ev[pres.idx++]; pres.engine.emit(e, ctx); deps.onEvent?.(e, s, view); if (e.type === 'GOAL' && !view.simming) replay.trigger(s); }
   }
   function showFinalCard() {
     view.finalShown = true; const wrap = root.querySelector('.nhl-ice-wrap'); if (!wrap) return;
@@ -201,7 +215,7 @@ export function mountMatch(root, deps = {}) {
 
   function dispose() {
     if (view.disposed) return;
-    view.disposed = true; audio.setBedLevel('skates', 0); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
+    view.disposed = true; un3d?.(); unPinch?.(); replayUi.dispose(); audio.setBedLevel('skates', 0); unfocus?.(); cancelAnimationFrame(view.raf); renderer.dispose(); view.engine?.dispose?.(); pres.unmount?.(); pres.engine?.dispose(); pres.unControls?.();
     window.__nhlLoops = Math.max(0, (window.__nhlLoops || 1) - 1);
   }
   window.__nhlLoops = (window.__nhlLoops || 0) + 1;
