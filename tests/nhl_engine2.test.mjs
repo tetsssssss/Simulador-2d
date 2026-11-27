@@ -176,7 +176,7 @@ test('nhl: late goalie pull — only when trailing late in the 3rd, sixth attack
   let pulls = 0, ret = 0, en = 0, seen6 = false;
   for (const { S } of batch().games) {
     for (const ev of S.events) {
-      if (ev.type === 'GOALIE_PULLED') { pulls++; assert.equal(ev.period, 3); assert.ok(ev.clock <= 95, `pulled with ${ev.clock}s left`); }
+      if (ev.type === 'GOALIE_PULLED') { pulls++; assert.equal(ev.period, 3); assert.ok(ev.clock <= 120, `pulled with ${ev.clock}s left`); }
       if (ev.type === 'GOALIE_RETURNS') ret++;
       if (ev.type === 'GOAL' && ev.strength === 'EN') en++;
     }

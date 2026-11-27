@@ -72,7 +72,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
   const skaters = side => (skCache ||= { home: S.players.filter(p => p.team === 'home' && !p.goalie), away: S.players.filter(p => p.team === 'away' && !p.goalie) })[side];
   const allowed = side => S.period >= 4 ? 3 : Math.max(3, 5 - T[side].box.length);
 
-  const PULL_T1 = 95, PULL_T2 = 55;   // seconds left in the 3rd period (tuned against the real ~23 % of games that reach OT / SO)
+  const PULL_T1 = 120, PULL_T2 = 70, PULL_BOOST = 2.2;   // seconds left in the 3rd period (tuned against the real ~23 % of games that reach OT / SO)
   // ---------- on-ice personnel ----------
   function assemble(side, keepIds = null) {
     const t = T[side], L = t.lines[t.line], Pr = t.pairs[t.pair], n = allowed(side);
@@ -469,7 +469,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     if (u > BLUE_U - 2 && S.t > c.cd) {
       const angle = Math.abs(Math.atan2(c.y - MIDY, Math.abs(net.x - c.x)));
       const q = (dNet < 15 ? 1 : dNet < 30 ? 0.75 : dNet < 50 ? 0.4 : 0.15) * (angle > 1.15 ? 0.25 : 1) * (0.7 + 0.5 * c.R.offIQ);
-      const want = q * (0.30 + 0.35 * pressure) + (T[side].breakaway && dNet < 22 ? 0.6 : 0);
+      const want = (q * (0.30 + 0.35 * pressure) + (T[side].breakaway && dNet < 22 ? 0.6 : 0)) * (T[side].pulled ? PULL_BOOST : 1);
       if (rng.next() < want * 0.07) { shoot(c, S.t - (c.gotAt || 0) < 0.35 && touches.length > 1); return; }
     }
     // passing
@@ -808,7 +808,7 @@ export function createHockeyEngine({ home, away, seed = 'nhl', periodLength = 12
     }
     if (slow) for (const r of rosterList) if (r.onBench) r.energy = Math.min(1, r.energy + 0.02 * bdt);
   }
-  // Late-game goalie pull (real hockey): trailing by 1 with <= 95 s left, or by 2 with <= 55 s, and no own penalty -> sixth attacker, empty net;
+  // Late-game goalie pull (real hockey): trailing by 1 with <= 120 s left, or by 2 with <= 55 s, and no own penalty -> sixth attacker, empty net;
   // the goalie returns when the game is tied / the team leads. This is what makes one-goal games end level (and empty-net goals) at the real rate.
   function maybePull(atFaceoff = false) {   // the pull happens at a faceoff (stoppage: the extra attacker jumps on cleanly); the goalie may return any time
     for (const side of ['home', 'away']) {
