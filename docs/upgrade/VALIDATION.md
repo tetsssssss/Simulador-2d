@@ -30,3 +30,9 @@ fps em GPU real e no celular; save antigo real do usuário (só fixtures sintét
 
 ## Reversão
 Cada etapa é um commit separado na branch `ccr-1d32cd32-jtupys` (`git revert <hash>`). `tieBoost` pode ser removido do `nhlSpec` sem afetar saves.
+
+## Fechamento (2026-11-27)
+- **MLB 3D:** dugouts (1B/3B) e bullpens (nas linhas) como estruturas (`diamondScene.js`); sem reservas dentro (backlog). Captura `09_depois_mlb3d_dugout.png`.
+- **Atletas HD:** ponta da manga fechada (`athlete_hd.py`); o "pelo" branco no punho diminuiu mas não sumiu por completo.
+- **Motor de partida NHL (medido, 240 jogos, 4 duplas):** além do 3º período **14,6 %** (shootout 6,7 %), gols/jogo 6,37. A medida anterior de 7 % (60 jogos, 1 dupla) era amostra pequena. Real ≈ 23 % / ≈ 6,1: o motor fica abaixo em prorrogação. **Não alterei o motor** (mudaria o resultado das partidas 2D); backlog.
+- Revalidação: unitários 232/232; mlb3d 5/5, budget3d 10/10, athletes3d 5/5, nfl3d 7/7, nhl3d 5/5, fullhd3d 10/10.
